@@ -120,6 +120,26 @@ try {
         'classes.dex',
         [System.IO.Compression.CompressionLevel]::Optimal
     ) | Out-Null
+
+    # AAPT2 normally copies -A content under assets/. Some Windows builds have
+    # produced or preserved unexpected ZIP entry paths during post-processing,
+    # so ensure every web asset also has a canonical forward-slash entry.
+    $injectedAssetCount = 0
+    $webAssetFiles = @(Get-ChildItem -LiteralPath $assetsDir -File -Recurse)
+    foreach ($assetFile in $webAssetFiles) {
+        $relativeAssetPath = [System.IO.Path]::GetRelativePath($assetsDir, $assetFile.FullName).Replace('\', '/')
+        $apkEntryPath = "assets/$relativeAssetPath"
+        if ($null -eq $apkArchive.GetEntry($apkEntryPath)) {
+            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                $apkArchive,
+                $assetFile.FullName,
+                $apkEntryPath,
+                [System.IO.Compression.CompressionLevel]::Optimal
+            ) | Out-Null
+            $injectedAssetCount++
+        }
+    }
+    Write-Host "Canonical web asset entries added during assembly: $injectedAssetCount"
 }
 finally {
     $apkArchive.Dispose()
@@ -144,10 +164,11 @@ if ($LASTEXITCODE -ne 0) { throw "apksigner verify failed with exit code $LASTEX
 $requiredEntries = @('AndroidManifest.xml', 'classes.dex', 'resources.arsc', 'assets/www/index.html')
 $verifyArchive = [System.IO.Compression.ZipFile]::OpenRead($signedApk)
 try {
-    $entryNames = @($verifyArchive.Entries | ForEach-Object FullName)
+    $entryNames = @($verifyArchive.Entries | ForEach-Object { $_.FullName.Replace('\', '/') })
     foreach ($requiredEntry in $requiredEntries) {
         if ($requiredEntry -notin $entryNames) {
-            throw "Signed APK is missing required entry: $requiredEntry"
+            $entryPreview = (($entryNames | Sort-Object | Select-Object -First 30) -join ', ')
+            throw "Signed APK is missing required entry: $requiredEntry. First APK entries: $entryPreview"
         }
     }
 }
