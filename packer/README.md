@@ -1,4 +1,4 @@
-# Packer CLI 与 GUI（M5）
+# Packer CLI 与 GUI（M6）
 
 Packer 是 Windows C++17 程序。它读取 `project.json`，动态生成 Manifest、资源和 Runtime 配置，通过锁定版本的 AAPT2 生成资源 APK，在内部注入预编译 Runtime DEX，执行 `zipalign` 后使用 Package 独立身份签名并验证 APK。
 
@@ -46,11 +46,13 @@ certificate.pem  X.509 自签名证书
 metadata.json    Package、证书 SHA-256 与创建时间
 ```
 
-私钥仅在调用 `apksigner` 时解密到隔离工作目录，签名结束后立即覆盖删除。相同 Package 会复用同一证书，不同 Package 不共享私钥。每次构建同时输出 `<APK>.sha256`。
+私钥仅在调用 `apksigner` 时解密到隔离工作目录，签名结束后立即覆盖删除。相同 Package 会复用同一证书，不同 Package 不共享私钥。
+
+未在 `project.json` 中设置 `outputFile` 时，默认 APK 文件名为 `<AppName>-<Version>-android.apk`。每次构建同时输出 `<APK>.sha256`、`<APK名称>.release.json` 和 `<APK名称>-RELEASE.md`。发行元数据包含应用版本、APK 与证书 SHA-256、Runtime/Toolchain 版本和 UTC 构建时间。
 
 `signing info` 只读取已有身份，不会自动创建新密钥。`signing export` 会在控制台关闭回显后要求输入并确认至少 8 个字符的密码，生成包含证书和私钥的标准 PKCS#12 备份；密码不会进入命令行或日志。目标文件已存在时命令会拒绝覆盖。请把备份和密码分开保管，丢失签名身份后将无法发布可覆盖安装的更新。
 
-GitHub Actions 使用统一的 `lw.Web2Android CI` workflow。CLI、GUI、Runtime Bundle、M0 APK、M5 local/remote 签名 APK 和总校验文件会合并到单个 `lw-Web2Android-m5` Artifact 中。M5 GUI 开发版读取 `ANDROID_SDK_ROOT` 与 `JAVA_HOME`；官方组件下载和许可确认将在 M6 完成。
+GitHub Actions 使用统一的 `lw.Web2Android CI` workflow。CLI、GUI、Runtime Bundle、M0 APK、M6 local/remote 签名 APK、发行元数据和总校验文件会合并到单个 `lw-Web2Android-v0.1.0-windows-x64` Artifact 中。推送 `v*` 标签会在全部验证通过后发布同名 ZIP 与 SHA-256 文件。GUI 读取 `ANDROID_SDK_ROOT` 与 `JAVA_HOME`；发行包不重新分发 Android SDK。
 
 ## project.json
 

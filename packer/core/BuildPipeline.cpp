@@ -5,6 +5,7 @@
 #include "core/Hash.h"
 #include "core/ProcessRunner.h"
 #include "core/ProjectValidator.h"
+#include "core/ReleaseMetadata.h"
 #include "core/SigningKeyManager.h"
 #include "core/Toolchain.h"
 
@@ -152,10 +153,6 @@ std::filesystem::path CreateWorkspace() {
     return path;
 }
 
-std::string DefaultOutputFile(const ProjectConfig& config) {
-    return config.packageName + "-" + config.versionName + "-android.apk";
-}
-
 void LogStep(const BuildOptions& options, int number, const char* name) {
     std::cout << '[' << number << "/15] " << name << std::endl;
     if (options.progress) options.progress(number, 15, name);
@@ -246,21 +243,41 @@ BuildResult BuildPipeline::Build(const ProjectConfig& config, const BuildOptions
     LogStep(options, 13, "Verify APK signature");
     ApkSignerRunner::Verify(toolchain.java, toolchain.apksignerJar, signedApk);
 
-    LogStep(options, 14, "Publish signed APK");
-    const auto outputName = config.outputFile.empty() ? DefaultOutputFile(config) : config.outputFile;
+    LogStep(options, 14, "Publish APK and release metadata");
+    const auto outputName = config.outputFile.empty() ? lw::web2android::DefaultApkFileName(config) : config.outputFile;
     const auto outputApk = config.outputDirectory / std::filesystem::u8path(outputName);
     PublishOutput(signedApk, outputApk);
     const auto apkSha256 = Sha256File(outputApk);
     WriteTextFile(std::filesystem::path(outputApk.wstring() + L".sha256"),
                   apkSha256 + "  " + outputApk.filename().u8string() + "\n");
+    const auto releaseStem = outputApk.parent_path() / outputApk.stem();
+    const auto releaseJson = std::filesystem::path(releaseStem.wstring() + L".release.json");
+    const auto releaseMarkdown = std::filesystem::path(releaseStem.wstring() + L"-RELEASE.md");
+    const ReleaseMetadata metadata{1,
+                                   config.name,
+                                   config.packageName,
+                                   config.versionName,
+                                   config.versionCode,
+                                   outputApk.filename().u8string(),
+                                   apkSha256,
+                                   identity.certificateSha256,
+                                   lock.runtimeVersion,
+                                   lock.toolchainVersion,
+                                   CurrentUtcTimestamp()};
+    WriteTextFile(releaseJson, metadata.ToJson());
+    WriteTextFile(releaseMarkdown, metadata.ToMarkdown());
 
     LogStep(options, 15, "Complete");
     std::cout << "Signed APK: " << outputApk.u8string() << std::endl;
     std::cout << "APK SHA-256: " << apkSha256 << std::endl;
     std::cout << "Certificate SHA-256: " << identity.certificateSha256 << std::endl;
     if (options.keepWorkingDirectory) std::cout << "Workspace: " << workspace.u8string() << std::endl;
-    return BuildResult{outputApk, options.keepWorkingDirectory ? workspace : std::filesystem::path{},
-                       identity.certificateSha256, apkSha256};
+    return BuildResult{outputApk,
+                       releaseJson,
+                       releaseMarkdown,
+                       options.keepWorkingDirectory ? workspace : std::filesystem::path{},
+                       identity.certificateSha256,
+                       apkSha256};
 }
 
 }  // namespace lw::web2android

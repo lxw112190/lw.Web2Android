@@ -10,8 +10,7 @@
   "fullscreen": false,
   "orientation": "auto",
   "allowHttp": false,
-  "output": "../../build/m5",
-  "outputFile": "hello-1.0.0-android.apk",
+  "output": "../../build/m6",
   "runtime": "../../runtime-dist/runtime-v1",
   "toolchainLock": "../../toolchain.lock.json"
 }

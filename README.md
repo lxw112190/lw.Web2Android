@@ -4,7 +4,7 @@
 
 ## 当前进度
 
-M0 架构验证、M1 Runtime Bundle、M2 C++17 Packer CLI、M3 自动签名和 M4 完整 CLI 均已通过 CI。项目当前进入 **M5：原生 Windows GUI**。
+M0 架构验证、M1 Runtime Bundle、M2 C++17 Packer CLI、M3 自动签名、M4 完整 CLI 和 M5 原生 Windows GUI 均已通过 CI。项目当前进入 **M6：Release**。
 
 M0 最小流水线会：
 
@@ -18,10 +18,10 @@ M0 使用一次性的测试签名，仅用于验证 APK 组装路线。正式流
 
 ## 在 GitHub Actions 中验证
 
-推送代码或手动运行唯一的 **lw.Web2Android CI** workflow。Runtime、M0、Packer、GUI 和签名集成全部成功后，只会上传一个 `lw-Web2Android-m5` Artifact：
+推送代码或手动运行唯一的 **lw.Web2Android CI** workflow。Runtime、M0、Packer、GUI、签名和发行元数据验证全部成功后，只会上传一个 `lw-Web2Android-v0.1.0-windows-x64` Artifact：
 
 ```text
-lw-Web2Android-m5/
+lw-Web2Android-v0.1.0-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.exe
 │   └── lw.Web2Android.GUI.exe
@@ -34,17 +34,20 @@ lw-Web2Android-m5/
 │   ├── m0/
 │   │   ├── sample-debug.apk
 │   │   └── sample-debug.apk.sha256
-│   └── m5/
-│       ├── hello-1.0.0-android.apk
-│       ├── hello-1.0.0-android.apk.sha256
-│       ├── remote-1.0.0-android.apk
-│       └── remote-1.0.0-android.apk.sha256
+│   └── m6/
+│       ├── lw-Web2Android-Hello-1.0.0-android.apk
+│       ├── lw-Web2Android-Hello-1.0.0-android.apk.sha256
+│       ├── lw-Web2Android-Hello-1.0.0-android.release.json
+│       ├── lw-Web2Android-Hello-1.0.0-android-RELEASE.md
+│       └── ...Remote 对应文件
 ├── docs/
 ├── toolchain.lock.json
+├── release.json
+├── RELEASE.md
 └── SHA256SUMS.txt
 ```
 
-下载一次即可取得本轮 CI 的全部产物。M0 APK 安装后应显示 `Hello lw.Web2Android`，M5 样例则用于验证正式 Packer 的 local/remote、签名与升级身份路线。
+下载一次即可取得本轮 CI 的全部产物。M0 APK 安装后应显示 `Hello lw.Web2Android`，M6 样例用于验证正式 Packer 的 local/remote、签名、升级身份和发行追溯路线。
 
 统一 CI 会缓存 `toolchain.lock.json` 指定的 Android Platform、Build Tools、Gradle 依赖与 Gradle Build Cache。签名身份、APK、Runtime 最终产物及完整构建目录不会进入缓存。
 
@@ -81,7 +84,26 @@ GUI 支持本地网页目录和远程 HTTPS 地址，可设置应用名称、Pac
 bin\lw.Web2Android.GUI.exe
 ```
 
-M5 开发版仍从 `ANDROID_SDK_ROOT` 和 `JAVA_HOME` 读取构建工具；本项目本机开发无需安装 Android SDK，完整 APK 由 CI 验证。面向最终用户的官方工具链首次下载、许可确认与精简 Java Runtime 管理属于 M6，当前产物不会擅自捆绑 Google Android SDK。
+当前 GUI 从 `ANDROID_SDK_ROOT` 和 `JAVA_HOME` 读取构建工具；本项目本机开发无需安装 Android SDK，完整 APK 由 CI 验证。发行包不会擅自捆绑或重新分发 Google Android SDK；后续面向最终用户的官方源下载流程必须先完成组件许可确认。
+
+## M6 发行与版本追溯
+
+未设置 `outputFile` 时，Packer 使用 `<AppName>-<Version>-android.apk` 标准文件名，并过滤 Windows 禁止字符。每次成功构建会同时生成：
+
+```text
+<APK>.sha256
+<APK名称>.release.json
+<APK名称>-RELEASE.md
+```
+
+发行元数据记录 App Name、Package Name、Version Name/Code、APK SHA-256、签名证书 SHA-256、Runtime Version、Toolchain Version 和 UTC 构建时间。CI 会独立核对这些值与实际 APK、`toolchain.lock.json` 是否一致。
+
+`v*` 标签在完整构建通过后会自动创建 GitHub Release，上传 `lw-Web2Android-v0.1.0-windows-x64.zip` 及其 SHA-256 文件。建议先让 `main` 分支 CI 成功，再创建并推送标签：
+
+```bash
+git tag -a v0.1.0 -m "lw.Web2Android v0.1.0"
+git push origin v0.1.0
+```
 
 ## Packer CLI、自动签名与身份备份
 
@@ -94,7 +116,8 @@ Windows C++17 Core 当前流水线负责：
 5. 用 `zipalign` 生成并验证 aligned APK；
 6. 为每个 Package Name 创建或复用独立的 RSA 3072 签名身份；
 7. 使用 Windows DPAPI 保存加密后的 PKCS#8 私钥；
-8. 使用 `apksigner` 签名、验证并生成 APK SHA-256。
+8. 使用 `apksigner` 签名、验证并生成 APK SHA-256；
+9. 生成 JSON 与 Markdown 发行元数据。
 
 构建和命令行用法参见 `packer/README.md`。统一 CI 依次完成 Runtime 编译、M0 验证、Packer 单元测试、local/remote 正式签名 APK 集成验证，最后打包成一个下载项。
 

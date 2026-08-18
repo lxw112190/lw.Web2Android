@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+env:
+  PRODUCT_VERSION: '0.1.0'
+  PACKAGE_NAME: lw-Web2Android-v0.1.0-windows-x64
+
 jobs:
   build-test-package:
     name: Build, test and package all components
@@ -126,8 +130,8 @@ jobs:
           $zipalign = Join-Path $env:ANDROID_SDK_ROOT "build-tools/$($lock.buildToolsVersion)/zipalign.exe"
           $apksigner = Join-Path $env:ANDROID_SDK_ROOT "build-tools/$($lock.buildToolsVersion)/lib/apksigner.jar"
           $expectations = @{
-            'build/m5/hello-1.0.0-android.apk' = @('classes.dex', 'assets/lw-config.json', 'assets/www/index.html')
-            'build/m5/remote-1.0.0-android.apk' = @('classes.dex', 'assets/lw-config.json')
+            'build/m6/lw-Web2Android-Hello-1.0.0-android.apk' = @('classes.dex', 'assets/lw-config.json', 'assets/www/index.html')
+            'build/m6/lw-Web2Android-Remote-1.0.0-android.apk' = @('classes.dex', 'assets/lw-config.json')
           }
 
           foreach ($apk in $expectations.Keys) {
@@ -152,6 +156,19 @@ jobs:
             $expectedHash = (Get-Content -Raw "$apk.sha256").Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries)[0]
             $actualHash = (Get-FileHash $apk -Algorithm SHA256).Hash.ToLowerInvariant()
             if ($expectedHash -ne $actualHash) { throw "$apk SHA-256 sidecar does not match" }
+
+            $releaseJsonPath = [System.IO.Path]::ChangeExtension($apk, 'release.json')
+            $releaseMarkdownPath = [System.IO.Path]::ChangeExtension($apk, $null) + '-RELEASE.md'
+            if (-not (Test-Path -LiteralPath $releaseJsonPath) -or -not (Test-Path -LiteralPath $releaseMarkdownPath)) {
+              throw "$apk is missing release metadata"
+            }
+            $release = Get-Content -Raw -LiteralPath $releaseJsonPath | ConvertFrom-Json
+            if ($release.apkSha256 -ne $actualHash -or $release.certificateSha256 -notmatch '^[0-9a-f]{64}$') {
+              throw "$apk contains invalid release identity metadata"
+            }
+            if ($release.runtimeVersion -ne $lock.runtimeVersion -or $release.toolchainVersion -ne $lock.toolchainVersion) {
+              throw "$apk release metadata does not match toolchain.lock.json"
+            }
           }
 
           if (Get-ChildItem build -Recurse -Filter '*.pk8' -File) {
@@ -161,12 +178,12 @@ jobs:
       - name: Assemble unified download package
         shell: pwsh
         run: |
-          $package = 'build/ci-package/lw-Web2Android-m5'
+          $package = "build/ci-package/$env:PACKAGE_NAME"
           $directories = @(
             "$package/bin",
             "$package/runtime",
             "$package/samples/m0",
-            "$package/samples/m5",
+            "$package/samples/m6",
             "$package/docs/assets"
           )
           New-Item -ItemType Directory -Force -Path $directories | Out-Null
@@ -177,10 +194,11 @@ jobs:
           Copy-Item build/ci-runtime "$package/runtime/runtime-v1" -Recurse
           Copy-Item toolchain.lock.json "$package/"
           Copy-Item build/m0/out/sample-debug.apk,build/m0/out/sample-debug.apk.sha256 "$package/samples/m0/"
-          Copy-Item build/m5/*-android.apk,build/m5/*-android.apk.sha256 "$package/samples/m5/"
+          Copy-Item build/m6/*-android.apk,build/m6/*-android.apk.sha256,build/m6/*.release.json,build/m6/*-RELEASE.md "$package/samples/m6/"
           Copy-Item README.md "$package/docs/README.md"
           Copy-Item packer/README.md "$package/docs/PACKER.md"
           Copy-Item assets/sponsor.jpg "$package/docs/assets/"
+          ./tools/write-distribution-metadata.ps1 -PackageDirectory $package -Version $env:PRODUCT_VERSION -Commit $env:GITHUB_SHA
 
           $root = (Resolve-Path $package).Path
           $checksums = Get-ChildItem -LiteralPath $root -Recurse -File |
@@ -195,7 +213,50 @@ jobs:
       - name: Upload unified CI package
         uses: actions/upload-artifact@v4
         with:
-          name: lw-Web2Android-m5
+          name: ${{ env.PACKAGE_NAME }}
           path: build/ci-package
           if-no-files-found: error
           retention-days: 14
+
+  publish-release:
+    name: Publish tagged GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-test-package
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout release metadata
+        uses: actions/checkout@v6
+
+      - name: Download verified package
+        uses: actions/download-artifact@v5
+        with:
+          name: ${{ env.PACKAGE_NAME }}
+          path: build/release-download
+
+      - name: Create release archive and checksum
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_NAME -ne "v$env:PRODUCT_VERSION") {
+            throw "Tag $env:GITHUB_REF_NAME does not match product version v$env:PRODUCT_VERSION"
+          }
+          $source = "build/release-download/$env:PACKAGE_NAME"
+          if (-not (Test-Path -LiteralPath "$source/RELEASE.md")) { throw 'Verified release package was not found' }
+          $archive = "build/$env:PACKAGE_NAME.zip"
+          Compress-Archive -LiteralPath $source -DestinationPath $archive -CompressionLevel Optimal
+          $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $env:PACKAGE_NAME.zip" | Set-Content -LiteralPath "$archive.sha256" -Encoding ascii
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$env:GITHUB_REF_NAME" `
+            "build/$env:PACKAGE_NAME.zip" `
+            "build/$env:PACKAGE_NAME.zip.sha256" `
+            --verify-tag `
+            --title "lw.Web2Android $env:GITHUB_REF_NAME" `
+            --notes-file "build/release-download/$env:PACKAGE_NAME/RELEASE.md"

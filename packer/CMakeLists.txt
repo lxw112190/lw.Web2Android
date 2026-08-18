@@ -11,6 +11,7 @@ add_library(lw_packer_core
     core/ProcessRunner.cpp
     core/ProjectConfig.cpp
     core/ProjectValidator.cpp
+    core/ReleaseMetadata.cpp
     core/SigningKeyManager.cpp
     core/Toolchain.cpp
 )
@@ -24,7 +25,7 @@ if(WIN32)
 endif()
 
 if(MSVC)
-    target_compile_options(lw_packer_core PRIVATE /W4 /permissive- /utf-8)
+    target_compile_options(lw_packer_core PRIVATE /W4 /permissive- /utf-8 /EHsc)
 endif()
 
 add_executable(lw.Web2Android main.cpp)
@@ -43,10 +44,10 @@ if(WIN32)
 endif()
 
 if(MSVC)
-    target_compile_options(lw.Web2Android PRIVATE /W4 /permissive- /utf-8)
-    target_compile_options(lw_packer_gui_model PRIVATE /W4 /permissive- /utf-8)
+    target_compile_options(lw.Web2Android PRIVATE /W4 /permissive- /utf-8 /EHsc)
+    target_compile_options(lw_packer_gui_model PRIVATE /W4 /permissive- /utf-8 /EHsc)
     if(WIN32)
-        target_compile_options(lw.Web2Android.GUI PRIVATE /W4 /permissive- /utf-8)
+        target_compile_options(lw.Web2Android.GUI PRIVATE /W4 /permissive- /utf-8 /EHsc)
     endif()
 endif()
 
@@ -56,7 +57,7 @@ if(BUILD_TESTING)
     target_link_libraries(lw_packer_tests PRIVATE lw_packer_gui_model)
     target_compile_definitions(lw_packer_tests PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE)
     if(MSVC)
-        target_compile_options(lw_packer_tests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_options(lw_packer_tests PRIVATE /W4 /permissive- /utf-8 /EHsc)
     endif()
     add_test(NAME lw_packer_tests COMMAND lw_packer_tests)
 endif()

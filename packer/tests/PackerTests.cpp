@@ -3,6 +3,7 @@
 #include "core/Hash.h"
 #include "core/ProjectConfig.h"
 #include "core/ProjectValidator.h"
+#include "core/ReleaseMetadata.h"
 #include "core/SigningKeyManager.h"
 #include "gui/GuiProjectModel.h"
 
@@ -249,6 +250,37 @@ void TestSha256(const std::filesystem::path& root) {
             "SHA-256 must match the standard abc test vector");
 }
 
+void TestReleaseMetadata() {
+    lw::web2android::ProjectConfig config;
+    config.name = "Demo: 中文 / Web";
+    config.versionName = "1.2.3 beta";
+    Require(lw::web2android::DefaultApkFileName(config) == "Demo-中文-Web-1.2.3-beta-android.apk",
+            "default APK filename must use a portable app name and version");
+    Require(lw::web2android::MakeReleaseFileStem("CON", "1.0") == "_CON-1.0",
+            "Windows reserved device names must be escaped");
+
+    const lw::web2android::ReleaseMetadata metadata{1,
+                                                    "Demo | Web",
+                                                    "com.example.demo",
+                                                    "1.2.3",
+                                                    12,
+                                                    "Demo-1.2.3-android.apk",
+                                                    std::string(64, 'a'),
+                                                    std::string(64, 'b'),
+                                                    "1",
+                                                    "m6-1",
+                                                    "2026-08-18T01:02:03Z"};
+    const auto json = metadata.ToJson();
+    Require(json.find("\"toolchainVersion\": \"m6-1\"") != std::string::npos,
+            "release JSON must record the toolchain version");
+    Require(json.find("\"apkSha256\": \"" + std::string(64, 'a') + "\"") != std::string::npos,
+            "release JSON must record the APK digest");
+    const auto markdown = metadata.ToMarkdown();
+    Require(markdown.find("Demo \\| Web") != std::string::npos, "release Markdown must escape table cells");
+    Require(markdown.find("2026-08-18T01:02:03Z") != std::string::npos,
+            "release Markdown must record the UTC build time");
+}
+
 }  // namespace
 
 int main() {
@@ -259,6 +291,7 @@ int main() {
         TestGuiProjectModel(temporary.path);
         TestSigningIdentity(temporary.path);
         TestSha256(temporary.path);
+        TestReleaseMetadata();
         std::cout << "All Packer tests passed" << std::endl;
         return 0;
     } catch (const std::exception& error) {

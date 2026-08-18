@@ -385,7 +385,7 @@ void BuildInterface(State& state) {
     AddButton(state, L"选择位置", 610, 621, 102, 34, kBrowseOutput);
     AddLabel(state, L"签名：按 Package Name 自动创建或复用独立身份，可在 CLI 中导出 PFX 备份",
              48, 674, 650, 24, 0, FontRole::Small);
-    AddLabel(state, L"工具链：开发版读取 ANDROID_SDK_ROOT / JAVA_HOME；正式下载管理将在 M6 完成",
+    AddLabel(state, L"工具链：读取 ANDROID_SDK_ROOT / JAVA_HOME；发行包不内置 Android SDK",
              48, 702, 650, 24, 0, FontRole::Small);
 
     AddButton(state, L"生成 Android APK", 48, 755, 664, 48, kBuild);

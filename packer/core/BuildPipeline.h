@@ -19,6 +19,8 @@ struct BuildOptions {
 
 struct BuildResult {
     std::filesystem::path apk;
+    std::filesystem::path releaseJson;
+    std::filesystem::path releaseMarkdown;
     std::filesystem::path workingDirectory;
     std::string certificateSha256;
     std::string apkSha256;
