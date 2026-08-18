@@ -40,7 +40,10 @@ try {
     }
 
     $materialResourceEntries = @($archive.Entries |
-        Where-Object { $_.FullName.Replace('\', '/') -like 'res/*' })
+        Where-Object {
+            $normalizedName = $_.FullName.Replace('\', '/')
+            $normalizedName -like 'res/*' -and -not $normalizedName.EndsWith('/')
+        })
     if ($materialResourceEntries.Count -gt 0) {
         $resourcePreview = (($materialResourceEntries.FullName | Select-Object -First 20) -join ', ')
         throw "Runtime currently requires APK resources, but runtime-res packaging is not implemented: $resourcePreview"
@@ -100,4 +103,3 @@ Compress-Archive -LiteralPath $bundleFiles -DestinationPath $bundleZip -Compress
 
 Write-Host "Runtime bundle created: $bundleZip"
 Write-Host "DEX files: $($dexFiles.Count)"
-

@@ -2,6 +2,8 @@
 
 本目录是 `lw.Web2Android` 的固定 Java Runtime。它由 CI 编译、R8 精简并提取为可重复注入最终 APK 的 `classes.dex`。
 
+Release 构建同时启用 R8 代码收缩与优化资源收缩。AndroidX Core 携带但 Runtime 未使用的通知资源会在生成 Bundle 前移除；打包脚本仍会拒绝任何剩余的真实 `res/` 文件，确保当前 Runtime 不暗中依赖动态 APK 的资源表。
+
 ## 当前能力（M1）
 
 - `WebViewAssetLoader` 本地 HTTPS 风格 URL；
@@ -30,4 +32,3 @@ pwsh ./tools/package-runtime.ps1
 ```text
 build/runtime-dist/runtime-v1.zip
 ```
-

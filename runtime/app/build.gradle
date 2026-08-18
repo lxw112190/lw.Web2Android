@@ -17,7 +17,9 @@ android {
     buildTypes {
         release {
             minifyEnabled true
-            shrinkResources false
+            // AndroidX Core carries notification resources that this Runtime never uses.
+            // Couple resource shrinking with R8 so the reusable bundle remains DEX-only.
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -42,4 +44,3 @@ android {
 dependencies {
     implementation 'androidx.webkit:webkit:1.15.0'
 }
-
