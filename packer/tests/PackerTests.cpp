@@ -4,6 +4,7 @@
 #include "core/ProjectConfig.h"
 #include "core/ProjectValidator.h"
 #include "core/SigningKeyManager.h"
+#include "gui/GuiProjectModel.h"
 
 #include <algorithm>
 #include <chrono>
@@ -137,6 +138,40 @@ void TestZipAssembler(const std::filesystem::path& root) {
     Require(duplicateRejected, "duplicate DEX must be rejected");
 }
 
+void TestGuiProjectModel(const std::filesystem::path& root) {
+    const auto runtime = root / "runtime" / "runtime-v1";
+    std::filesystem::create_directories(runtime);
+    const auto environment = lw::web2android::gui::GuiEnvironment::Discover(
+        root / "bin" / "lw.Web2Android.GUI.exe", root / "unrelated");
+    Require(environment.applicationRoot == root, "GUI must discover its packaged application root");
+    Require(environment.runtimeDirectory == runtime, "GUI must prefer the packaged Runtime Bundle");
+
+    lw::web2android::gui::GuiProjectInput local;
+    local.sourceDirectory = root / "web";
+    local.name = "GUI Demo";
+    local.packageName = "com.example.guidemo";
+    local.versionName = "2.1.0";
+    local.versionCode = 21;
+    local.orientation = "portrait";
+    local.fullscreen = true;
+    local.outputDirectory = root / "gui-output";
+    const auto localConfig = lw::web2android::gui::CreateProjectConfig(local, environment);
+    Require(localConfig.mode == "local" && localConfig.entry == "index.html", "GUI local project mapping");
+    Require(localConfig.source == std::filesystem::absolute(local.sourceDirectory).lexically_normal(),
+            "GUI local source normalization");
+    Require(localConfig.toolchainLock == root / "toolchain.lock.json", "GUI toolchain lock mapping");
+    Require(localConfig.runtimeDirectory == runtime, "GUI Runtime Bundle mapping");
+
+    lw::web2android::gui::GuiProjectInput remote = local;
+    remote.remote = true;
+    remote.sourceDirectory.clear();
+    remote.remoteUrl = "https://example.com/app";
+    remote.packageName = "com.example.guiremote";
+    const auto remoteConfig = lw::web2android::gui::CreateProjectConfig(remote, environment);
+    Require(remoteConfig.mode == "remote" && remoteConfig.source.empty(), "GUI remote project mapping");
+    Require(remoteConfig.url == remote.remoteUrl, "GUI remote URL mapping");
+}
+
 void TestSigningIdentity(const std::filesystem::path& root) {
     const auto keys = root / "keys";
     const lw::web2android::SigningKeyManager manager(keys);
@@ -221,6 +256,7 @@ int main() {
         TempDirectory temporary;
         TestProjectAndGenerators(temporary.path);
         TestZipAssembler(temporary.path);
+        TestGuiProjectModel(temporary.path);
         TestSigningIdentity(temporary.path);
         TestSha256(temporary.path);
         std::cout << "All Packer tests passed" << std::endl;

@@ -1,4 +1,4 @@
-# Packer CLI（M4）
+# Packer CLI 与 GUI（M5）
 
 Packer 是 Windows C++17 程序。它读取 `project.json`，动态生成 Manifest、资源和 Runtime 配置，通过锁定版本的 AAPT2 生成资源 APK，在内部注入预编译 Runtime DEX，执行 `zipalign` 后使用 Package 独立身份签名并验证 APK。
 
@@ -9,6 +9,15 @@ cmake -S packer -B build/packer -A x64 -DBUILD_TESTING=ON
 cmake --build build/packer --config Release
 ctest --test-dir build/packer -C Release --output-on-failure
 ```
+
+构建后会生成：
+
+```text
+lw.Web2Android.exe       CLI
+lw.Web2Android.GUI.exe   原生 Win32 GUI
+```
+
+GUI 参考 `lw.Web2App` 的设计语言，支持 Per-Monitor V2 高 DPI、后台工作线程和 15 步构建状态。GUI 只把表单映射为 `ProjectConfig`，所有 APK 逻辑仍由 `BuildPipeline` 完成。
 
 ## 使用
 
@@ -41,7 +50,7 @@ metadata.json    Package、证书 SHA-256 与创建时间
 
 `signing info` 只读取已有身份，不会自动创建新密钥。`signing export` 会在控制台关闭回显后要求输入并确认至少 8 个字符的密码，生成包含证书和私钥的标准 PKCS#12 备份；密码不会进入命令行或日志。目标文件已存在时命令会拒绝覆盖。请把备份和密码分开保管，丢失签名身份后将无法发布可覆盖安装的更新。
 
-GitHub Actions 使用统一的 `lw.Web2Android CI` workflow。Packer EXE、Runtime Bundle、M0 APK、M4 local/remote 签名 APK 和总校验文件会合并到单个 `lw-Web2Android-m4` Artifact 中。
+GitHub Actions 使用统一的 `lw.Web2Android CI` workflow。CLI、GUI、Runtime Bundle、M0 APK、M5 local/remote 签名 APK 和总校验文件会合并到单个 `lw-Web2Android-m5` Artifact 中。M5 GUI 开发版读取 `ANDROID_SDK_ROOT` 与 `JAVA_HOME`；官方组件下载和许可确认将在 M6 完成。
 
 ## project.json
 

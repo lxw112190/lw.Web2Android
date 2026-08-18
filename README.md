@@ -4,7 +4,7 @@
 
 ## 当前进度
 
-M0 架构验证、M1 Runtime Bundle、M2 C++17 Packer CLI 和 M3 自动签名均已通过 CI。项目当前进入 **M4：完整 CLI 与签名身份备份**。
+M0 架构验证、M1 Runtime Bundle、M2 C++17 Packer CLI、M3 自动签名和 M4 完整 CLI 均已通过 CI。项目当前进入 **M5：原生 Windows GUI**。
 
 M0 最小流水线会：
 
@@ -18,28 +18,33 @@ M0 使用一次性的测试签名，仅用于验证 APK 组装路线。正式流
 
 ## 在 GitHub Actions 中验证
 
-推送代码或手动运行唯一的 **lw.Web2Android CI** workflow。Runtime、M0、Packer、签名集成全部成功后，只会上传一个 `lw-Web2Android-m4` Artifact：
+推送代码或手动运行唯一的 **lw.Web2Android CI** workflow。Runtime、M0、Packer、GUI 和签名集成全部成功后，只会上传一个 `lw-Web2Android-m5` Artifact：
 
 ```text
-lw-Web2Android-m4/
+lw-Web2Android-m5/
 ├── bin/
-│   └── lw.Web2Android.exe
+│   ├── lw.Web2Android.exe
+│   └── lw.Web2Android.GUI.exe
 ├── runtime/
-│   └── runtime-v1.zip
+│   ├── runtime-v1.zip
+│   └── runtime-v1/
+│       ├── classes.dex
+│       └── metadata.json
 ├── samples/
 │   ├── m0/
 │   │   ├── sample-debug.apk
 │   │   └── sample-debug.apk.sha256
-│   └── m4/
+│   └── m5/
 │       ├── hello-1.0.0-android.apk
 │       ├── hello-1.0.0-android.apk.sha256
 │       ├── remote-1.0.0-android.apk
 │       └── remote-1.0.0-android.apk.sha256
 ├── docs/
+├── toolchain.lock.json
 └── SHA256SUMS.txt
 ```
 
-下载一次即可取得本轮 CI 的全部产物。M0 APK 安装后应显示 `Hello lw.Web2Android`，M4 样例则用于验证正式 Packer 的 local/remote、签名与升级身份路线。
+下载一次即可取得本轮 CI 的全部产物。M0 APK 安装后应显示 `Hello lw.Web2Android`，M5 样例则用于验证正式 Packer 的 local/remote、签名与升级身份路线。
 
 统一 CI 会缓存 `toolchain.lock.json` 指定的 Android Platform、Build Tools、Gradle 依赖与 Gradle Build Cache。签名身份、APK、Runtime 最终产物及完整构建目录不会进入缓存。
 
@@ -62,9 +67,23 @@ pwsh ./tools/m0-build.ps1
 - 本地 Web 正式实现将使用 `WebViewAssetLoader`；
 - 不提供 JavaScript ↔ Native Bridge。
 
-M1 Runtime 已实现首版 `WebViewAssetLoader`、配置读取及 local/remote 加载，并已纳入统一 CI。GUI 仍需等待 CLI Core 稳定后再开发。
+M1 Runtime 已实现首版 `WebViewAssetLoader`、配置读取及 local/remote 加载，并已纳入统一 CI。
 
-## M4 Packer CLI、自动签名与身份备份
+## M5 原生 Windows GUI
+
+`lw.Web2Android.GUI.exe` 使用 C++17 和原生 Win32 构建，视觉与交互风格参考同系列项目 [`lw.Web2App`](https://github.com/lxw112190/lw.Web2App)：浅蓝页头、白色圆角卡片、蓝色主按钮、独立状态区以及 Per-Monitor V2 高 DPI 布局。
+
+GUI 支持本地网页目录和远程 HTTPS 地址，可设置应用名称、Package Name、版本、方向、全屏与输出目录。界面只负责创建 `ProjectConfig`，实际生成仍由稳定的 `BuildPipeline` 在工作线程完成，并实时显示 15 个构建阶段；CLI 功能与行为保持不变。
+
+双击运行：
+
+```text
+bin\lw.Web2Android.GUI.exe
+```
+
+M5 开发版仍从 `ANDROID_SDK_ROOT` 和 `JAVA_HOME` 读取构建工具；本项目本机开发无需安装 Android SDK，完整 APK 由 CI 验证。面向最终用户的官方工具链首次下载、许可确认与精简 Java Runtime 管理属于 M6，当前产物不会擅自捆绑 Google Android SDK。
+
+## Packer CLI、自动签名与身份备份
 
 Windows C++17 Core 当前流水线负责：
 

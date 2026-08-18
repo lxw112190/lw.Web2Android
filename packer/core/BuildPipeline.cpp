@@ -156,8 +156,9 @@ std::string DefaultOutputFile(const ProjectConfig& config) {
     return config.packageName + "-" + config.versionName + "-android.apk";
 }
 
-void LogStep(int number, const char* name) {
+void LogStep(const BuildOptions& options, int number, const char* name) {
     std::cout << '[' << number << "/15] " << name << std::endl;
+    if (options.progress) options.progress(number, 15, name);
 }
 
 void PublishOutput(const std::filesystem::path& verifiedApk, const std::filesystem::path& outputApk) {
@@ -182,10 +183,10 @@ void PublishOutput(const std::filesystem::path& verifiedApk, const std::filesyst
 }  // namespace
 
 BuildResult BuildPipeline::Build(const ProjectConfig& config, const BuildOptions& options) {
-    LogStep(1, "Validate project");
+    LogStep(options, 1, "Validate project");
     ProjectValidator::Validate(config);
 
-    LogStep(2, "Resolve locked Android toolchain");
+    LogStep(options, 2, "Resolve locked Android toolchain");
     const auto lock = ToolchainLock::Load(config.toolchainLock);
     const auto toolchain = AndroidToolchain::Resolve(lock, options.androidSdk, options.javaHome);
     const auto runtimeDirectory = options.runtimeDirectory.empty() ? config.runtimeDirectory :
@@ -193,47 +194,47 @@ BuildResult BuildPipeline::Build(const ProjectConfig& config, const BuildOptions
     ValidateRuntimeMetadata(runtimeDirectory, lock);
     const auto dexFiles = FindRuntimeDexFiles(runtimeDirectory);
 
-    LogStep(3, "Prepare isolated workspace");
+    LogStep(options, 3, "Prepare isolated workspace");
     const auto workspace = CreateWorkspace();
     WorkspaceGuard workspaceGuard(workspace, options.keepWorkingDirectory);
     const auto assets = workspace / "assets";
     const auto resources = workspace / "res";
     const auto manifest = workspace / "AndroidManifest.xml";
 
-    LogStep(4, "Copy web assets and generate Runtime config");
+    LogStep(options, 4, "Copy web assets and generate Runtime config");
     WebAssetManager::Prepare(config, assets);
 
-    LogStep(5, "Generate Android manifest");
+    LogStep(options, 5, "Generate Android manifest");
     WriteTextFile(manifest, ManifestGenerator::Generate(config));
 
-    LogStep(6, "Generate Android resources");
+    LogStep(options, 6, "Generate Android resources");
     ResourceGenerator::Generate(config, resources);
 
-    LogStep(7, "Compile resources with AAPT2");
+    LogStep(options, 7, "Compile resources with AAPT2");
     const auto compiledResources = workspace / "compiled-resources.zip";
     Aapt2Runner::Compile(toolchain.aapt2, resources, compiledResources);
 
-    LogStep(8, "Link resource APK with AAPT2");
+    LogStep(options, 8, "Link resource APK with AAPT2");
     const auto resourceApk = workspace / "resources.apk";
     Aapt2Runner::Link(toolchain.aapt2, toolchain.androidJar, manifest, assets, compiledResources, resourceApk,
                       23, lock.platformApi, config.versionCode, config.versionName);
 
-    LogStep(9, "Normalize assets and inject precompiled Runtime DEX");
+    LogStep(options, 9, "Normalize assets and inject precompiled Runtime DEX");
     const auto canonicalResourceApk = EnsureCanonicalAssetEntries(resourceApk, assets, workspace);
     const auto unalignedApk = workspace / "app-unaligned.apk";
     ApkAssembler::InjectFiles(canonicalResourceApk, dexFiles, unalignedApk);
 
-    LogStep(10, "Align unsigned APK");
+    LogStep(options, 10, "Align unsigned APK");
     const auto alignedApk = workspace / "app-aligned.apk";
     ZipAlignRunner::AlignAndVerify(toolchain.zipalign, unalignedApk, alignedApk);
 
-    LogStep(11, "Resolve package signing identity");
+    LogStep(options, 11, "Resolve package signing identity");
     const SigningKeyManager keyManager(options.keysDirectory);
     const auto identity = keyManager.Resolve(config.packageName);
     std::cout << (identity.newlyCreated ? "Created" : "Reused") << " signing identity: "
               << identity.certificateSha256 << std::endl;
 
-    LogStep(12, "Sign APK");
+    LogStep(options, 12, "Sign APK");
     const auto temporaryKey = workspace / "signing-key.pk8";
     SensitiveFileGuard sensitiveKey(temporaryKey);
     keyManager.WriteTemporaryPrivateKey(identity, temporaryKey);
@@ -242,10 +243,10 @@ BuildResult BuildPipeline::Build(const ProjectConfig& config, const BuildOptions
                           alignedApk, signedApk);
     sensitiveKey.DeleteNow();
 
-    LogStep(13, "Verify APK signature");
+    LogStep(options, 13, "Verify APK signature");
     ApkSignerRunner::Verify(toolchain.java, toolchain.apksignerJar, signedApk);
 
-    LogStep(14, "Publish signed APK");
+    LogStep(options, 14, "Publish signed APK");
     const auto outputName = config.outputFile.empty() ? DefaultOutputFile(config) : config.outputFile;
     const auto outputApk = config.outputDirectory / std::filesystem::u8path(outputName);
     PublishOutput(signedApk, outputApk);
@@ -253,7 +254,7 @@ BuildResult BuildPipeline::Build(const ProjectConfig& config, const BuildOptions
     WriteTextFile(std::filesystem::path(outputApk.wstring() + L".sha256"),
                   apkSha256 + "  " + outputApk.filename().u8string() + "\n");
 
-    LogStep(15, "Complete");
+    LogStep(options, 15, "Complete");
     std::cout << "Signed APK: " << outputApk.u8string() << std::endl;
     std::cout << "APK SHA-256: " << apkSha256 << std::endl;
     std::cout << "Certificate SHA-256: " << identity.certificateSha256 << std::endl;

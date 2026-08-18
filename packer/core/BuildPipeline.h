@@ -3,6 +3,8 @@
 #include "core/ProjectConfig.h"
 
 #include <filesystem>
+#include <functional>
+#include <string>
 
 namespace lw::web2android {
 
@@ -12,6 +14,7 @@ struct BuildOptions {
     std::filesystem::path runtimeDirectory;
     std::filesystem::path keysDirectory;
     bool keepWorkingDirectory = false;
+    std::function<void(int step, int total, const std::string& name)> progress;
 };
 
 struct BuildResult {

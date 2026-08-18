@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "toolchainVersion": "m4-1",
+  "toolchainVersion": "m5-1",
   "platformApi": 35,
   "buildToolsVersion": "35.0.0",
   "commandLineToolsVersion": "14742923",
