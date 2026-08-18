@@ -2,8 +2,10 @@
 
 #include "core/ApkAssembler.h"
 #include "core/Generators.h"
+#include "core/Hash.h"
 #include "core/ProcessRunner.h"
 #include "core/ProjectValidator.h"
+#include "core/SigningKeyManager.h"
 #include "core/Toolchain.h"
 
 #include <algorithm>
@@ -14,6 +16,10 @@
 #include <sstream>
 #include <stdexcept>
 #include <vector>
+
+#ifdef _WIN32
+#include <Windows.h>
+#endif
 
 namespace lw::web2android {
 namespace {
@@ -31,6 +37,22 @@ public:
 private:
     std::filesystem::path path_;
     bool keep_;
+};
+
+class SensitiveFileGuard {
+public:
+    explicit SensitiveFileGuard(std::filesystem::path path) : path_(std::move(path)) {}
+    ~SensitiveFileGuard() { DeleteNow(); }
+    void DeleteNow() {
+        if (!deleted_) {
+            SecureDeleteFile(path_);
+            deleted_ = true;
+        }
+    }
+
+private:
+    std::filesystem::path path_;
+    bool deleted_ = false;
 };
 
 std::string ReadText(const std::filesystem::path& file) {
@@ -107,11 +129,30 @@ std::filesystem::path CreateWorkspace() {
 }
 
 std::string DefaultOutputFile(const ProjectConfig& config) {
-    return config.packageName + "-" + config.versionName + "-unsigned.apk";
+    return config.packageName + "-" + config.versionName + "-android.apk";
 }
 
 void LogStep(int number, const char* name) {
-    std::cout << '[' << number << "/11] " << name << std::endl;
+    std::cout << '[' << number << "/15] " << name << std::endl;
+}
+
+void PublishOutput(const std::filesystem::path& verifiedApk, const std::filesystem::path& outputApk) {
+    std::filesystem::create_directories(outputApk.parent_path());
+    const auto partial = outputApk.parent_path() /
+                         std::filesystem::u8path(outputApk.filename().u8string() + ".partial");
+    std::error_code ignored;
+    std::filesystem::remove(partial, ignored);
+    std::filesystem::copy_file(verifiedApk, partial, std::filesystem::copy_options::overwrite_existing);
+#ifdef _WIN32
+    if (!MoveFileExW(partial.c_str(), outputApk.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+        const auto error = GetLastError();
+        std::filesystem::remove(partial, ignored);
+        throw std::runtime_error("Unable to publish signed APK (Windows error " + std::to_string(error) + ")");
+    }
+#else
+    std::filesystem::remove(outputApk, ignored);
+    std::filesystem::rename(partial, outputApk);
+#endif
 }
 
 }  // namespace
@@ -122,7 +163,7 @@ BuildResult BuildPipeline::Build(const ProjectConfig& config, const BuildOptions
 
     LogStep(2, "Resolve locked Android toolchain");
     const auto lock = ToolchainLock::Load(config.toolchainLock);
-    const auto toolchain = AndroidToolchain::Resolve(lock, options.androidSdk);
+    const auto toolchain = AndroidToolchain::Resolve(lock, options.androidSdk, options.javaHome);
     const auto runtimeDirectory = options.runtimeDirectory.empty() ? config.runtimeDirectory :
                                   std::filesystem::absolute(options.runtimeDirectory).lexically_normal();
     ValidateRuntimeMetadata(runtimeDirectory, lock);
@@ -157,16 +198,43 @@ BuildResult BuildPipeline::Build(const ProjectConfig& config, const BuildOptions
     const auto unalignedApk = workspace / "app-unaligned.apk";
     ApkAssembler::InjectFiles(resourceApk, dexFiles, unalignedApk);
 
-    LogStep(10, "Align and verify unsigned APK");
-    std::filesystem::create_directories(config.outputDirectory);
+    LogStep(10, "Align unsigned APK");
+    const auto alignedApk = workspace / "app-aligned.apk";
+    ZipAlignRunner::AlignAndVerify(toolchain.zipalign, unalignedApk, alignedApk);
+
+    LogStep(11, "Resolve package signing identity");
+    const SigningKeyManager keyManager(options.keysDirectory);
+    const auto identity = keyManager.Resolve(config.packageName);
+    std::cout << (identity.newlyCreated ? "Created" : "Reused") << " signing identity: "
+              << identity.certificateSha256 << std::endl;
+
+    LogStep(12, "Sign APK");
+    const auto temporaryKey = workspace / "signing-key.pk8";
+    SensitiveFileGuard sensitiveKey(temporaryKey);
+    keyManager.WriteTemporaryPrivateKey(identity, temporaryKey);
+    const auto signedApk = workspace / "app-signed.apk";
+    ApkSignerRunner::Sign(toolchain.java, toolchain.apksignerJar, temporaryKey, identity.certificateFile,
+                          alignedApk, signedApk);
+    sensitiveKey.DeleteNow();
+
+    LogStep(13, "Verify APK signature");
+    ApkSignerRunner::Verify(toolchain.java, toolchain.apksignerJar, signedApk);
+
+    LogStep(14, "Publish signed APK");
     const auto outputName = config.outputFile.empty() ? DefaultOutputFile(config) : config.outputFile;
     const auto outputApk = config.outputDirectory / std::filesystem::u8path(outputName);
-    ZipAlignRunner::AlignAndVerify(toolchain.zipalign, unalignedApk, outputApk);
+    PublishOutput(signedApk, outputApk);
+    const auto apkSha256 = Sha256File(outputApk);
+    WriteTextFile(std::filesystem::path(outputApk.wstring() + L".sha256"),
+                  apkSha256 + "  " + outputApk.filename().u8string() + "\n");
 
-    LogStep(11, "Publish unsigned APK");
-    std::cout << "Unsigned APK: " << outputApk.u8string() << std::endl;
+    LogStep(15, "Complete");
+    std::cout << "Signed APK: " << outputApk.u8string() << std::endl;
+    std::cout << "APK SHA-256: " << apkSha256 << std::endl;
+    std::cout << "Certificate SHA-256: " << identity.certificateSha256 << std::endl;
     if (options.keepWorkingDirectory) std::cout << "Workspace: " << workspace.u8string() << std::endl;
-    return BuildResult{outputApk, options.keepWorkingDirectory ? workspace : std::filesystem::path{}};
+    return BuildResult{outputApk, options.keepWorkingDirectory ? workspace : std::filesystem::path{},
+                       identity.certificateSha256, apkSha256};
 }
 
 }  // namespace lw::web2android

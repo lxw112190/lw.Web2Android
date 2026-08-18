@@ -39,4 +39,17 @@ public:
                                const std::filesystem::path& outputApk);
 };
 
+class ApkSignerRunner {
+public:
+    static void Sign(const std::filesystem::path& java,
+                     const std::filesystem::path& apksignerJar,
+                     const std::filesystem::path& privateKey,
+                     const std::filesystem::path& certificate,
+                     const std::filesystem::path& inputApk,
+                     const std::filesystem::path& outputApk);
+    static void Verify(const std::filesystem::path& java,
+                       const std::filesystem::path& apksignerJar,
+                       const std::filesystem::path& apk);
+};
+
 }  // namespace lw::web2android

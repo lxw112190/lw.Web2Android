@@ -4,7 +4,7 @@
 
 ## 当前进度
 
-M0 架构验证已经由 GitHub Actions 成功产出并验收可安装 APK，M1 Runtime Bundle 也已通过 CI。项目当前进入 **M2：C++17 Packer CLI**。
+M0 架构验证、M1 Runtime Bundle 和 M2 C++17 Packer CLI 均已通过 CI。项目当前进入 **M3：自动签名与签名身份管理**。
 
 M0 最小流水线会：
 
@@ -14,18 +14,32 @@ M0 最小流水线会：
 4. 依次执行 `zipalign`、`apksigner sign` 和 `apksigner verify`；
 5. 生成可安装的 `sample-debug.apk` 和 SHA-256 文件。
 
-M0 使用一次性的测试签名，仅用于验证 APK 组装路线。正式的“每个 Package Name 独立签名 + DPAPI”将在 M3 实现。
+M0 使用一次性的测试签名，仅用于验证 APK 组装路线。正式流水线现已在 M3 实现“每个 Package Name 独立签名 + DPAPI 加密私钥”。
 
 ## 在 GitHub Actions 中验证
 
-推送代码或手动运行 **M0 APK Proof of Concept** workflow。成功后下载 `m0-sample-debug-apk` artifact，其中包含：
+推送代码或手动运行唯一的 **lw.Web2Android CI** workflow。Runtime、M0、Packer、签名集成全部成功后，只会上传一个 `lw-Web2Android-m3` Artifact：
 
 ```text
-sample-debug.apk
-sample-debug.apk.sha256
+lw-Web2Android-m3/
+├── bin/
+│   └── lw.Web2Android.exe
+├── runtime/
+│   └── runtime-v1.zip
+├── samples/
+│   ├── m0/
+│   │   ├── sample-debug.apk
+│   │   └── sample-debug.apk.sha256
+│   └── m3/
+│       ├── hello-1.0.0-android.apk
+│       ├── hello-1.0.0-android.apk.sha256
+│       ├── remote-1.0.0-android.apk
+│       └── remote-1.0.0-android.apk.sha256
+├── docs/
+└── SHA256SUMS.txt
 ```
 
-安装 APK 后应显示 `Hello lw.Web2Android`，并且页面中的 JavaScript 计数按钮可正常工作。
+下载一次即可取得本轮 CI 的全部产物。M0 APK 安装后应显示 `Hello lw.Web2Android`，M3 样例则用于验证正式 Packer 的 local/remote、签名与升级身份路线。
 
 ## 本地构建
 
@@ -46,16 +60,39 @@ pwsh ./tools/m0-build.ps1
 - 本地 Web 正式实现将使用 `WebViewAssetLoader`；
 - 不提供 JavaScript ↔ Native Bridge。
 
-M1 Runtime 已实现首版 `WebViewAssetLoader`、配置读取及 local/remote 加载，并建立独立 CI。GUI 仍需等待 CLI Core 稳定后再开发。
+M1 Runtime 已实现首版 `WebViewAssetLoader`、配置读取及 local/remote 加载，并已纳入统一 CI。GUI 仍需等待 CLI Core 稳定后再开发。
 
-## M2 Packer CLI
+## M3 Packer CLI 与自动签名
 
-M2 已建立独立于 GUI 的 Windows C++17 Core，当前流水线负责：
+Windows C++17 Core 当前流水线负责：
 
 1. 校验 `project.json`、本地入口或远程 URL；
 2. 生成 `AndroidManifest.xml`、Android 资源和 `assets/lw-config.json`；
 3. 用锁定版本 AAPT2 编译并链接资源 APK；
 4. 用内置 ZIP 组装器注入 `runtime-dist/runtime-v1/classes.dex`；
-5. 用 `zipalign` 生成并验证 unsigned APK。
+5. 用 `zipalign` 生成并验证 aligned APK；
+6. 为每个 Package Name 创建或复用独立的 RSA 3072 签名身份；
+7. 使用 Windows DPAPI 保存加密后的 PKCS#8 私钥；
+8. 使用 `apksigner` 签名、验证并生成 APK SHA-256。
 
-构建和命令行用法参见 `packer/README.md`。`packer-ci` 负责编译与单元测试，`integration-ci` 负责生成 local/remote 两个 unsigned APK。签名将在 M3 加入。
+构建和命令行用法参见 `packer/README.md`。统一 CI 依次完成 Runtime 编译、M0 验证、Packer 单元测试、local/remote 正式签名 APK 集成验证，最后打包成一个下载项。
+
+默认签名身份保存在：
+
+```text
+%LOCALAPPDATA%\lw.Web2Android\keys\<Package Name>\
+```
+
+同一 Package Name 后续构建必须复用该身份，否则 Android 无法将新 APK 作为原应用升级。请妥善保管此目录；标准 PKCS#12 备份导出将在签名管理功能中提供。
+
+## 联系与支持
+
+- 作者：天天代码码天天
+- QQ：819069052
+- QQ Group：C# 人工智能实践（群号：758616458）
+
+## 赞助维护
+
+如果项目对你有帮助，可以扫码支持项目的持续维护：
+
+<img src="assets/sponsor.jpg" alt="微信赞助二维码" width="360">

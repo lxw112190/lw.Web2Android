@@ -1,7 +1,9 @@
 #include "core/ApkAssembler.h"
 #include "core/Generators.h"
+#include "core/Hash.h"
 #include "core/ProjectConfig.h"
 #include "core/ProjectValidator.h"
+#include "core/SigningKeyManager.h"
 
 #include <algorithm>
 #include <chrono>
@@ -109,6 +111,42 @@ void TestZipAssembler(const std::filesystem::path& root) {
     Require(duplicateRejected, "duplicate DEX must be rejected");
 }
 
+void TestSigningIdentity(const std::filesystem::path& root) {
+    const auto keys = root / "keys";
+    const lw::web2android::SigningKeyManager manager(keys);
+    const auto first = manager.Resolve("com.example.signing");
+    Require(first.newlyCreated, "first signing identity must be newly created");
+    Require(first.certificateSha256.size() == 64U, "certificate SHA-256 length");
+    Require(std::filesystem::is_regular_file(first.encryptedKeyFile), "encrypted key file");
+    Require(std::filesystem::is_regular_file(first.certificateFile), "certificate file");
+    Require(std::filesystem::is_regular_file(first.metadataFile), "signing metadata file");
+
+    const auto privateKey = root / "temporary.pk8";
+    manager.WriteTemporaryPrivateKey(first, privateKey);
+    std::ifstream input(privateKey, std::ios::binary);
+    const int firstByte = input.get();
+    input.close();
+    Require(firstByte == 0x30, "PKCS#8 must start with an ASN.1 sequence");
+    lw::web2android::SecureDeleteFile(privateKey);
+    Require(!std::filesystem::exists(privateKey), "temporary private key must be deleted");
+
+    const auto second = manager.Resolve("com.example.signing");
+    Require(!second.newlyCreated, "existing signing identity must be reused");
+    Require(second.certificateSha256 == first.certificateSha256, "same package must keep the same certificate");
+
+    const auto other = manager.Resolve("com.example.other");
+    Require(other.certificateSha256 != first.certificateSha256,
+            "different packages must receive different signing identities");
+}
+
+void TestSha256(const std::filesystem::path& root) {
+    const auto file = root / "sha256.txt";
+    lw::web2android::WriteTextFile(file, "abc");
+    Require(lw::web2android::Sha256File(file) ==
+                "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "SHA-256 must match the standard abc test vector");
+}
+
 }  // namespace
 
 int main() {
@@ -116,6 +154,8 @@ int main() {
         TempDirectory temporary;
         TestProjectAndGenerators(temporary.path);
         TestZipAssembler(temporary.path);
+        TestSigningIdentity(temporary.path);
+        TestSha256(temporary.path);
         std::cout << "All Packer tests passed" << std::endl;
         return 0;
     } catch (const std::exception& error) {

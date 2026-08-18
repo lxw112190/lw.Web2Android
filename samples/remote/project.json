@@ -9,8 +9,8 @@
   "fullscreen": false,
   "orientation": "auto",
   "allowHttp": false,
-  "output": "../../build/m2",
-  "outputFile": "remote-1.0.0-unsigned.apk",
+  "output": "../../build/m3",
+  "outputFile": "remote-1.0.0-android.apk",
   "runtime": "../../runtime-dist/runtime-v1",
   "toolchainLock": "../../toolchain.lock.json"
 }

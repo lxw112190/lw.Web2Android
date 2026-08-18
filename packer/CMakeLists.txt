@@ -6,16 +6,22 @@ add_library(lw_packer_core
     core/ApkAssembler.cpp
     core/BuildPipeline.cpp
     core/Generators.cpp
+    core/Hash.cpp
     core/Json.cpp
     core/ProcessRunner.cpp
     core/ProjectConfig.cpp
     core/ProjectValidator.cpp
+    core/SigningKeyManager.cpp
     core/Toolchain.cpp
 )
 
 target_include_directories(lw_packer_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_features(lw_packer_core PUBLIC cxx_std_17)
 target_compile_definitions(lw_packer_core PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE)
+
+if(WIN32)
+    target_link_libraries(lw_packer_core PRIVATE bcrypt crypt32 ncrypt)
+endif()
 
 if(MSVC)
     target_compile_options(lw_packer_core PRIVATE /W4 /permissive- /utf-8)

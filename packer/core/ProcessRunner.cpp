@@ -122,4 +122,23 @@ void ZipAlignRunner::AlignAndVerify(const std::filesystem::path& zipalign,
     ProcessRunner::Run(zipalign, {L"-c", L"-v", L"4", outputApk.wstring()});
 }
 
+void ApkSignerRunner::Sign(const std::filesystem::path& java,
+                           const std::filesystem::path& apksignerJar,
+                           const std::filesystem::path& privateKey,
+                           const std::filesystem::path& certificate,
+                           const std::filesystem::path& inputApk,
+                           const std::filesystem::path& outputApk) {
+    ProcessRunner::Run(java,
+                       {L"-jar", apksignerJar.wstring(), L"sign", L"--key", privateKey.wstring(), L"--cert",
+                        certificate.wstring(), L"--v4-signing-enabled", L"false", L"--out", outputApk.wstring(),
+                        inputApk.wstring()});
+}
+
+void ApkSignerRunner::Verify(const std::filesystem::path& java,
+                             const std::filesystem::path& apksignerJar,
+                             const std::filesystem::path& apk) {
+    ProcessRunner::Run(java,
+                       {L"-jar", apksignerJar.wstring(), L"verify", L"--verbose", L"--print-certs", apk.wstring()});
+}
+
 }  // namespace lw::web2android

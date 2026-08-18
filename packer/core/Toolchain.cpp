@@ -41,7 +41,9 @@ ToolchainLock ToolchainLock::Load(const std::filesystem::path& file) {
     return lock;
 }
 
-AndroidToolchain AndroidToolchain::Resolve(const ToolchainLock& lock, const std::filesystem::path& sdkOverride) {
+AndroidToolchain AndroidToolchain::Resolve(const ToolchainLock& lock,
+                                           const std::filesystem::path& sdkOverride,
+                                           const std::filesystem::path& javaHomeOverride) {
     AndroidToolchain result;
     result.lock = lock;
     if (!sdkOverride.empty()) {
@@ -72,11 +74,29 @@ AndroidToolchain AndroidToolchain::Resolve(const ToolchainLock& lock, const std:
     const auto buildTools = result.sdkRoot / "build-tools" / std::filesystem::u8path(lock.buildToolsVersion);
     result.aapt2 = buildTools / std::filesystem::u8path(std::string("aapt2") + executableSuffix);
     result.zipalign = buildTools / std::filesystem::u8path(std::string("zipalign") + executableSuffix);
+    result.apksignerJar = buildTools / "lib" / "apksigner.jar";
     result.androidJar = result.sdkRoot / "platforms" /
                         std::filesystem::u8path("android-" + std::to_string(lock.platformApi)) / "android.jar";
+#ifdef _WIN32
+    std::filesystem::path javaHome = javaHomeOverride;
+    if (javaHome.empty()) {
+        wchar_t* environment = nullptr;
+        std::size_t environmentSize = 0;
+        if (_wdupenv_s(&environment, &environmentSize, L"JAVA_HOME") == 0 && environment != nullptr) {
+            javaHome = std::filesystem::path(environment);
+            std::free(environment);
+        }
+    }
+    if (javaHome.empty()) throw std::runtime_error("Java runtime is required; pass --java-home or set JAVA_HOME");
+    result.java = javaHome / "bin" / "java.exe";
+#else
+    result.java = javaHomeOverride / "bin" / "java";
+#endif
     RequireFile(result.aapt2, "AAPT2");
     RequireFile(result.zipalign, "zipalign");
     RequireFile(result.androidJar, "Android platform JAR");
+    RequireFile(result.apksignerJar, "apksigner JAR");
+    RequireFile(result.java, "Java runtime");
     return result;
 }
 

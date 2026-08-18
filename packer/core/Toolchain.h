@@ -21,8 +21,12 @@ struct AndroidToolchain {
     std::filesystem::path androidJar;
     std::filesystem::path aapt2;
     std::filesystem::path zipalign;
+    std::filesystem::path java;
+    std::filesystem::path apksignerJar;
 
-    static AndroidToolchain Resolve(const ToolchainLock& lock, const std::filesystem::path& sdkOverride);
+    static AndroidToolchain Resolve(const ToolchainLock& lock,
+                                    const std::filesystem::path& sdkOverride,
+                                    const std::filesystem::path& javaHomeOverride = {});
 };
 
 }  // namespace lw::web2android

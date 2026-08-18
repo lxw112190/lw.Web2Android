@@ -15,13 +15,15 @@ namespace {
 
 void PrintUsage() {
     std::cout <<
-        "lw.Web2Android Packer v0.1 (M2)\n\n"
+        "lw.Web2Android Packer v0.1 (M3)\n\n"
         "Usage:\n"
         "  lw.Web2Android.exe validate <project.json>\n"
         "  lw.Web2Android.exe build <project.json> [options]\n\n"
         "Options:\n"
         "  --android-sdk <directory>  Override ANDROID_SDK_ROOT\n"
+        "  --java-home <directory>    Override JAVA_HOME\n"
         "  --runtime <directory>      Override the Runtime Bundle directory\n"
+        "  --keys-dir <directory>     Override DPAPI signing identity storage\n"
         "  --keep-work-dir            Keep generated intermediate files\n";
 }
 
@@ -53,10 +55,13 @@ int wmain(int argc, wchar_t* argv[]) {
         lw::web2android::BuildOptions options;
         for (int index = 3; index < argc; ++index) {
             const std::wstring option = argv[index];
-            if (option == L"--android-sdk" || option == L"--runtime") {
+            if (option == L"--android-sdk" || option == L"--java-home" || option == L"--runtime" ||
+                option == L"--keys-dir") {
                 if (++index >= argc) throw std::runtime_error("Missing value for build option");
                 if (option == L"--android-sdk") options.androidSdk = std::filesystem::path(argv[index]);
-                else options.runtimeDirectory = std::filesystem::path(argv[index]);
+                else if (option == L"--java-home") options.javaHome = std::filesystem::path(argv[index]);
+                else if (option == L"--runtime") options.runtimeDirectory = std::filesystem::path(argv[index]);
+                else options.keysDirectory = std::filesystem::path(argv[index]);
             } else if (option == L"--keep-work-dir") {
                 options.keepWorkingDirectory = true;
             } else {

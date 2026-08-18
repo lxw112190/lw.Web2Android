@@ -1,6 +1,6 @@
-# Packer CLI（M2）
+# Packer CLI（M3）
 
-Packer 是 Windows C++17 程序。它读取 `project.json`，动态生成 Manifest、资源和 Runtime 配置，通过锁定版本的 AAPT2 生成资源 APK，在内部注入预编译 Runtime DEX，最后用 `zipalign` 输出 unsigned APK。
+Packer 是 Windows C++17 程序。它读取 `project.json`，动态生成 Manifest、资源和 Runtime 配置，通过锁定版本的 AAPT2 生成资源 APK，在内部注入预编译 Runtime DEX，执行 `zipalign` 后使用 Package 独立身份签名并验证 APK。
 
 ## 构建
 
@@ -21,11 +21,23 @@ build/packer/Release/lw.Web2Android.exe build samples/hello/project.json
 
 ```text
 --android-sdk <directory>  覆盖 ANDROID_SDK_ROOT
+--java-home <directory>    覆盖 JAVA_HOME
 --runtime <directory>      覆盖 project.json 中的 Runtime Bundle 目录
+--keys-dir <directory>     覆盖 DPAPI 签名身份存储目录
 --keep-work-dir            保留中间目录用于诊断
 ```
 
-M2 不执行签名，因此输出文件不能直接安装。M3 将在相同 `BuildPipeline` 后加入签名身份管理、`apksigner` 和签名验证。
+默认签名身份位于 `%LOCALAPPDATA%\lw.Web2Android\keys\<Package Name>\`：
+
+```text
+signing.key.lw   DPAPI 加密的 PKCS#8 私钥
+certificate.pem  X.509 自签名证书
+metadata.json    Package、证书 SHA-256 与创建时间
+```
+
+私钥仅在调用 `apksigner` 时解密到隔离工作目录，签名结束后立即覆盖删除。相同 Package 会复用同一证书，不同 Package 不共享私钥。每次构建同时输出 `<APK>.sha256`。
+
+GitHub Actions 使用统一的 `lw.Web2Android CI` workflow。Packer EXE、Runtime Bundle、M0 APK、M3 local/remote 签名 APK 和总校验文件会合并到单个 `lw-Web2Android-m3` Artifact 中。
 
 ## project.json
 
