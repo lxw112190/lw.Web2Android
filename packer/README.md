@@ -1,4 +1,4 @@
-# Packer CLI（M3）
+# Packer CLI（M4）
 
 Packer 是 Windows C++17 程序。它读取 `project.json`，动态生成 Manifest、资源和 Runtime 配置，通过锁定版本的 AAPT2 生成资源 APK，在内部注入预编译 Runtime DEX，执行 `zipalign` 后使用 Package 独立身份签名并验证 APK。
 
@@ -15,6 +15,8 @@ ctest --test-dir build/packer -C Release --output-on-failure
 ```powershell
 build/packer/Release/lw.Web2Android.exe validate samples/hello/project.json
 build/packer/Release/lw.Web2Android.exe build samples/hello/project.json
+build/packer/Release/lw.Web2Android.exe signing info com.lw.samples.hello
+build/packer/Release/lw.Web2Android.exe signing export com.lw.samples.hello D:\backup\com.lw.samples.hello.pfx
 ```
 
 可用参数：
@@ -37,7 +39,9 @@ metadata.json    Package、证书 SHA-256 与创建时间
 
 私钥仅在调用 `apksigner` 时解密到隔离工作目录，签名结束后立即覆盖删除。相同 Package 会复用同一证书，不同 Package 不共享私钥。每次构建同时输出 `<APK>.sha256`。
 
-GitHub Actions 使用统一的 `lw.Web2Android CI` workflow。Packer EXE、Runtime Bundle、M0 APK、M3 local/remote 签名 APK 和总校验文件会合并到单个 `lw-Web2Android-m3` Artifact 中。
+`signing info` 只读取已有身份，不会自动创建新密钥。`signing export` 会在控制台关闭回显后要求输入并确认至少 8 个字符的密码，生成包含证书和私钥的标准 PKCS#12 备份；密码不会进入命令行或日志。目标文件已存在时命令会拒绝覆盖。请把备份和密码分开保管，丢失签名身份后将无法发布可覆盖安装的更新。
+
+GitHub Actions 使用统一的 `lw.Web2Android CI` workflow。Packer EXE、Runtime Bundle、M0 APK、M4 local/remote 签名 APK 和总校验文件会合并到单个 `lw-Web2Android-m4` Artifact 中。
 
 ## project.json
 

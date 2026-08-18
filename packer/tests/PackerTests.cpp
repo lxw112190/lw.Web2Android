@@ -15,6 +15,12 @@
 #include <string>
 #include <vector>
 
+#ifdef _WIN32
+#include <Windows.h>
+#include <ncrypt.h>
+#include <wincrypt.h>
+#endif
+
 namespace {
 
 void Require(bool condition, const std::string& message) {
@@ -26,6 +32,17 @@ void WriteBinary(const std::filesystem::path& file, const std::vector<std::uint8
     std::ofstream output(file, std::ios::binary | std::ios::trunc);
     output.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
     if (!output) throw std::runtime_error("Unable to create test file");
+}
+
+std::vector<std::uint8_t> ReadBinary(const std::filesystem::path& file) {
+    std::ifstream input(file, std::ios::binary | std::ios::ate);
+    if (!input) throw std::runtime_error("Unable to open test file");
+    const auto size = input.tellg();
+    std::vector<std::uint8_t> bytes(static_cast<std::size_t>(size));
+    input.seekg(0);
+    if (!bytes.empty()) input.read(reinterpret_cast<char*>(bytes.data()), size);
+    if (!input) throw std::runtime_error("Unable to read test file");
+    return bytes;
 }
 
 std::vector<std::uint8_t> EmptyZip() {
@@ -142,6 +159,47 @@ void TestSigningIdentity(const std::filesystem::path& root) {
     const auto second = manager.Resolve("com.example.signing");
     Require(!second.newlyCreated, "existing signing identity must be reused");
     Require(second.certificateSha256 == first.certificateSha256, "same package must keep the same certificate");
+    const auto loaded = manager.Load("com.example.signing");
+    Require(!loaded.newlyCreated && loaded.certificateSha256 == first.certificateSha256,
+            "signing info load must preserve the identity without creating it");
+
+    const auto backup = root / "com.example.signing.pfx";
+    const std::wstring password = L"test-backup-password";
+    manager.ExportPkcs12(first, backup, password);
+    Require(std::filesystem::is_regular_file(backup) && std::filesystem::file_size(backup) > 0U,
+            "PKCS#12 backup must be written");
+#ifdef _WIN32
+    auto pfxBytes = ReadBinary(backup);
+    CRYPT_DATA_BLOB pfx{static_cast<DWORD>(pfxBytes.size()), pfxBytes.data()};
+    Require(PFXIsPFXBlob(&pfx) == TRUE, "exported backup must be a PKCS#12 blob");
+    Require(PFXVerifyPassword(&pfx, password.c_str(), 0) == TRUE, "PKCS#12 password must unlock the backup");
+    Require(PFXVerifyPassword(&pfx, L"wrong-password", 0) == FALSE,
+            "PKCS#12 backup must reject an incorrect password");
+    const HCERTSTORE imported =
+        PFXImportCertStore(&pfx, password.c_str(), PKCS12_NO_PERSIST_KEY | PKCS12_ALWAYS_CNG_KSP);
+    Require(imported != nullptr, "PKCS#12 backup must import without persisting its key");
+    PCCERT_CONTEXT importedCertificate = CertEnumCertificatesInStore(imported, nullptr);
+    Require(importedCertificate != nullptr, "PKCS#12 backup must contain its certificate");
+    CERT_KEY_CONTEXT keyContext{};
+    DWORD keyContextSize = sizeof(keyContext);
+    Require(CertGetCertificateContextProperty(importedCertificate, CERT_KEY_CONTEXT_PROP_ID,
+                                              &keyContext, &keyContextSize) == TRUE,
+            "PKCS#12 backup must contain its non-persisted private key context");
+    Require(keyContext.dwKeySpec == CERT_NCRYPT_KEY_SPEC, "PKCS#12 private key must use CNG");
+    DWORD algorithmSize = 0;
+    Require(NCryptGetProperty(static_cast<NCRYPT_KEY_HANDLE>(keyContext.hCryptProv), NCRYPT_ALGORITHM_PROPERTY,
+                              nullptr, 0, &algorithmSize, 0) == ERROR_SUCCESS && algorithmSize > 0U,
+            "PKCS#12 private key handle must be usable");
+    CertFreeCertificateContext(importedCertificate);
+    CertCloseStore(imported, 0);
+#endif
+    bool overwriteRejected = false;
+    try {
+        manager.ExportPkcs12(first, backup, password);
+    } catch (const std::exception&) {
+        overwriteRejected = true;
+    }
+    Require(overwriteRejected, "PKCS#12 export must not overwrite an existing backup");
 
     const auto other = manager.Resolve("com.example.other");
     Require(other.certificateSha256 != first.certificateSha256,

@@ -51,6 +51,21 @@ std::wstring Utf8ToWide(const std::string& value) {
 #endif
 }
 
+std::string WideToUtf8(const std::wstring& value) {
+#ifdef _WIN32
+    if (value.empty()) return {};
+    const int count = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, value.data(),
+                                          static_cast<int>(value.size()), nullptr, 0, nullptr, nullptr);
+    if (count <= 0) throw std::runtime_error("Invalid UTF-16 text");
+    std::string result(static_cast<std::size_t>(count), '\0');
+    WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, value.data(), static_cast<int>(value.size()),
+                        result.data(), count, nullptr, nullptr);
+    return result;
+#else
+    return std::string(value.begin(), value.end());
+#endif
+}
+
 void ProcessRunner::Run(const std::filesystem::path& executable,
                         const std::vector<std::wstring>& arguments,
                         const std::filesystem::path& workingDirectory) {

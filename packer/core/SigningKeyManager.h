@@ -21,7 +21,11 @@ public:
     explicit SigningKeyManager(std::filesystem::path keysRoot = {});
 
     static std::filesystem::path DefaultKeysRoot();
+    SigningIdentity Load(const std::string& packageName) const;
     SigningIdentity Resolve(const std::string& packageName) const;
+    void ExportPkcs12(const SigningIdentity& identity,
+                      const std::filesystem::path& destination,
+                      const std::wstring& password) const;
     void WriteTemporaryPrivateKey(const SigningIdentity& identity,
                                   const std::filesystem::path& destination) const;
 

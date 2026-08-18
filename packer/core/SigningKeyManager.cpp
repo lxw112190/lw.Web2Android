@@ -1,6 +1,7 @@
 #include "core/SigningKeyManager.h"
 
 #include "core/Json.h"
+#include "core/ProjectValidator.h"
 
 #include <algorithm>
 #include <array>
@@ -139,10 +140,46 @@ public:
 
 class KeyHandle {
 public:
-    ~KeyHandle() {
-        if (value != 0) NCryptFreeObject(value);
+    KeyHandle() = default;
+    KeyHandle(const KeyHandle&) = delete;
+    KeyHandle& operator=(const KeyHandle&) = delete;
+    KeyHandle(KeyHandle&& other) noexcept : value(other.value), deleteOnDestroy(other.deleteOnDestroy) {
+        other.value = 0;
+        other.deleteOnDestroy = false;
+    }
+    KeyHandle& operator=(KeyHandle&& other) noexcept {
+        if (this != &other) {
+            Release();
+            value = other.value;
+            deleteOnDestroy = other.deleteOnDestroy;
+            other.value = 0;
+            other.deleteOnDestroy = false;
+        }
+        return *this;
+    }
+    ~KeyHandle() { Release(); }
+    void Delete() {
+        if (value == 0 || !deleteOnDestroy) return;
+        const auto handle = value;
+        value = 0;
+        deleteOnDestroy = false;
+        const auto status = NCryptDeleteKey(handle, NCRYPT_SILENT_FLAG);
+        if (status != ERROR_SUCCESS) {
+            NCryptFreeObject(handle);
+            throw SecurityFailure("NCryptDeleteKey(temporary export key)", status);
+        }
+    }
+    void Release() noexcept {
+        if (value != 0) {
+            if (!deleteOnDestroy || NCryptDeleteKey(value, NCRYPT_SILENT_FLAG) != ERROR_SUCCESS) {
+                NCryptFreeObject(value);
+            }
+        }
+        value = 0;
+        deleteOnDestroy = false;
     }
     NCRYPT_KEY_HANDLE value = 0;
+    bool deleteOnDestroy = false;
 };
 
 class CertificateHandle {
@@ -163,6 +200,23 @@ public:
         if (value != nullptr) CertFreeCertificateContext(value);
     }
     PCCERT_CONTEXT value = nullptr;
+};
+
+class CertificateStoreHandle {
+public:
+    ~CertificateStoreHandle() {
+        if (value != nullptr) CertCloseStore(value, 0);
+    }
+    HCERTSTORE value = nullptr;
+};
+
+class SensitiveBuffer {
+public:
+    explicit SensitiveBuffer(std::size_t size) : bytes(size) {}
+    ~SensitiveBuffer() {
+        if (!bytes.empty()) SecureZeroMemory(bytes.data(), bytes.size());
+    }
+    std::vector<std::uint8_t> bytes;
 };
 
 class MutexLock {
@@ -238,6 +292,60 @@ std::vector<std::uint8_t> ExportPkcs8(NCRYPT_KEY_HANDLE key) {
     }
     result.resize(size);
     return result;
+}
+
+std::wstring TemporaryKeyName() {
+    std::array<std::uint8_t, 16> random{};
+    const auto status = BCryptGenRandom(nullptr, random.data(), static_cast<ULONG>(random.size()),
+                                        BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+    if (status != 0) throw SecurityFailure("BCryptGenRandom", status);
+    const auto suffix = LowerHex(random.data(), random.size());
+    return L"lw.Web2Android.PfxExport." + std::wstring(suffix.begin(), suffix.end());
+}
+
+KeyHandle ImportPkcs8(std::vector<std::uint8_t>& privateKey, const std::wstring& keyName) {
+    DWORD privateInfoSize = 0;
+    if (!CryptDecodeObjectEx(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, PKCS_PRIVATE_KEY_INFO,
+                             privateKey.data(), CheckedDword(privateKey.size(), "Private key"), 0, nullptr,
+                             nullptr, &privateInfoSize)) {
+        throw WindowsFailure("CryptDecodeObjectEx(PKCS#8 size)");
+    }
+    SensitiveBuffer privateInfoBuffer(privateInfoSize);
+    if (!CryptDecodeObjectEx(X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, PKCS_PRIVATE_KEY_INFO,
+                             privateKey.data(), CheckedDword(privateKey.size(), "Private key"), 0, nullptr,
+                             privateInfoBuffer.bytes.data(), &privateInfoSize)) {
+        throw WindowsFailure("CryptDecodeObjectEx(PKCS#8)");
+    }
+    const auto* privateInfo = reinterpret_cast<const CRYPT_PRIVATE_KEY_INFO*>(privateInfoBuffer.bytes.data());
+    if (privateInfo->Algorithm.pszObjId == nullptr ||
+        std::string(privateInfo->Algorithm.pszObjId) != szOID_RSA_RSA) {
+        throw std::runtime_error("Signing identity PKCS#8 does not contain an RSA key");
+    }
+
+    StorageProviderHandle provider;
+    auto status = NCryptOpenStorageProvider(&provider.value, MS_KEY_STORAGE_PROVIDER, 0);
+    if (status != ERROR_SUCCESS) throw SecurityFailure("NCryptOpenStorageProvider", status);
+    NCryptBuffer nameBuffer{};
+    nameBuffer.BufferType = NCRYPTBUFFER_PKCS_KEY_NAME;
+    nameBuffer.pvBuffer = const_cast<wchar_t*>(keyName.c_str());
+    nameBuffer.cbBuffer = CheckedDword((keyName.size() + 1U) * sizeof(wchar_t), "Temporary key name");
+    NCryptBufferDesc parameters{};
+    parameters.ulVersion = NCRYPTBUFFER_VERSION;
+    parameters.cBuffers = 1;
+    parameters.pBuffers = &nameBuffer;
+    KeyHandle key;
+    status = NCryptImportKey(provider.value, 0, NCRYPT_PKCS8_PRIVATE_KEY_BLOB, &parameters, &key.value,
+                             privateKey.data(), CheckedDword(privateKey.size(), "Private key"),
+                             NCRYPT_DO_NOT_FINALIZE_FLAG);
+    if (status != ERROR_SUCCESS) throw SecurityFailure("NCryptImportKey(PKCS#8)", status);
+    key.deleteOnDestroy = true;
+    DWORD exportPolicy = NCRYPT_ALLOW_EXPORT_FLAG | NCRYPT_ALLOW_PLAINTEXT_EXPORT_FLAG;
+    status = NCryptSetProperty(key.value, NCRYPT_EXPORT_POLICY_PROPERTY,
+                              reinterpret_cast<PBYTE>(&exportPolicy), sizeof(exportPolicy), NCRYPT_PERSIST_FLAG);
+    if (status != ERROR_SUCCESS) throw SecurityFailure("NCryptSetProperty(export policy)", status);
+    status = NCryptFinalizeKey(key.value, NCRYPT_SILENT_FLAG);
+    if (status != ERROR_SUCCESS) throw SecurityFailure("NCryptFinalizeKey(imported key)", status);
+    return key;
 }
 
 std::vector<std::uint8_t> EncodeSubject(const std::string& packageName) {
@@ -405,6 +513,7 @@ std::filesystem::path SigningKeyManager::DefaultKeysRoot() {
 
 SigningIdentity SigningKeyManager::Resolve(const std::string& packageName) const {
 #ifdef _WIN32
+    ProjectValidator::ValidatePackageName(packageName);
     MutexLock lock(packageName);
     const auto directory = keysRoot_ / std::filesystem::u8path(packageName);
     const auto keyFile = directory / "signing.key.lw";
@@ -449,6 +558,115 @@ SigningIdentity SigningKeyManager::Resolve(const std::string& packageName) const
 #else
     (void)packageName;
     throw WindowsFailure("SigningKeyManager::Resolve");
+#endif
+}
+
+SigningIdentity SigningKeyManager::Load(const std::string& packageName) const {
+#ifdef _WIN32
+    ProjectValidator::ValidatePackageName(packageName);
+    MutexLock lock(packageName);
+    const auto directory = keysRoot_ / std::filesystem::u8path(packageName);
+    const auto keyFile = directory / "signing.key.lw";
+    const auto certificateFile = directory / "certificate.pem";
+    const auto metadataFile = directory / "metadata.json";
+    const bool hasKey = std::filesystem::is_regular_file(keyFile);
+    const bool hasCertificate = std::filesystem::is_regular_file(certificateFile);
+    const bool hasMetadata = std::filesystem::is_regular_file(metadataFile);
+    if (!hasKey && !hasCertificate && !hasMetadata) {
+        throw std::runtime_error("Signing identity does not exist: " + directory.u8string());
+    }
+    if (!hasKey || !hasCertificate || !hasMetadata) {
+        throw std::runtime_error("Signing identity is incomplete; restore it from backup: " + directory.u8string());
+    }
+    return LoadIdentity(directory, packageName);
+#else
+    (void)packageName;
+    throw WindowsFailure("SigningKeyManager::Load");
+#endif
+}
+
+void SigningKeyManager::ExportPkcs12(const SigningIdentity& identity,
+                                     const std::filesystem::path& destination,
+                                     const std::wstring& password) const {
+#ifdef _WIN32
+    if (password.empty()) throw std::runtime_error("PKCS#12 backup password must not be empty");
+    if (std::filesystem::exists(destination)) {
+        throw std::runtime_error("Refusing to overwrite an existing PKCS#12 backup: " + destination.u8string());
+    }
+    if (!destination.parent_path().empty() && !std::filesystem::is_directory(destination.parent_path())) {
+        throw std::runtime_error("PKCS#12 destination directory does not exist: " +
+                                 destination.parent_path().u8string());
+    }
+
+    auto encrypted = ReadBinary(identity.encryptedKeyFile);
+    auto privateKey = UnprotectKey(encrypted, identity.packageName);
+    const auto keyName = TemporaryKeyName();
+    KeyHandle key;
+    try {
+        key = ImportPkcs8(privateKey, keyName);
+    } catch (...) {
+        SecureZeroMemory(privateKey.data(), privateKey.size());
+        throw;
+    }
+    SecureZeroMemory(privateKey.data(), privateKey.size());
+
+    std::vector<std::uint8_t> content;
+    {
+        const auto certificateDer = DecodeCertificate(ReadText(identity.certificateFile));
+        CertificateHandle certificate;
+        certificate.value = CertCreateCertificateContext(
+            X509_ASN_ENCODING, certificateDer.data(), CheckedDword(certificateDer.size(), "Certificate"));
+        if (certificate.value == nullptr) throw WindowsFailure("CertCreateCertificateContext");
+
+        CertificateStoreHandle store;
+        store.value = CertOpenStore(CERT_STORE_PROV_MEMORY, X509_ASN_ENCODING, 0, CERT_STORE_CREATE_NEW_FLAG, nullptr);
+        if (store.value == nullptr) throw WindowsFailure("CertOpenStore(memory)");
+        CertificateHandle storedCertificate;
+        if (!CertAddCertificateContextToStore(store.value, certificate.value, CERT_STORE_ADD_ALWAYS,
+                                              &storedCertificate.value)) {
+            throw WindowsFailure("CertAddCertificateContextToStore");
+        }
+        CRYPT_KEY_PROV_INFO providerInfo{};
+        providerInfo.pwszContainerName = const_cast<wchar_t*>(keyName.c_str());
+        providerInfo.pwszProvName = const_cast<wchar_t*>(MS_KEY_STORAGE_PROVIDER);
+        providerInfo.dwProvType = 0;
+        providerInfo.dwKeySpec = CERT_NCRYPT_KEY_SPEC;
+        if (!CertSetCertificateContextProperty(storedCertificate.value, CERT_KEY_PROV_INFO_PROP_ID,
+                                               CERT_SET_PROPERTY_INHIBIT_PERSIST_FLAG, &providerInfo)) {
+            throw WindowsFailure("CertSetCertificateContextProperty(CNG provider info)");
+        }
+        HCRYPTPROV_OR_NCRYPT_KEY_HANDLE acquiredKey = 0;
+        DWORD acquiredKeySpec = 0;
+        BOOL callerMustFree = FALSE;
+        if (!CryptAcquireCertificatePrivateKey(storedCertificate.value,
+                                               CRYPT_ACQUIRE_ONLY_NCRYPT_KEY_FLAG | CRYPT_ACQUIRE_SILENT_FLAG,
+                                               nullptr, &acquiredKey, &acquiredKeySpec, &callerMustFree)) {
+            throw WindowsFailure("CryptAcquireCertificatePrivateKey(export validation)");
+        }
+        if (callerMustFree) NCryptFreeObject(acquiredKey);
+        if (acquiredKeySpec != CERT_NCRYPT_KEY_SPEC) {
+            throw std::runtime_error("Temporary export key did not resolve through CNG");
+        }
+
+        CRYPT_DATA_BLOB pfx{};
+        constexpr DWORD flags = EXPORT_PRIVATE_KEYS | REPORT_NO_PRIVATE_KEY | REPORT_NOT_ABLE_TO_EXPORT_PRIVATE_KEY;
+        if (!PFXExportCertStoreEx(store.value, &pfx, password.c_str(), nullptr, flags)) {
+            throw WindowsFailure("PFXExportCertStoreEx(size)");
+        }
+        content.resize(pfx.cbData);
+        pfx.pbData = content.data();
+        if (!PFXExportCertStoreEx(store.value, &pfx, password.c_str(), nullptr, flags)) {
+            throw WindowsFailure("PFXExportCertStoreEx");
+        }
+        content.resize(pfx.cbData);
+    }
+    key.Delete();
+    PublishBinary(destination, content);
+#else
+    (void)identity;
+    (void)destination;
+    (void)password;
+    throw WindowsFailure("SigningKeyManager::ExportPkcs12");
 #endif
 }
 

@@ -109,6 +109,13 @@ jobs:
             throw 'Different packages unexpectedly share a certificate'
           }
 
+          $identityInfo = & $packer signing info com.lw.samples.hello --keys-dir build/test-keys
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $identityInfoText = $identityInfo -join "`n"
+          if ($identityInfoText -notmatch 'Certificate SHA-256: [0-9a-f]{64}') {
+            throw 'Signing identity info did not report a certificate digest'
+          }
+
       - name: Independently verify sample APKs
         shell: pwsh
         run: |
@@ -117,8 +124,8 @@ jobs:
           $zipalign = Join-Path $env:ANDROID_SDK_ROOT "build-tools/$($lock.buildToolsVersion)/zipalign.exe"
           $apksigner = Join-Path $env:ANDROID_SDK_ROOT "build-tools/$($lock.buildToolsVersion)/lib/apksigner.jar"
           $expectations = @{
-            'build/m3/hello-1.0.0-android.apk' = @('classes.dex', 'assets/lw-config.json', 'assets/www/index.html')
-            'build/m3/remote-1.0.0-android.apk' = @('classes.dex', 'assets/lw-config.json')
+            'build/m4/hello-1.0.0-android.apk' = @('classes.dex', 'assets/lw-config.json', 'assets/www/index.html')
+            'build/m4/remote-1.0.0-android.apk' = @('classes.dex', 'assets/lw-config.json')
           }
 
           foreach ($apk in $expectations.Keys) {
@@ -152,12 +159,12 @@ jobs:
       - name: Assemble unified download package
         shell: pwsh
         run: |
-          $package = 'build/ci-package/lw-Web2Android-m3'
+          $package = 'build/ci-package/lw-Web2Android-m4'
           $directories = @(
             "$package/bin",
             "$package/runtime",
             "$package/samples/m0",
-            "$package/samples/m3",
+            "$package/samples/m4",
             "$package/docs"
           )
           New-Item -ItemType Directory -Force -Path $directories | Out-Null
@@ -165,7 +172,7 @@ jobs:
           Copy-Item build/packer/Release/lw.Web2Android.exe "$package/bin/"
           Copy-Item build/runtime-dist/runtime-v1.zip "$package/runtime/"
           Copy-Item build/m0/out/sample-debug.apk,build/m0/out/sample-debug.apk.sha256 "$package/samples/m0/"
-          Copy-Item build/m3/*-android.apk,build/m3/*-android.apk.sha256 "$package/samples/m3/"
+          Copy-Item build/m4/*-android.apk,build/m4/*-android.apk.sha256 "$package/samples/m4/"
           Copy-Item README.md "$package/docs/README.md"
           Copy-Item packer/README.md "$package/docs/PACKER.md"
 
@@ -182,7 +189,7 @@ jobs:
       - name: Upload unified CI package
         uses: actions/upload-artifact@v4
         with:
-          name: lw-Web2Android-m3
+          name: lw-Web2Android-m4
           path: build/ci-package
           if-no-files-found: error
           retention-days: 14

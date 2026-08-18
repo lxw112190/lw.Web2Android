@@ -14,6 +14,7 @@ public:
 };
 
 std::wstring Utf8ToWide(const std::string& value);
+std::string WideToUtf8(const std::wstring& value);
 
 class Aapt2Runner {
 public:

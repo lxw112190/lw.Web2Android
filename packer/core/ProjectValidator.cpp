@@ -39,15 +39,19 @@ void Require(bool condition, const std::string& message) {
 
 }  // namespace
 
+void ProjectValidator::ValidatePackageName(const std::string& packageName) {
+    Require(IsValidPackage(packageName), "packageName must contain at least two valid Java identifiers");
+    Require(packageName != "com.lw.web2android.runtime" &&
+                !StartsWith(packageName, "com.lw.web2android.runtime."),
+            "packageName must not overlap the fixed Runtime namespace");
+}
+
 void ProjectValidator::Validate(const ProjectConfig& config) {
     Require(config.schemaVersion == 1, "schemaVersion must be 1");
     Require(config.mode == "local" || config.mode == "remote", "mode must be local or remote");
     Require(!config.name.empty(), "name is required");
     Require(config.name.size() <= 128U, "name must not exceed 128 UTF-8 bytes");
-    Require(IsValidPackage(config.packageName), "packageName must contain at least two valid Java identifiers");
-    Require(config.packageName != "com.lw.web2android.runtime" &&
-                !StartsWith(config.packageName, "com.lw.web2android.runtime."),
-            "packageName must not overlap the fixed Runtime namespace");
+    ValidatePackageName(config.packageName);
     Require(!config.versionName.empty() && config.versionName.size() <= 64U,
             "versionName must contain 1 to 64 UTF-8 bytes");
     Require(config.versionCode >= 1 && config.versionCode <= 2'100'000'000,

@@ -4,7 +4,7 @@
 
 ## 当前进度
 
-M0 架构验证、M1 Runtime Bundle 和 M2 C++17 Packer CLI 均已通过 CI。项目当前进入 **M3：自动签名与签名身份管理**。
+M0 架构验证、M1 Runtime Bundle、M2 C++17 Packer CLI 和 M3 自动签名均已通过 CI。项目当前进入 **M4：完整 CLI 与签名身份备份**。
 
 M0 最小流水线会：
 
@@ -14,14 +14,14 @@ M0 最小流水线会：
 4. 依次执行 `zipalign`、`apksigner sign` 和 `apksigner verify`；
 5. 生成可安装的 `sample-debug.apk` 和 SHA-256 文件。
 
-M0 使用一次性的测试签名，仅用于验证 APK 组装路线。正式流水线现已在 M3 实现“每个 Package Name 独立签名 + DPAPI 加密私钥”。
+M0 使用一次性的测试签名，仅用于验证 APK 组装路线。正式流水线已实现“每个 Package Name 独立签名 + DPAPI 加密私钥 + 密码保护的 PKCS#12 备份”。
 
 ## 在 GitHub Actions 中验证
 
-推送代码或手动运行唯一的 **lw.Web2Android CI** workflow。Runtime、M0、Packer、签名集成全部成功后，只会上传一个 `lw-Web2Android-m3` Artifact：
+推送代码或手动运行唯一的 **lw.Web2Android CI** workflow。Runtime、M0、Packer、签名集成全部成功后，只会上传一个 `lw-Web2Android-m4` Artifact：
 
 ```text
-lw-Web2Android-m3/
+lw-Web2Android-m4/
 ├── bin/
 │   └── lw.Web2Android.exe
 ├── runtime/
@@ -30,7 +30,7 @@ lw-Web2Android-m3/
 │   ├── m0/
 │   │   ├── sample-debug.apk
 │   │   └── sample-debug.apk.sha256
-│   └── m3/
+│   └── m4/
 │       ├── hello-1.0.0-android.apk
 │       ├── hello-1.0.0-android.apk.sha256
 │       ├── remote-1.0.0-android.apk
@@ -39,7 +39,7 @@ lw-Web2Android-m3/
 └── SHA256SUMS.txt
 ```
 
-下载一次即可取得本轮 CI 的全部产物。M0 APK 安装后应显示 `Hello lw.Web2Android`，M3 样例则用于验证正式 Packer 的 local/remote、签名与升级身份路线。
+下载一次即可取得本轮 CI 的全部产物。M0 APK 安装后应显示 `Hello lw.Web2Android`，M4 样例则用于验证正式 Packer 的 local/remote、签名与升级身份路线。
 
 统一 CI 会缓存 `toolchain.lock.json` 指定的 Android Platform、Build Tools、Gradle 依赖与 Gradle Build Cache。签名身份、APK、Runtime 最终产物及完整构建目录不会进入缓存。
 
@@ -64,7 +64,7 @@ pwsh ./tools/m0-build.ps1
 
 M1 Runtime 已实现首版 `WebViewAssetLoader`、配置读取及 local/remote 加载，并已纳入统一 CI。GUI 仍需等待 CLI Core 稳定后再开发。
 
-## M3 Packer CLI 与自动签名
+## M4 Packer CLI、自动签名与身份备份
 
 Windows C++17 Core 当前流水线负责：
 
@@ -85,7 +85,14 @@ Windows C++17 Core 当前流水线负责：
 %LOCALAPPDATA%\lw.Web2Android\keys\<Package Name>\
 ```
 
-同一 Package Name 后续构建必须复用该身份，否则 Android 无法将新 APK 作为原应用升级。请妥善保管此目录；标准 PKCS#12 备份导出将在签名管理功能中提供。
+同一 Package Name 后续构建必须复用该身份，否则 Android 无法将新 APK 作为原应用升级。可使用以下命令查看身份并导出密码保护的标准 PKCS#12 备份：
+
+```powershell
+lw.Web2Android.exe signing info com.example.app
+lw.Web2Android.exe signing export com.example.app D:\backup\com.example.app.pfx
+```
+
+导出密码通过关闭回显的交互式控制台输入，不会出现在命令行或日志中。备份文件默认不会覆盖同名文件；请将备份与密码分开妥善保管。
 
 ## 联系与支持
 
