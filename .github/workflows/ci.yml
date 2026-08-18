@@ -210,7 +210,19 @@ jobs:
               foreach ($required in $expectations[$apk]) {
                 if ($required -notin $names) { throw "$apk is missing $required" }
               }
-              if ($apk -like '*remote*' -and $names.Where({ $_ -like 'assets/www/*' }).Count -ne 0) {
+              $configEntry = $zip.GetEntry('assets/lw-config.json')
+              $reader = [System.IO.StreamReader]::new($configEntry.Open())
+              try {
+                $runtimeConfig = $reader.ReadToEnd() | ConvertFrom-Json
+              } finally {
+                $reader.Dispose()
+              }
+              if ($runtimeConfig.mode -eq 'local') {
+                $packagedEntry = "assets/$($runtimeConfig.entry)"
+                if ($packagedEntry -notin $names) {
+                  throw "$apk Runtime entry does not exist in the APK: $packagedEntry"
+                }
+              } elseif ($names.Where({ $_ -like 'assets/www/*' }).Count -ne 0) {
                 throw "$apk unexpectedly contains local web assets"
               }
             } finally {

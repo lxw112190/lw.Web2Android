@@ -69,3 +69,5 @@ GitHub Actions 使用统一的 `lw.Web2Android CI` workflow。CI 会从已安装
 ## project.json
 
 本地模式参考 `samples/hello/project.json`，在线模式参考 `samples/remote/project.json`。路径均相对于配置文件解析，HTTP 仅在 `allowHttp` 为 `true` 时允许。
+
+本地项目的 `entry` 相对于 `source` 目录填写；打包时网页会放入 APK 的 `assets/www/`，生成的 `assets/lw-config.json` 会把入口转换为对应的 `www/<entry>` 资产路径。

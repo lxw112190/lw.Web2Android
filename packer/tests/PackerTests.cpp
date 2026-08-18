@@ -103,6 +103,8 @@ void TestProjectAndGenerators(const std::filesystem::path& root) {
     Require(manifest.find("INTERNET") == std::string::npos, "local manifest must not request INTERNET");
     const auto runtime = lw::web2android::RuntimeConfigGenerator::Generate(config);
     Require(runtime.find("\"fullscreen\": true") != std::string::npos, "runtime fullscreen config");
+    Require(runtime.find("\"entry\": \"www/index.html\"") != std::string::npos,
+            "runtime entry must point to the packaged local web asset");
 
     const auto resources = root / "generated-res";
     const auto assets = root / "generated-assets";
@@ -110,6 +112,10 @@ void TestProjectAndGenerators(const std::filesystem::path& root) {
     lw::web2android::WebAssetManager::Prepare(config, assets);
     Require(std::filesystem::is_regular_file(resources / "drawable" / "ic_launcher.xml"), "generated icon");
     Require(std::filesystem::is_regular_file(assets / "www" / "index.html"), "copied web entry");
+    const auto generatedRuntimeConfig = ReadBinary(assets / "lw-config.json");
+    const std::string generatedRuntimeConfigText(generatedRuntimeConfig.begin(), generatedRuntimeConfig.end());
+    Require(generatedRuntimeConfigText.find("\"entry\": \"www/index.html\"") != std::string::npos,
+            "prepared Runtime config must match the copied web entry");
     Require(!std::filesystem::exists(assets / "www" / "project.json"), "project config must not become a web asset");
 }
 
@@ -341,6 +347,11 @@ int main(int argc, char* argv[]) {
         if (argc == 2 && std::string(argv[1]) == "--logging-only") {
             TestRotatingLog(temporary.path);
             std::cout << "Packer rotating log test passed" << std::endl;
+            return 0;
+        }
+        if (argc == 2 && std::string(argv[1]) == "--generators-only") {
+            TestProjectAndGenerators(temporary.path);
+            std::cout << "Packer generator tests passed" << std::endl;
             return 0;
         }
         TestProjectAndGenerators(temporary.path);

@@ -48,10 +48,14 @@ std::string ManifestGenerator::Generate(const ProjectConfig& config) {
 }
 
 std::string RuntimeConfigGenerator::Generate(const ProjectConfig& config) {
+    // ProjectConfig::entry is relative to the selected web source directory.
+    // Local web files are packaged below assets/www, so the Runtime config must
+    // contain the corresponding APK asset path rather than the source path.
+    const auto runtimeEntry = config.mode == "local" ? "www/" + config.entry : config.entry;
     return "{\n"
            "  \"schemaVersion\": 1,\n"
            "  \"mode\": \"" + EscapeJson(config.mode) + "\",\n"
-           "  \"entry\": \"" + EscapeJson(config.entry) + "\",\n"
+           "  \"entry\": \"" + EscapeJson(runtimeEntry) + "\",\n"
            "  \"url\": \"" + EscapeJson(config.url) + "\",\n"
            "  \"fullscreen\": " + std::string(config.fullscreen ? "true" : "false") + ",\n"
            "  \"orientation\": \"" + EscapeJson(config.orientation) + "\",\n"

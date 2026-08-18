@@ -7,7 +7,7 @@ Release 构建同时启用 R8 代码收缩与优化资源收缩。仅固定动�
 ## 当前能力（M1）
 
 - `WebViewAssetLoader` 本地 HTTPS 风格 URL；
-- `assets/lw-config.json` schema 1；
+- `assets/lw-config.json` schema 1，本地入口使用与 APK 一致的 `www/<entry>` 资产路径；
 - local 与 remote 两种模式；
 - JavaScript、DOM Storage、localStorage 与 IndexedDB；
 - WebView 历史返回；
