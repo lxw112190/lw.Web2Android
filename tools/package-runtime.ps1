@@ -62,8 +62,15 @@ try {
         }
 
         $dexText = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($destination))
-        if ($dexText.Contains('Lcom/lw/web2android/runtime/R;')) {
-            throw "Runtime DEX references the dynamically generated application R class: $($entry.Name)"
+        $forbiddenDescriptors = @(
+            'Lcom/lw/web2android/runtime/R;',
+            'Lcom/lw/web2android/runtime/R$',
+            'Lcom/lw/web2android/runtime/BuildConfig;'
+        )
+        foreach ($descriptor in $forbiddenDescriptors) {
+            if ($dexText.Contains($descriptor)) {
+                throw "Runtime DEX references a dynamically generated application class ($descriptor): $($entry.Name)"
+            }
         }
     }
 }
