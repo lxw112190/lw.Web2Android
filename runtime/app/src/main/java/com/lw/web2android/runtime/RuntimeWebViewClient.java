@@ -3,11 +3,11 @@ package com.lw.web2android.runtime;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.net.Uri;
-import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 
+import androidx.webkit.WebResourceErrorCompat;
 import androidx.webkit.WebViewAssetLoader;
 import androidx.webkit.WebViewClientCompat;
 
@@ -55,7 +55,7 @@ final class RuntimeWebViewClient extends WebViewClientCompat {
     }
 
     @Override
-    public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+    public void onReceivedError(WebView view, WebResourceRequest request, WebResourceErrorCompat error) {
         if (request.isForMainFrame()) {
             errorHandler.onMainFrameError("Unable to load page: " + error.getDescription());
         }
@@ -79,4 +79,3 @@ final class RuntimeWebViewClient extends WebViewClientCompat {
         return true;
     }
 }
-
