@@ -105,9 +105,20 @@ void WebAssetManager::Prepare(const ProjectConfig& config,
     const auto destination = assetsDirectory / "www";
     std::filesystem::create_directories(destination);
     for (const auto& item : std::filesystem::recursive_directory_iterator(config.source)) {
-        if (std::filesystem::equivalent(item.path(), config.configFile)) {
-            continue;
+        
+        // if (std::filesystem::equivalent(item.path(), config.configFile)) {
+        //     continue;
+        // }
+        if (!config.configFile.empty()) {
+            std::error_code ec;
+            const bool same =
+                std::filesystem::equivalent(item.path(), config.configFile, ec);
+
+            if (!ec && same) {
+                continue;
+            }
         }
+
         const auto relative = std::filesystem::relative(item.path(), config.source);
         const auto target = destination / relative;
         if (item.is_symlink()) {
