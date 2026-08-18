@@ -1,10 +1,9 @@
 {
   "schemaVersion": 1,
-  "mode": "local",
-  "entry": "hello/index.html",
-  "url": "",
+  "mode": "remote",
+  "entry": "index.html",
+  "url": "https://example.com",
   "fullscreen": false,
   "orientation": "auto",
   "allowHttp": false
 }
-

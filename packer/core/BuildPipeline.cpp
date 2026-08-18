@@ -148,7 +148,7 @@ std::filesystem::path EnsureCanonicalAssetEntries(const std::filesystem::path& r
 std::filesystem::path CreateWorkspace() {
     const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
     const auto path = std::filesystem::temp_directory_path() /
-                      std::filesystem::u8path("lw-web2android-m2-" + std::to_string(nonce));
+                      std::filesystem::u8path("lw-web2android-build-" + std::to_string(nonce));
     if (!std::filesystem::create_directories(path)) {
         throw std::runtime_error("Unable to create temporary workspace: " + path.u8string());
     }

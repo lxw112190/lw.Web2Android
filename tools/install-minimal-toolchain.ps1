@@ -74,15 +74,14 @@ try {
     }
 
     $packagedRuntime = Join-Path $repoRoot 'toolchain/runtime'
-    $legacyPackagedRuntime = Join-Path $repoRoot 'runtime/runtime-v1'
-    $developmentRuntime = Join-Path $repoRoot 'runtime-dist/runtime-v1'
+    $developmentRuntime = Join-Path $repoRoot 'build/runtime-dist/runtime-v1'
     if (Test-Path -LiteralPath (Join-Path $packagedRuntime 'classes.dex')) {
         $runtimeDirectory = Join-Path $working 'runtime'
         Copy-Item -LiteralPath $packagedRuntime -Destination $runtimeDirectory -Recurse
-    } elseif (Test-Path -LiteralPath (Join-Path $legacyPackagedRuntime 'classes.dex')) {
-        $runtimeDirectory = $legacyPackagedRuntime
-    } else {
+    } elseif (Test-Path -LiteralPath (Join-Path $developmentRuntime 'classes.dex')) {
         $runtimeDirectory = $developmentRuntime
+    } else {
+        throw 'Runtime Bundle was not found. Use the release package or build it with tools/package-runtime.ps1 first.'
     }
 
     & (Join-Path $PSScriptRoot 'assemble-minimal-toolchain.ps1') `

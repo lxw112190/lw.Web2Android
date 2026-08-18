@@ -457,8 +457,6 @@ void BuildInterface(State& state) {
 
     AddButton(state, L"生成 Android APK", 48, 755, 664, 48, kBuild);
 
-    const auto samples = std::filesystem::current_path() / "samples" / "hello";
-    if (std::filesystem::is_directory(samples)) SetWindowTextW(GetDlgItem(state.window, kSource), samples.c_str());
     const auto output = std::filesystem::current_path() / "output";
     SetWindowTextW(GetDlgItem(state.window, kOutput), output.c_str());
     UpdateToolchainDisplay(state);

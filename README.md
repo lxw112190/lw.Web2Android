@@ -1,196 +1,249 @@
 # lw.Web2Android
 
-`lw.Web2Android` 的目标是把本地 Web 项目或在线 URL 转换为可安装的 Android APK。v0.2.0 可以从官方源初始化锁定的最小工具链，最终用户无需安装 Android Studio、Gradle、完整 Android SDK 或完整 JDK。
+[English](README_EN.md) | 简体中文
 
-## 当前进度
+将本地 HTML、Vue、React、Vite 等静态 Web 项目，或一个在线 URL，打包为可安装的 Android APK。
 
-v0.1.0 的 M0–M6 已完成并正式发布。项目当前进入 **v0.2.0 / M7：End-User Toolchain**，重点解决首次下载后的零 Android 环境构建体验。
+`lw.Web2Android` 面向 Windows 10/11 x64，提供原生 GUI 和 CLI。最终用户不需要安装 Android Studio、Gradle、完整 Android SDK 或完整 JDK；首次使用时确认 Android SDK License，程序会从官方源下载锁定版本的最小组件，并保存在应用程序目录中供后续复用。
 
-M0 最小流水线会：
+## 主要能力
 
-1. 用 `javac` 和 D8 将固定命名空间的 Java Runtime 编译成 `classes.dex`；
-2. 用 AAPT2 动态编译 Manifest、资源和 Web assets；
-3. 将预编译的 DEX 注入资源 APK；
-4. 依次执行 `zipalign`、`apksigner sign` 和 `apksigner verify`；
-5. 生成可安装的 `sample-debug.apk` 和 SHA-256 文件。
+- 本地静态网站和在线 URL 两种模式；
+- 原生 Windows GUI，支持高 DPI 和后台构建；
+- 预编译 Android Runtime DEX，无需为每个项目重新编译 Java；
+- AAPT2 资源生成、ZIP 组装、`zipalign` 和 `apksigner` 完整流水线；
+- 每个 Package Name 独立且可复用的 RSA 3072 签名身份；
+- Windows DPAPI 加密私钥，以及密码保护的 PFX/P12 备份；
+- APK、证书和工具链版本的机器可读发行元数据；
+- Packer 与 Android Runtime 轮转日志；
+- GitHub Actions 自动构建 Runtime、Packer、GUI 和真实 React/Vite Demo。
 
-M0 使用一次性的测试签名，仅用于验证 APK 组装路线。正式流水线已实现“每个 Package Name 独立签名 + DPAPI 加密私钥 + 密码保护的 PKCS#12 备份”。
+当前版本：`v0.2.0`<br>
+Android：`minSdk 23`，`targetSdk 35`
 
-## 在 GitHub Actions 中验证
+## 下载与首次使用
 
-推送代码或手动运行唯一的 **lw.Web2Android CI** workflow。Runtime、最小工具链、Packer、GUI、签名和发行元数据验证全部成功后，只会上传一个 `lw-Web2Android-v0.2.0-windows-x64` Artifact：
+从 [GitHub Releases](https://github.com/lxw112190/lw.Web2Android/releases) 下载 Windows x64 ZIP 并完整解压，然后运行：
+
+```text
+bin/lw.Web2Android.GUI.exe
+```
+
+公开发行包包含：
 
 ```text
 lw-Web2Android-v0.2.0-windows-x64/
 ├── bin/
-│   ├── lw.Web2Android.exe
-│   └── lw.Web2Android.GUI.exe
+│   ├── lw.Web2Android.GUI.exe
+│   └── lw.Web2Android.exe
 ├── toolchain/
-│   ├── jre/                 # 可再分发的 Temurin 17 JRE
+│   ├── jre/
 │   ├── runtime/
-│   │   ├── classes.dex
-│   │   └── metadata.json
 │   └── runtime-v1.zip
-├── samples/
-│   ├── m0/
-│   │   ├── sample-debug.apk
-│   │   └── sample-debug.apk.sha256
-│   └── v0.2/
-│       ├── lw-Web2Android-Hello-1.0.0-android.apk
-│       ├── lw-Web2Android-Hello-1.0.0-android.apk.sha256
-│       ├── lw-Web2Android-Hello-1.0.0-android.release.json
-│       ├── lw-Web2Android-Hello-1.0.0-android-RELEASE.md
-│       └── ...Remote 对应文件
-├── docs/
 ├── tools/
-│   ├── install-minimal-toolchain.ps1
-│   └── assemble-minimal-toolchain.ps1
+├── samples/wechat-article-formatter/
+├── docs/
+├── SHA256SUMS.txt
 ├── LICENSE
-├── toolchain.lock.json
-├── release.json
-├── RELEASE.md
-└── SHA256SUMS.txt
+└── THIRD-PARTY-NOTICES.md
 ```
 
-下载一次即可取得本轮 CI 的全部产物。v0.2 样例由 CI 使用扁平最小工具链实际构建，用于同时验证 local/remote、签名、升级身份、发行追溯和零环境工具链解析路线。
-
-统一 CI 会缓存 `toolchain.lock.json` 指定的 Android Platform、Build Tools、Gradle 依赖与 Gradle Build Cache。签名身份、APK、Runtime 最终产物及完整构建目录不会进入缓存。
-
-## v0.2.0 首次使用
-
-解压公开发行包并双击 GUI。发行包已经包含可再分发的 Temurin 17 JRE 与 Runtime。工具链未准备好时，点击“初始化工具链”，阅读并接受 Android SDK License 后，程序会从 Android 官方源下载剩余的锁定组件，校验 SHA-256，并安装到当前应用目录：
+公开包不会重新分发 Android SDK 或 Google Build Tools。首次点击 GUI 中的“初始化工具链”，阅读并接受 [Android SDK License](https://developer.android.com/studio/terms) 后，程序会下载并校验锁定版本的命令行工具、Android Platform 和 Build Tools，最终放在当前应用目录：
 
 ```text
-lw-Web2Android-v0.2.0-windows-x64\toolchain\
+toolchain/
 ├── aapt2.exe
 ├── zipalign.exe
 ├── android.jar
-├── apksigner\apksigner.jar
-├── jre\
-├── runtime\
-│   ├── classes.dex
-│   └── metadata.json
-└── metadata.json
+├── apksigner/
+├── jre/
+└── runtime/
+    └── classes.dex
 ```
 
-也可以在 PowerShell 中执行：
+也可以在 PowerShell 中初始化：
 
 ```powershell
 ./tools/install-minimal-toolchain.ps1 -AcceptAndroidSdkLicense
 ```
 
-初始化器只从 `toolchain.lock.json` 指定的来源下载，并在解压前验证 SHA-256。下载过程仅使用系统临时目录并在结束时清理，不创建持久缓存；最终工具链永久保存在当前应用目录。仍可通过 `--android-sdk`、`--java-home`、`ANDROID_SDK_ROOT` 和 `JAVA_HOME` 使用开发环境。
+下载文件会进行 SHA-256 校验，临时文件会自动清理。初始化完成后不依赖系统的 `ANDROID_SDK_ROOT` 或 `JAVA_HOME`。
 
-## 本机私有完整发行包
+## 使用 GUI 生成 APK
 
-Android SDK 受其独立许可约束，因此公开 GitHub Release 不直接重新分发 Google SDK 组件。完成本机工具链初始化和 C++ Release 构建后，可为自己生成包含 `toolchain/` 的私有完整包：
+1. 选择“本地网页”或“在线网址”。
+2. 本地模式选择包含 `index.html` 的构建输出目录，例如 Vite 的 `dist`。
+3. 填写应用名称、Package Name、Version Name 和 Version Code。
+4. 选择屏幕方向、全屏选项和输出目录。
+5. 点击“生成 Android APK”。
 
-```powershell
-./tools/package-local-release.ps1
+本地 Web 资源必须使用相对 URL。Vite 项目推荐配置：
+
+```ts
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  base: "./",
+});
 ```
 
-输出为 `build/releases/lw-Web2Android-v0.2.0-windows-x64-complete-private.zip`，同时生成 ZIP SHA-256。该私有包不会被 CI 上传；重新分发前必须自行确认相关组件许可。
-
-## 轮转诊断日志
-
-Windows CLI 与 GUI 使用 spdlog 同步记录完整打包阶段、外部工具输出、签名验证结果和异常。默认单文件上限为 2 MiB，保留当前文件及 5 个轮转文件：
-
-```text
-%LOCALAPPDATA%\lw.Web2Android\logs\packer.log
-%LOCALAPPDATA%\lw.Web2Android\logs\packer.1.log
-...
-```
-
-GUI 构建失败弹窗会直接显示日志路径。日志不会记录签名私钥或备份密码。
-
-生成的 Android APK 也会记录 Runtime 生命周期、WebView 版本、页面加载、HTTP/SSL 错误、JS Console 和未捕获异常。查询参数与 URL fragment 会先移除。Runtime 日志同样按 2 MiB 轮转并保留 5 个历史文件，位于：
-
-```text
-/sdcard/Android/data/<Package Name>/files/logs/runtime.log
-```
-
-真机开启 USB 调试后可复制整个日志目录：
+也可以在 CI 或命令行构建时覆盖：
 
 ```bash
-adb pull /sdcard/Android/data/<Package Name>/files/logs ./android-runtime-logs
+npm run build -- --base=./
 ```
 
-若外部应用目录不可用，Runtime 会回退到内部应用目录并继续输出 Logcat；错误页会显示最终采用的日志位置。
+否则 `/assets/...` 会指向 Android 应用域名根目录，而不是 APK 内的 `assets/www/`。
 
-## 架构约束
+## CLI
 
-- Windows Packer 使用 C++17；
-- Android Runtime 使用 Java，并固定命名空间为 `com.lw.web2android.runtime`；
-- Runtime 不引用动态生成的应用 `R` 类；
-- APK 资源由 AAPT2 动态生成，Runtime DEX 编译一次后重复注入；
-- 本地 Web 正式实现将使用 `WebViewAssetLoader`；
-- 不提供 JavaScript ↔ Native Bridge。
+示例 `project.json`：
 
-M1 Runtime 已实现首版 `WebViewAssetLoader`、配置读取及 local/remote 加载，并已纳入统一 CI。
-
-## M5 原生 Windows GUI
-
-`lw.Web2Android.GUI.exe` 使用 C++17 和原生 Win32 构建，视觉与交互风格参考同系列项目 [`lw.Web2App`](https://github.com/lxw112190/lw.Web2App)：浅蓝页头、白色圆角卡片、蓝色主按钮、独立状态区以及 Per-Monitor V2 高 DPI 布局。
-
-GUI 支持本地网页目录和远程 HTTPS 地址，可设置应用名称、Package Name、版本、方向、全屏与输出目录。界面只负责创建 `ProjectConfig`，实际生成仍由稳定的 `BuildPipeline` 在工作线程完成，并实时显示 15 个构建阶段；CLI 功能与行为保持不变。
-
-双击运行：
-
-```text
-bin\lw.Web2Android.GUI.exe
+```json
+{
+  "schemaVersion": 1,
+  "mode": "local",
+  "name": "My Web App",
+  "packageName": "com.example.mywebapp",
+  "versionName": "1.0.0",
+  "versionCode": 1,
+  "source": "dist",
+  "entry": "index.html",
+  "fullscreen": false,
+  "orientation": "auto",
+  "allowHttp": false,
+  "output": "output"
+}
 ```
 
-GUI 优先使用当前应用目录中的 `toolchain/`，并兼容 `ANDROID_SDK_ROOT` 和 `JAVA_HOME`。下载前必须由用户显式确认 Android SDK License。
+构建和签名身份管理：
 
-## M6 发行与版本追溯
+```powershell
+./bin/lw.Web2Android.exe validate project.json
+./bin/lw.Web2Android.exe build project.json
+./bin/lw.Web2Android.exe signing info com.example.mywebapp
+./bin/lw.Web2Android.exe signing export com.example.mywebapp D:\backup\mywebapp.pfx
+```
 
-未设置 `outputFile` 时，Packer 使用 `<AppName>-<Version>-android.apk` 标准文件名，并过滤 Windows 禁止字符。每次成功构建会同时生成：
+路径相对于 `project.json` 解析。`entry` 相对于 `source`；打包后会自动转换为 APK 内的 `assets/www/<entry>`。远程模式使用 `mode: "remote"` 和 `url`，HTTP 只有在 `allowHttp: true` 时允许。
+
+完整 CLI 参数见 [packer/README.md](packer/README.md)。
+
+## 输出、签名与日志
+
+每次成功构建会生成：
 
 ```text
+<应用名>-<版本>-android.apk
 <APK>.sha256
 <APK名称>.release.json
 <APK名称>-RELEASE.md
 ```
 
-发行元数据记录 App Name、Package Name、Version Name/Code、APK SHA-256、签名证书 SHA-256、Runtime Version、Toolchain Version 和 UTC 构建时间。CI 会独立核对这些值与实际 APK、`toolchain.lock.json` 是否一致。
+同一个 Package Name 会复用同一个证书，使新 APK 能覆盖安装旧版本。默认签名身份保存在：
 
-`v*` 标签在完整构建通过后会自动创建 GitHub Release，上传 `lw-Web2Android-v0.2.0-windows-x64.zip` 及其 SHA-256 文件。建议先让 `main` 分支 CI 成功，再创建并推送标签：
+```text
+%LOCALAPPDATA%\lw.Web2Android\keys\<Package Name>\
+```
+
+请导出并离线保存 PFX/P12 备份。签名身份丢失后，无法再发布可覆盖安装的更新。
+
+Packer 日志：
+
+```text
+%LOCALAPPDATA%\lw.Web2Android\logs\packer.log
+```
+
+Android Runtime 日志：
+
+```text
+/sdcard/Android/data/<Package Name>/files/logs/runtime.log
+```
+
+两类日志均按单文件 2 MiB 轮转，最多保留 5 个归档。Runtime 日志同时记录页面加载、HTTP/SSL、WebView renderer、JavaScript Console 和未捕获异常。
+
+## 真实 Web Demo 与 CI
+
+统一的 `lw.Web2Android CI` 会：
+
+1. 编译并检查 Android Runtime；
+2. 组装锁定版本的最小工具链；
+3. 编译和测试 C++ Packer/GUI；
+4. 检出 [wechat-article-formatter](https://github.com/lxw112190/wechat-article-formatter) 的固定提交；
+5. 执行 `npm ci` 和 `npm run build -- --base=./`；
+6. 将真实 React/Vite `dist` 打包为签名 APK；
+7. 验证 APK 对齐、签名、内部资源、Runtime 入口、发行元数据和签名身份复用；
+8. 上传一个统一的 Windows x64 Artifact。
+
+该 Demo 已在 Android 真机验证通过。固定源码提交记录在 [.github/workflows/ci.yml](.github/workflows/ci.yml)，发行包中的 `samples/wechat-article-formatter/SOURCE.md` 记录来源、版本和构建命令。
+
+推送 `v*` 标签时，完整 CI 成功后会自动创建 GitHub Release：
 
 ```bash
 git tag -a v0.2.0 -m "lw.Web2Android v0.2.0"
 git push origin v0.2.0
 ```
 
-## Packer CLI、自动签名与身份备份
-
-Windows C++17 Core 当前流水线负责：
-
-1. 校验 `project.json`、本地入口或远程 URL；
-2. 生成 `AndroidManifest.xml`、Android 资源和 `assets/lw-config.json`；
-3. 用锁定版本 AAPT2 编译并链接资源 APK；
-4. 用内置 ZIP 组装器注入 `runtime-dist/runtime-v1/classes.dex`；
-5. 用 `zipalign` 生成并验证 aligned APK；
-6. 为每个 Package Name 创建或复用独立的 RSA 3072 签名身份；
-7. 使用 Windows DPAPI 保存加密后的 PKCS#8 私钥；
-8. 使用 `apksigner` 签名、验证并生成 APK SHA-256；
-9. 生成 JSON 与 Markdown 发行元数据。
-
-构建和命令行用法参见 `packer/README.md`。统一 CI 依次完成 Runtime 编译、M0 验证、Packer 单元测试、local/remote 正式签名 APK 集成验证，最后打包成一个下载项。
-
-默认签名身份保存在：
+## 架构
 
 ```text
-%LOCALAPPDATA%\lw.Web2Android\keys\<Package Name>\
+Web dist / Remote URL
+        │
+        ├── Manifest + Resources ── AAPT2
+        ├── assets/lw-config.json
+        └── assets/www/* (local only)
+                         │
+Precompiled Runtime DEX ─┤
+                         ▼
+                  Resource APK
+                         │
+                 ZIP assembly
+                         │
+                    zipalign
+                         │
+                    apksigner
+                         ▼
+                    Signed APK
 ```
 
-同一 Package Name 后续构建必须复用该身份，否则 Android 无法将新 APK 作为原应用升级。可使用以下命令查看身份并导出密码保护的标准 PKCS#12 备份：
+Android Runtime 使用 `WebViewAssetLoader` 通过 HTTPS 风格的应用内 URL 加载本地资源，不使用 `file://`，也不提供 `addJavascriptInterface` Native Bridge。
+
+## 从源码构建
+
+开发环境需要 CMake、Visual Studio 2022 C++ 工具链、JDK 17、Gradle 8.9 和锁定版本的 Android SDK。普通用户不需要这些开发依赖。
 
 ```powershell
-lw.Web2Android.exe signing info com.example.app
-lw.Web2Android.exe signing export com.example.app D:\backup\com.example.app.pfx
+gradle -p runtime clean :app:lintRelease :app:assembleRelease
+./tools/package-runtime.ps1
+
+cmake -S packer -B build/packer -A x64 -DBUILD_TESTING=ON
+cmake --build build/packer --config Release --parallel
+ctest --test-dir build/packer -C Release --output-on-failure
 ```
 
-导出密码通过关闭回显的交互式控制台输入，不会出现在命令行或日志中。备份文件默认不会覆盖同名文件；请将备份与密码分开妥善保管。
+仓库不提交预编译 Runtime 或 APK；这些文件由 CI 从源码生成。主要目录：
+
+```text
+packer/       C++17 Packer、Win32 GUI 与测试
+runtime/      Android Java Runtime
+samples/      Remote 模式测试配置
+tools/        Runtime、工具链与发行打包脚本
+.github/      统一 CI 与 Release 流程
+```
+
+## 当前限制
+
+- 仅支持 Windows 10/11 x64 主机；
+- 当前输出 APK，不输出 AAB；
+- GUI 暂不支持自定义应用图标；
+- Runtime 暂未实现网页文件选择和下载管理；
+- 不提供 Native Bridge。
+
+## License
+
+[MIT License](LICENSE)，作者：天天代码码天天。
+
+第三方组件及许可见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。Android SDK 与 Google Build Tools 受其各自许可约束，不属于本项目 MIT License 的授权范围。
 
 ## 联系与支持
 
@@ -198,12 +251,6 @@ lw.Web2Android.exe signing export com.example.app D:\backup\com.example.app.pfx
 - QQ：819069052
 - QQ Group：C# 人工智能实践（群号：758616458）
 
-## 赞助维护
+如果项目对你有帮助，可以扫码支持维护：
 
-如果项目对你有帮助，可以扫码支持项目的持续维护：
-
-<img src="assets/sponsor.jpg" alt="微信赞助二维码" width="360">
-
-## License
-
-项目源代码采用 [MIT License](LICENSE)，版权所有 © 2026 天天代码码天天。Android SDK、Eclipse Temurin 与 AndroidX 等第三方组件继续适用各自许可证，详见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。
+![微信赞助](assets/sponsor.jpg)

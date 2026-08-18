@@ -9,7 +9,7 @@
   "fullscreen": false,
   "orientation": "auto",
   "allowHttp": false,
-  "output": "../../build/v0.2",
-  "runtime": "../../runtime-dist/runtime-v1",
+  "output": "../../build/samples/remote",
+  "runtime": "../../build/runtime-dist/runtime-v1",
   "toolchainLock": "../../toolchain.lock.json"
 }

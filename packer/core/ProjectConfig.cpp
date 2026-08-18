@@ -61,7 +61,7 @@ ProjectConfig ProjectConfig::Load(const std::filesystem::path& file) {
     if (json.Contains("source")) config.source = Resolve(base, json.RequiredString("source"));
     config.outputDirectory = Resolve(base, json.OptionalString("output", "output"));
     config.toolchainLock = Resolve(base, json.OptionalString("toolchainLock", "toolchain.lock.json"));
-    config.runtimeDirectory = Resolve(base, json.OptionalString("runtime", "runtime-dist/runtime-v1"));
+    config.runtimeDirectory = Resolve(base, json.OptionalString("runtime", "toolchain/runtime"));
     return config;
 }
 

@@ -31,6 +31,7 @@ Copy-Item -LiteralPath (Join-Path $build 'lw.Web2Android.exe'),(Join-Path $build
 Copy-Item -LiteralPath $toolchain -Destination "$package/toolchain" -Recurse
 Copy-Item -LiteralPath (Join-Path $repoRoot 'tools/install-minimal-toolchain.ps1'),(Join-Path $repoRoot 'tools/assemble-minimal-toolchain.ps1') -Destination "$package/tools"
 Copy-Item -LiteralPath (Join-Path $repoRoot 'README.md') -Destination "$package/docs/README.md"
+Copy-Item -LiteralPath (Join-Path $repoRoot 'README_EN.md') -Destination "$package/docs/README_EN.md"
 Copy-Item -LiteralPath (Join-Path $repoRoot 'packer/README.md') -Destination "$package/docs/PACKER.md"
 Copy-Item -LiteralPath (Join-Path $repoRoot 'assets/sponsor.jpg') -Destination "$package/docs/assets"
 Copy-Item -LiteralPath (Join-Path $repoRoot 'LICENSE'),(Join-Path $repoRoot 'THIRD-PARTY-NOTICES.md'),(Join-Path $repoRoot 'toolchain.lock.json') -Destination $package

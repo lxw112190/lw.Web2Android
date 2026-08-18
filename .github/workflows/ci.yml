@@ -11,6 +11,8 @@ permissions:
 env:
   PRODUCT_VERSION: '0.2.0'
   PACKAGE_NAME: lw-Web2Android-v0.2.0-windows-x64
+  WECHAT_DEMO_REPOSITORY: lxw112190/wechat-article-formatter
+  WECHAT_DEMO_REF: ad1afc5a2c31d7cb7dc458a69944d6cb7ee0cd88
 
 jobs:
   build-test-package:
@@ -21,6 +23,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Checkout real Web demo
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.WECHAT_DEMO_REPOSITORY }}
+          ref: ${{ env.WECHAT_DEMO_REF }}
+          path: build/wechat-demo-source
+          persist-credentials: false
+
+      - name: Set up Node.js for the real Web demo
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: build/wechat-demo-source/package-lock.json
 
       - name: Read locked toolchain versions
         id: toolchain
@@ -139,9 +156,57 @@ jobs:
             throw 'Runtime rotating-log metadata is missing or invalid'
           }
 
-      - name: Build M0 proof APK
+      - name: Build real Web demo
+        id: demo
         shell: pwsh
-        run: ./tools/m0-build.ps1
+        run: |
+          Push-Location build/wechat-demo-source
+          try {
+            npm.cmd ci
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            npm.cmd run build -- --base=./
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } finally {
+            Pop-Location
+          }
+
+          $index = Get-Content -Raw build/wechat-demo-source/dist/index.html
+          if ($index -match '(?:src|href)="/[^/]') {
+            throw 'The real Web demo contains root-relative assets; Android local packaging requires a relative Vite base.'
+          }
+
+          $demoPackage = Get-Content -Raw build/wechat-demo-source/package.json | ConvertFrom-Json
+          $versionParts = @($demoPackage.version.Split('.') | ForEach-Object { [int]$_ })
+          if ($versionParts.Count -ne 3) { throw "Unsupported demo version: $($demoPackage.version)" }
+          $versionCode = $versionParts[0] * 10000 + $versionParts[1] * 100 + $versionParts[2]
+          if ($versionCode -lt 1) { $versionCode = 1 }
+
+          New-Item -ItemType Directory -Force -Path build/wechat-demo-project | Out-Null
+          $project = [ordered]@{
+            schemaVersion = 1
+            mode = 'local'
+            name = '微信文章发布工具'
+            packageName = 'com.lw.samples.wechatformatter'
+            versionName = [string]$demoPackage.version
+            versionCode = $versionCode
+            source = '../wechat-demo-source/dist'
+            entry = 'index.html'
+            fullscreen = $false
+            orientation = 'auto'
+            allowHttp = $false
+            output = '../samples/wechat-article-formatter'
+            outputFile = 'wechat-article-formatter-android.apk'
+            runtime = '../ci-minimal-toolchain/runtime'
+            toolchainLock = '../../toolchain.lock.json'
+          }
+          $project | ConvertTo-Json | Set-Content build/wechat-demo-project/project.json -Encoding utf8NoBOM
+
+          $sourceCommit = (& git -C build/wechat-demo-source rev-parse HEAD).Trim()
+          if ($sourceCommit -ne $env:WECHAT_DEMO_REF) {
+            throw "Unexpected demo commit: $sourceCommit"
+          }
+          "version=$($demoPackage.version)" >> $env:GITHUB_OUTPUT
+          "commit=$sourceCommit" >> $env:GITHUB_OUTPUT
 
       - name: Build and test Windows Packer
         shell: pwsh
@@ -155,36 +220,50 @@ jobs:
           & build/packer/Release/lw.Web2Android.GUI.exe --smoke-test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Build signed samples and verify identity isolation
+      - name: Build signed demo and verify identity isolation
         shell: pwsh
+        env:
+          DEMO_SOURCE_COMMIT: ${{ steps.demo.outputs.commit }}
+          DEMO_SOURCE_VERSION: ${{ steps.demo.outputs.version }}
         run: |
           $packer = Resolve-Path 'build/packer/Release/lw.Web2Android.exe'
           $common = @('--android-sdk', 'build/ci-minimal-toolchain', '--runtime', 'build/ci-minimal-toolchain/runtime', '--keys-dir', 'build/test-keys')
 
-          & $packer build samples/hello/project.json @common
+          & $packer build build/wechat-demo-project/project.json @common
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $helloCertificate = (Get-FileHash build/test-keys/com.lw.samples.hello/certificate.pem -Algorithm SHA256).Hash
+          $demoCertificate = (Get-FileHash build/test-keys/com.lw.samples.wechatformatter/certificate.pem -Algorithm SHA256).Hash
 
-          & $packer build samples/hello/project.json @common
+          & $packer build build/wechat-demo-project/project.json @common
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $helloCertificateAgain = (Get-FileHash build/test-keys/com.lw.samples.hello/certificate.pem -Algorithm SHA256).Hash
-          if ($helloCertificate -ne $helloCertificateAgain) {
+          $demoCertificateAgain = (Get-FileHash build/test-keys/com.lw.samples.wechatformatter/certificate.pem -Algorithm SHA256).Hash
+          if ($demoCertificate -ne $demoCertificateAgain) {
             throw 'Same package did not reuse its signing identity'
           }
 
           & $packer build samples/remote/project.json @common
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $remoteCertificate = (Get-FileHash build/test-keys/com.lw.samples.remote/certificate.pem -Algorithm SHA256).Hash
-          if ($helloCertificate -eq $remoteCertificate) {
+          if ($demoCertificate -eq $remoteCertificate) {
             throw 'Different packages unexpectedly share a certificate'
           }
 
-          $identityInfo = & $packer signing info com.lw.samples.hello --keys-dir build/test-keys
+          $identityInfo = & $packer signing info com.lw.samples.wechatformatter --keys-dir build/test-keys
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $identityInfoText = $identityInfo -join "`n"
           if ($identityInfoText -notmatch 'Certificate SHA-256: [0-9a-f]{64}') {
             throw 'Signing identity info did not report a certificate digest'
           }
+
+          $demoSource = @"
+          # Demo source
+
+          - Repository: https://github.com/$env:WECHAT_DEMO_REPOSITORY
+          - Commit: $env:DEMO_SOURCE_COMMIT
+          - Version: $env:DEMO_SOURCE_VERSION
+          - Build: ``npm ci`` then ``npm run build -- --base=./``
+          "@
+          $demoSource | Set-Content build/samples/wechat-article-formatter/SOURCE.md -Encoding utf8NoBOM
+          Copy-Item build/wechat-demo-source/LICENSE build/samples/wechat-article-formatter/DEMO-LICENSE.txt
 
       - name: Independently verify sample APKs
         shell: pwsh
@@ -193,12 +272,19 @@ jobs:
           $lock = Get-Content -Raw toolchain.lock.json | ConvertFrom-Json
           $zipalign = Join-Path $env:ANDROID_SDK_ROOT "build-tools/$($lock.buildToolsVersion)/zipalign.exe"
           $apksigner = Join-Path $env:ANDROID_SDK_ROOT "build-tools/$($lock.buildToolsVersion)/lib/apksigner.jar"
-          $expectations = @{
-            'build/v0.2/lw-Web2Android-Hello-1.0.0-android.apk' = @('classes.dex', 'assets/lw-config.json', 'assets/www/index.html')
-            'build/v0.2/lw-Web2Android-Remote-1.0.0-android.apk' = @('classes.dex', 'assets/lw-config.json')
-          }
+          $expectations = @(
+            [pscustomobject]@{
+              apk = 'build/samples/wechat-article-formatter/wechat-article-formatter-android.apk'
+              required = @('classes.dex', 'assets/lw-config.json', 'assets/www/index.html')
+            },
+            [pscustomobject]@{
+              apk = 'build/samples/remote/lw-Web2Android-Remote-1.0.0-android.apk'
+              required = @('classes.dex', 'assets/lw-config.json')
+            }
+          )
 
-          foreach ($apk in $expectations.Keys) {
+          foreach ($expectation in $expectations) {
+            $apk = $expectation.apk
             & $zipalign -c -v 4 $apk
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             & java -jar $apksigner verify --verbose --print-certs $apk
@@ -207,7 +293,7 @@ jobs:
             $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $apk))
             try {
               $names = @($zip.Entries.FullName)
-              foreach ($required in $expectations[$apk]) {
+              foreach ($required in $expectation.required) {
                 if ($required -notin $names) { throw "$apk is missing $required" }
               }
               $configEntry = $zip.GetEntry('assets/lw-config.json')
@@ -221,6 +307,16 @@ jobs:
                 $packagedEntry = "assets/$($runtimeConfig.entry)"
                 if ($packagedEntry -notin $names) {
                   throw "$apk Runtime entry does not exist in the APK: $packagedEntry"
+                }
+                $htmlEntry = $zip.GetEntry($packagedEntry)
+                $htmlReader = [System.IO.StreamReader]::new($htmlEntry.Open())
+                try {
+                  $html = $htmlReader.ReadToEnd()
+                } finally {
+                  $htmlReader.Dispose()
+                }
+                if ($html -match '(?:src|href)="/[^/]') {
+                  throw "$apk contains root-relative Web assets"
                 }
               } elseif ($names.Where({ $_ -like 'assets/www/*' }).Count -ne 0) {
                 throw "$apk unexpectedly contains local web assets"
@@ -266,9 +362,8 @@ jobs:
             "$package/toolchain/runtime",
             "$package/toolchain/jre",
             "$package/tools",
-            "$package/samples/m0",
-            "$package/samples/v0.2",
-            "$package/docs/assets"
+            "$package/samples/wechat-article-formatter",
+            "$package/docs/assets",
             "$package/third_party/licenses"
           )
           New-Item -ItemType Directory -Force -Path $directories | Out-Null
@@ -279,10 +374,10 @@ jobs:
           Copy-Item build/ci-runtime/* "$package/toolchain/runtime/" -Recurse
           Copy-Item build/ci-jre/* "$package/toolchain/jre/" -Recurse
           Copy-Item toolchain.lock.json "$package/"
-          Copy-Item build/m0/out/sample-debug.apk,build/m0/out/sample-debug.apk.sha256 "$package/samples/m0/"
-          Copy-Item build/v0.2/*-android.apk,build/v0.2/*-android.apk.sha256,build/v0.2/*.release.json,build/v0.2/*-RELEASE.md "$package/samples/v0.2/"
+          Copy-Item build/samples/wechat-article-formatter/* "$package/samples/wechat-article-formatter/"
           Copy-Item tools/install-minimal-toolchain.ps1,tools/assemble-minimal-toolchain.ps1 "$package/tools/"
           Copy-Item README.md "$package/docs/README.md"
+          Copy-Item README_EN.md "$package/docs/README_EN.md"
           Copy-Item packer/README.md "$package/docs/PACKER.md"
           Copy-Item assets/sponsor.jpg "$package/docs/assets/"
           Copy-Item LICENSE,THIRD-PARTY-NOTICES.md "$package/"

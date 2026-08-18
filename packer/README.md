@@ -24,16 +24,16 @@ GUI 参考 `lw.Web2App` 的设计语言，支持 Per-Monitor V2 高 DPI、后台
 ## 使用
 
 ```powershell
-build/packer/Release/lw.Web2Android.exe validate samples/hello/project.json
-build/packer/Release/lw.Web2Android.exe build samples/hello/project.json
-build/packer/Release/lw.Web2Android.exe signing info com.lw.samples.hello
-build/packer/Release/lw.Web2Android.exe signing export com.lw.samples.hello D:\backup\com.lw.samples.hello.pfx
+build/packer/Release/lw.Web2Android.exe validate project.json
+build/packer/Release/lw.Web2Android.exe build project.json
+build/packer/Release/lw.Web2Android.exe signing info com.example.myapp
+build/packer/Release/lw.Web2Android.exe signing export com.example.myapp D:\backup\myapp.pfx
 ```
 
 可用参数：
 
 ```text
---android-sdk <directory>  覆盖 ANDROID_SDK_ROOT
+--android-sdk <directory>  覆盖应用目录中的最小工具链或 ANDROID_SDK_ROOT
 --java-home <directory>    覆盖 JAVA_HOME
 --runtime <directory>      覆盖 project.json 中的 Runtime Bundle 目录
 --keys-dir <directory>     覆盖 DPAPI 签名身份存储目录
@@ -64,10 +64,10 @@ CLI 与 GUI 使用 spdlog 的同步 rotating sink 记录 15 个构建阶段、AA
 
 `signing info` 只读取已有身份，不会自动创建新密钥。`signing export` 会在控制台关闭回显后要求输入并确认至少 8 个字符的密码，生成包含证书和私钥的标准 PKCS#12 备份；密码不会进入命令行或日志。目标文件已存在时命令会拒绝覆盖。请把备份和密码分开保管，丢失签名身份后将无法发布可覆盖安装的更新。
 
-GitHub Actions 使用统一的 `lw.Web2Android CI` workflow。CI 会从已安装 SDK 组装扁平最小工具链，再用该目录构建 v0.2 local/remote 样例。CLI、GUI、Runtime、初始化脚本、MIT License、样例 APK、发行元数据和总校验文件会合并到单个 `lw-Web2Android-v0.2.0-windows-x64` Artifact。公开发行包不重新分发 Android SDK。
+GitHub Actions 使用统一的 `lw.Web2Android CI` workflow。CI 会从已安装 SDK 组装扁平最小工具链，检出固定版本的 `wechat-article-formatter`，构建真实 React/Vite `dist` 并生成 Demo APK；Remote 模式仍作为内部集成测试。CLI、GUI、Runtime、初始化脚本、MIT License、Demo APK、发行元数据和总校验文件会合并到单个 `lw-Web2Android-v0.2.0-windows-x64` Artifact。公开发行包不重新分发 Android SDK。
 
 ## project.json
 
-本地模式参考 `samples/hello/project.json`，在线模式参考 `samples/remote/project.json`。路径均相对于配置文件解析，HTTP 仅在 `allowHttp` 为 `true` 时允许。
+完整的本地模式示例见项目根目录 `README.md`，在线模式测试配置见 `samples/remote/project.json`。路径均相对于配置文件解析，HTTP 仅在 `allowHttp` 为 `true` 时允许。
 
 本地项目的 `entry` 相对于 `source` 目录填写；打包时网页会放入 APK 的 `assets/www/`，生成的 `assets/lw-config.json` 会把入口转换为对应的 `www/<entry>` 资产路径。

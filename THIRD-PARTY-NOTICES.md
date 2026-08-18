@@ -31,3 +31,9 @@ The Windows Packer and GUI statically link spdlog 1.17.0, including its bundled 
 
 - Source: https://github.com/gabime/spdlog/tree/v1.17.0
 - License: https://github.com/gabime/spdlog/blob/v1.17.0/LICENSE
+
+## wechat-article-formatter demo
+
+CI builds a real Web demo from a pinned revision of `wechat-article-formatter` and includes the generated APK in the unified distribution. The source repository is MIT licensed. Its license is copied beside the Demo APK as `DEMO-LICENSE.txt`.
+
+- Source: https://github.com/lxw112190/wechat-article-formatter

@@ -29,12 +29,6 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 
-    sourceSets {
-        main {
-            assets.srcDirs = ['src/main/assets', '../../samples']
-        }
-    }
-
     lint {
         abortOnError true
         warningsAsErrors false

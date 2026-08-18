@@ -148,7 +148,7 @@ void TestZipAssembler(const std::filesystem::path& root) {
 }
 
 void TestGuiProjectModel(const std::filesystem::path& root) {
-    const auto runtime = root / "runtime" / "runtime-v1";
+    const auto runtime = root / "toolchain" / "runtime";
     std::filesystem::create_directories(runtime);
     const auto environment = lw::web2android::gui::GuiEnvironment::Discover(
         root / "bin" / "lw.Web2Android.GUI.exe", root / "unrelated");
@@ -294,10 +294,10 @@ void TestReleaseMetadata() {
                                                     std::string(64, 'a'),
                                                     std::string(64, 'b'),
                                                     "1",
-                                                    "m7-1",
+                                                    "0.2.0-1",
                                                     "2026-08-18T01:02:03Z"};
     const auto json = metadata.ToJson();
-    Require(json.find("\"toolchainVersion\": \"m7-1\"") != std::string::npos,
+    Require(json.find("\"toolchainVersion\": \"0.2.0-1\"") != std::string::npos,
             "release JSON must record the toolchain version");
     Require(json.find("\"apkSha256\": \"" + std::string(64, 'a') + "\"") != std::string::npos,
             "release JSON must record the APK digest");
@@ -326,7 +326,7 @@ void TestMinimalToolchainResolution(const std::filesystem::path& root) {
     Require(lw::web2android::IsMinimalToolchainDirectory(toolchain), "minimal toolchain layout detection");
 
     lw::web2android::ToolchainLock lock;
-    lock.toolchainVersion = "m7-test";
+    lock.toolchainVersion = "test-1";
     lock.platformApi = 35;
     lock.buildToolsVersion = "35.0.0";
     lock.runtimeVersion = "1";
