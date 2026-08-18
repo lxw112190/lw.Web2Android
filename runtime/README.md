@@ -15,8 +15,27 @@ Release 构建同时启用 R8 代码收缩与优化资源收缩。仅固定动�
 - HTTP 默认阻止，只有 `allowHttp=true` 才允许；
 - 非 HTTP(S) URL 交给系统应用处理；
 - 基本主页面错误提示。
+- 2 MiB × 5 的 Runtime 轮转日志，并同步输出 Logcat；
+- 页面加载、HTTP/SSL、WebView renderer、JS Console 与未捕获异常诊断。
 
 Runtime 不调用 `addJavascriptInterface`，不提供 Native Bridge，也不引用应用动态生成的 `R` 类。
+
+## 真机日志
+
+Runtime 优先写入无需额外存储权限的应用专属外部目录：
+
+```text
+/sdcard/Android/data/<Package Name>/files/logs/runtime.log
+```
+
+`runtime.log` 达到 2 MiB 后依次轮转为 `runtime.log.1` 至 `runtime.log.5`。日志包含 UTC 时间、级别、PID 与线程；URL 查询参数及 fragment 不会写入。通过 USB 调试复制：
+
+```bash
+adb pull /sdcard/Android/data/<Package Name>/files/logs ./android-runtime-logs
+adb logcat -s lw.Web2Android
+```
+
+外部应用目录不可用时回退到内部 `files/logs`。Runtime 错误页会显示实际日志路径。
 
 ## 构建
 

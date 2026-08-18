@@ -1,6 +1,7 @@
 #include "gui/GuiProjectModel.h"
 
 #include "core/BuildPipeline.h"
+#include "core/Logging.h"
 #include "core/ProcessRunner.h"
 #include "core/Toolchain.h"
 
@@ -311,6 +312,7 @@ void StartBuild(HWND window) {
         input.fullscreen = IsDlgButtonChecked(window, kFullscreen) == BST_CHECKED;
         input.outputDirectory = std::filesystem::path(Text(window, kOutput));
         auto config = CreateProjectConfig(input, state->environment);
+        PackerLogger().Info("GUI build requested for package " + config.packageName);
         BuildOptions options;
         options.runtimeDirectory = state->environment.runtimeDirectory;
         if (!state->environment.toolchainDirectory.empty()) {
@@ -342,6 +344,7 @@ void StartBuild(HWND window) {
             }
         }).detach();
     } catch (const std::exception& error) {
+        PackerLogger().Error(std::string("Unable to start GUI build: ") + error.what());
         const auto message = Utf8ToWide(error.what());
         SetStatus(window, L"生成失败：" + message, kFailure);
         MessageBoxW(window, message.c_str(), L"生成失败", MB_OK | MB_ICONERROR);
@@ -373,6 +376,8 @@ void StartToolchainInstall(HWND window) {
         L"点击“是”表示你已阅读并接受该许可，是否继续？",
         L"初始化最小工具链", MB_YESNO | MB_ICONINFORMATION | MB_DEFBUTTON2);
     if (consent != IDYES) return;
+
+    PackerLogger().Info("GUI toolchain initialization accepted by the local user");
 
     const auto destination = state->environment.applicationRoot / "toolchain";
     auto parameters = std::wstring(L"-NoProfile -ExecutionPolicy Bypass -File \"") + script.wstring() +
@@ -500,14 +505,19 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
             SetWindowTextW(GetDlgItem(window, kBuild), L"生成 Android APK");
             InvalidateRect(GetDlgItem(window, kBuild), nullptr, TRUE);
             if (completion->success) {
+                PackerLogger().Info("GUI build completed: " + completion->result.apk.u8string());
                 SetStatus(window, L"生成完成 · APK 签名、验证与 SHA-256 均已通过");
                 const auto detail = L"APK 已成功生成：\n\n" + completion->result.apk.wstring() +
                                     L"\n\nAPK SHA-256：\n" + Utf8ToWide(completion->result.apkSha256) +
                                     L"\n\n证书 SHA-256：\n" + Utf8ToWide(completion->result.certificateSha256);
                 MessageBoxW(window, detail.c_str(), L"lw.Web2Android", MB_OK | MB_ICONINFORMATION);
             } else {
+                PackerLogger().Error("GUI build failed: " + WideToUtf8(completion->error));
                 SetStatus(window, L"生成失败：" + completion->error, kFailure);
-                MessageBoxW(window, completion->error.c_str(), L"生成失败", MB_OK | MB_ICONERROR);
+                const auto& logger = PackerLogger();
+                const auto logPath = logger.Enabled() ? logger.File().wstring() : L"日志文件不可用（请查看错误输出）";
+                const auto detail = completion->error + L"\n\n打包日志：\n" + logPath;
+                MessageBoxW(window, detail.c_str(), L"生成失败", MB_OK | MB_ICONERROR);
             }
             return 0;
         }
@@ -517,6 +527,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
             EnableWindow(GetDlgItem(window, kBuild), TRUE);
             const auto installed = state->environment.applicationRoot / "toolchain";
             if (wparam == 0 && IsMinimalToolchainDirectory(installed)) {
+                PackerLogger().Info("Toolchain initialization completed");
                 state->environment.toolchainDirectory = installed;
                 const auto toolchainRuntime = installed / "runtime";
                 if (std::filesystem::is_directory(toolchainRuntime)) {
@@ -526,6 +537,8 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
                 MessageBoxW(window, L"最小工具链已安装，可以直接生成 APK。", L"初始化完成",
                             MB_OK | MB_ICONINFORMATION);
             } else {
+                PackerLogger().Error("Toolchain initialization failed with exit code " +
+                                     std::to_string(static_cast<unsigned long long>(wparam)));
                 SetStatus(window, L"工具链初始化失败，请查看下载窗口中的错误信息", kFailure);
                 MessageBoxW(window, L"工具链初始化未完成，请查看下载窗口中的错误信息。",
                             L"初始化失败", MB_OK | MB_ICONERROR);
@@ -611,6 +624,8 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
             return 0;
         }
         case WM_DESTROY:
+            PackerLogger().Info("GUI closed");
+            PackerLogger().Flush();
             if (state) {
                 DeleteObject(state->titleFont);
                 DeleteObject(state->sectionFont);
@@ -627,6 +642,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
 }
 
 int RunGui(HINSTANCE instance) {
+    PackerLogger().Info(std::string("GUI started, version ") + LW_WEB2ANDROID_VERSION);
     INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_STANDARD_CLASSES};
     InitCommonControlsEx(&controls);
     const auto environment = GuiEnvironment::Discover(CurrentExecutable(), std::filesystem::current_path());
@@ -682,6 +698,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int) {
         if (SUCCEEDED(initialized)) CoUninitialize();
         return result;
     } catch (const std::exception& error) {
+        lw::web2android::PackerLogger().Error(std::string("GUI fatal error: ") + error.what());
+        lw::web2android::PackerLogger().Flush();
         const auto message = lw::web2android::Utf8ToWide(error.what());
         MessageBoxW(nullptr, message.c_str(), L"lw.Web2Android", MB_OK | MB_ICONERROR);
         if (SUCCEEDED(initialized)) CoUninitialize();

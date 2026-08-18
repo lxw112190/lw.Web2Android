@@ -10,7 +10,6 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
-import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.TextView;
@@ -26,22 +25,43 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        RuntimeLog.initialize(this);
+        RuntimeLog.installCrashHandler();
+        RuntimeLog.info("MainActivity.onCreate; Android API " + Build.VERSION.SDK_INT
+                + ", package " + getPackageName());
+
         try {
             config = RuntimeConfig.load(this);
         } catch (RuntimeConfig.ConfigException error) {
+            RuntimeLog.error("Runtime configuration failed", error);
             showRuntimeError(error.getMessage());
             return;
         }
 
-        applyRuntimeWindowConfig();
-        createWebView();
+        RuntimeLog.info("Configuration loaded; mode=" + config.mode
+                + ", start=" + RuntimeLog.safeUrl(config.startUrl())
+                + ", fullscreen=" + config.fullscreen
+                + ", orientation=" + config.orientation
+                + ", allowHttp=" + config.allowHttp);
 
-        if (savedInstanceState == null || webView.restoreState(savedInstanceState) == null) {
-            webView.loadUrl(config.startUrl());
+        try {
+            applyRuntimeWindowConfig();
+            createWebView();
+
+            if (savedInstanceState == null || webView.restoreState(savedInstanceState) == null) {
+                RuntimeLog.info("Loading start page: " + RuntimeLog.safeUrl(config.startUrl()));
+                webView.loadUrl(config.startUrl());
+            } else {
+                RuntimeLog.info("WebView state restored");
+            }
+        } catch (RuntimeException error) {
+            RuntimeLog.error("Unable to initialize Android WebView", error);
+            showRuntimeError("Unable to initialize Android WebView: " + error.getMessage());
         }
     }
 
     private void createWebView() {
+        RuntimeLog.info("Creating Android WebView");
         webView = new WebView(this);
         webView.setBackgroundColor(Color.WHITE);
         webView.setLayoutParams(new ViewGroup.LayoutParams(
@@ -68,8 +88,14 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
                 .build();
 
         webView.setWebViewClient(new RuntimeWebViewClient(this, config, assetLoader, this));
-        webView.setWebChromeClient(new WebChromeClient());
+        webView.setWebChromeClient(new RuntimeWebChromeClient());
         setContentView(webView);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            android.content.pm.PackageInfo provider = WebView.getCurrentWebViewPackage();
+            if (provider != null) {
+                RuntimeLog.info("WebView provider: " + provider.packageName + " " + provider.versionName);
+            }
+        }
     }
 
     private void applyRuntimeWindowConfig() {
@@ -122,6 +148,7 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
 
     @Override
     protected void onPause() {
+        RuntimeLog.debug("MainActivity.onPause");
         if (webView != null) {
             webView.onPause();
         }
@@ -131,6 +158,7 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
     @Override
     protected void onResume() {
         super.onResume();
+        RuntimeLog.debug("MainActivity.onResume");
         if (webView != null) {
             webView.onResume();
         }
@@ -147,10 +175,12 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
 
     @Override
     public void onMainFrameError(final String message) {
+        RuntimeLog.error("Main frame error: " + message);
         runOnUiThread(() -> showRuntimeError(message));
     }
 
     private void showRuntimeError(String message) {
+        RuntimeLog.error("Showing Runtime error page: " + message);
         destroyWebView();
         TextView errorView = new TextView(this);
         errorView.setLayoutParams(new ViewGroup.LayoutParams(
@@ -161,13 +191,15 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
         errorView.setGravity(Gravity.CENTER);
         errorView.setTextColor(Color.rgb(120, 30, 30));
         errorView.setBackgroundColor(Color.rgb(255, 247, 247));
-        errorView.setText("lw.Web2Android\n\n" + message);
+        errorView.setText("lw.Web2Android\n\n" + message
+                + "\n\nRuntime logs:\n" + RuntimeLog.directoryPath());
         errorView.setTextIsSelectable(true);
         setContentView(errorView);
     }
 
     private void destroyWebView() {
         if (webView != null) {
+            RuntimeLog.debug("Destroying Android WebView");
             webView.stopLoading();
             webView.setWebChromeClient(null);
             webView.setWebViewClient(null);
@@ -178,8 +210,9 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
 
     @Override
     protected void onDestroy() {
+        RuntimeLog.info("MainActivity.onDestroy");
         destroyWebView();
+        RuntimeLog.flush();
         super.onDestroy();
     }
 }
-

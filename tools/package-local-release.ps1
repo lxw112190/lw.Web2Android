@@ -25,7 +25,7 @@ foreach ($binary in @('lw.Web2Android.exe','lw.Web2Android.GUI.exe')) {
 New-Item -ItemType Directory -Force -Path $releaseRoot | Out-Null
 if (Test-Path -LiteralPath $package) { Remove-Item -LiteralPath $package -Recurse -Force }
 if (Test-Path -LiteralPath $archive) { Remove-Item -LiteralPath $archive -Force }
-New-Item -ItemType Directory -Force -Path "$package/bin","$package/tools","$package/docs/assets" | Out-Null
+New-Item -ItemType Directory -Force -Path "$package/bin","$package/tools","$package/docs/assets","$package/third_party/licenses" | Out-Null
 
 Copy-Item -LiteralPath (Join-Path $build 'lw.Web2Android.exe'),(Join-Path $build 'lw.Web2Android.GUI.exe') -Destination "$package/bin"
 Copy-Item -LiteralPath $toolchain -Destination "$package/toolchain" -Recurse
@@ -34,6 +34,7 @@ Copy-Item -LiteralPath (Join-Path $repoRoot 'README.md') -Destination "$package/
 Copy-Item -LiteralPath (Join-Path $repoRoot 'packer/README.md') -Destination "$package/docs/PACKER.md"
 Copy-Item -LiteralPath (Join-Path $repoRoot 'assets/sponsor.jpg') -Destination "$package/docs/assets"
 Copy-Item -LiteralPath (Join-Path $repoRoot 'LICENSE'),(Join-Path $repoRoot 'THIRD-PARTY-NOTICES.md'),(Join-Path $repoRoot 'toolchain.lock.json') -Destination $package
+Copy-Item -LiteralPath (Join-Path $repoRoot 'third_party/licenses/spdlog-LICENSE.txt') -Destination "$package/third_party/licenses"
 
 $notice = @'
 # Private complete toolchain package

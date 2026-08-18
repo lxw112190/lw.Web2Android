@@ -24,3 +24,10 @@ Any Android SDK files in a locally generated `*-complete-private.zip` remain sub
 The precompiled Android Runtime uses AndroidX WebKit, distributed under the Apache License 2.0:
 
 https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt
+
+## spdlog
+
+The Windows Packer and GUI statically link spdlog 1.17.0, including its bundled fmt implementation, under the MIT License. The complete notice is included in `third_party/licenses/spdlog-LICENSE.txt`.
+
+- Source: https://github.com/gabime/spdlog/tree/v1.17.0
+- License: https://github.com/gabime/spdlog/blob/v1.17.0/LICENSE

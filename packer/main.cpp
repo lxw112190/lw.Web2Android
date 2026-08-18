@@ -1,4 +1,5 @@
 #include "core/BuildPipeline.h"
+#include "core/Logging.h"
 #include "core/ProcessRunner.h"
 #include "core/ProjectConfig.h"
 #include "core/ProjectValidator.h"
@@ -138,6 +139,8 @@ int wmain(int argc, wchar_t* argv[]) {
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
 #endif
+    auto& log = lw::web2android::PackerLogger();
+    log.Info(std::string("CLI started, version ") + LW_WEB2ANDROID_VERSION);
     try {
         if (argc < 2 || std::wstring(argv[1]) == L"--help" || std::wstring(argv[1]) == L"-h") {
             PrintUsage();
@@ -154,6 +157,7 @@ int wmain(int argc, wchar_t* argv[]) {
             if (argc != 3) throw std::runtime_error("validate does not accept build options");
             lw::web2android::ProjectValidator::Validate(config);
             std::cout << "Project is valid: " << config.configFile.u8string() << std::endl;
+            log.Info("Project validation passed: " + config.configFile.u8string());
             return 0;
         }
 
@@ -176,6 +180,8 @@ int wmain(int argc, wchar_t* argv[]) {
         lw::web2android::BuildPipeline::Build(config, options);
         return 0;
     } catch (const std::exception& error) {
+        log.Error(std::string("CLI failed: ") + error.what());
+        log.Flush();
         std::cerr << "error: " << error.what() << std::endl;
         return 1;
     }

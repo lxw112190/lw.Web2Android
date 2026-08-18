@@ -88,6 +88,15 @@ $dexFiles = @(Get-ChildItem -LiteralPath $outputPath -Filter 'classes*.dex' -Fil
             sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
         }
     })
+$runtimeDexText = ($dexFiles | ForEach-Object {
+    [System.Text.Encoding]::ASCII.GetString(
+        [System.IO.File]::ReadAllBytes((Join-Path $outputPath $_.name)))
+}) -join ''
+foreach ($requiredLoggingMarker in @('runtime.log', 'Runtime logger initialized')) {
+    if (-not $runtimeDexText.Contains($requiredLoggingMarker)) {
+        throw "Runtime DEX is missing required rotating-log marker: $requiredLoggingMarker"
+    }
+}
 
 $metadata = [ordered]@{
     schemaVersion = 1
@@ -97,6 +106,11 @@ $metadata = [ordered]@{
     minSdk = 23
     targetSdk = [int]$lock.platformApi
     androidXWebKitVersion = [string]$lock.androidXWebKitVersion
+    logging = [ordered]@{
+        maxFileSizeBytes = 2097152
+        maxArchives = 5
+        relativeExternalPath = 'logs/runtime.log'
+    }
     dexFiles = $dexFiles
 }
 $metadata | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $outputPath 'metadata.json') -Encoding utf8

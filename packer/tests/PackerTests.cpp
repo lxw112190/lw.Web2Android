@@ -1,6 +1,7 @@
 #include "core/ApkAssembler.h"
 #include "core/Generators.h"
 #include "core/Hash.h"
+#include "core/Logging.h"
 #include "core/ProjectConfig.h"
 #include "core/ProjectValidator.h"
 #include "core/ReleaseMetadata.h"
@@ -251,6 +252,24 @@ void TestSha256(const std::filesystem::path& root) {
             "SHA-256 must match the standard abc test vector");
 }
 
+void TestRotatingLog(const std::filesystem::path& root) {
+    const auto logFile = root / "logs" / "rotation.log";
+    {
+        auto logger = lw::web2android::Logger::Rotating(
+            "lw.Web2Android.Test", logFile, lw::web2android::LogRotation{512U, 2U});
+        for (int index = 0; index < 80; ++index) {
+            logger.Info("rotation-test-message-" + std::to_string(index) +
+                        "-0123456789012345678901234567890123456789");
+        }
+        logger.Flush();
+    }
+    Require(std::filesystem::is_regular_file(logFile), "rotating logger writes the current file");
+    Require(std::filesystem::is_regular_file(logFile.parent_path() / "rotation.1.log"),
+            "rotating logger creates the first archive");
+    Require(!std::filesystem::exists(logFile.parent_path() / "rotation.3.log"),
+            "rotating logger honors the archive retention limit");
+}
+
 void TestReleaseMetadata() {
     lw::web2android::ProjectConfig config;
     config.name = "Demo: 中文 / Web";
@@ -316,14 +335,20 @@ void TestMinimalToolchainResolution(const std::filesystem::path& root) {
 
 }  // namespace
 
-int main() {
+int main(int argc, char* argv[]) {
     try {
         TempDirectory temporary;
+        if (argc == 2 && std::string(argv[1]) == "--logging-only") {
+            TestRotatingLog(temporary.path);
+            std::cout << "Packer rotating log test passed" << std::endl;
+            return 0;
+        }
         TestProjectAndGenerators(temporary.path);
         TestZipAssembler(temporary.path);
         TestGuiProjectModel(temporary.path);
         TestSigningIdentity(temporary.path);
         TestSha256(temporary.path);
+        TestRotatingLog(temporary.path);
         TestReleaseMetadata();
         TestMinimalToolchainResolution(temporary.path);
         std::cout << "All Packer tests passed" << std::endl;

@@ -91,6 +91,32 @@ Android SDK 受其独立许可约束，因此公开 GitHub Release 不直接重�
 
 输出为 `build/releases/lw-Web2Android-v0.2.0-windows-x64-complete-private.zip`，同时生成 ZIP SHA-256。该私有包不会被 CI 上传；重新分发前必须自行确认相关组件许可。
 
+## 轮转诊断日志
+
+Windows CLI 与 GUI 使用 spdlog 同步记录完整打包阶段、外部工具输出、签名验证结果和异常。默认单文件上限为 2 MiB，保留当前文件及 5 个轮转文件：
+
+```text
+%LOCALAPPDATA%\lw.Web2Android\logs\packer.log
+%LOCALAPPDATA%\lw.Web2Android\logs\packer.1.log
+...
+```
+
+GUI 构建失败弹窗会直接显示日志路径。日志不会记录签名私钥或备份密码。
+
+生成的 Android APK 也会记录 Runtime 生命周期、WebView 版本、页面加载、HTTP/SSL 错误、JS Console 和未捕获异常。查询参数与 URL fragment 会先移除。Runtime 日志同样按 2 MiB 轮转并保留 5 个历史文件，位于：
+
+```text
+/sdcard/Android/data/<Package Name>/files/logs/runtime.log
+```
+
+真机开启 USB 调试后可复制整个日志目录：
+
+```bash
+adb pull /sdcard/Android/data/<Package Name>/files/logs ./android-runtime-logs
+```
+
+若外部应用目录不可用，Runtime 会回退到内部应用目录并继续输出 Logcat；错误页会显示最终采用的日志位置。
+
 ## 架构约束
 
 - Windows Packer 使用 C++17；

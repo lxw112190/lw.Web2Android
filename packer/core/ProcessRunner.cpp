@@ -1,6 +1,9 @@
 #include "core/ProcessRunner.h"
+#include "core/Logging.h"
 
+#include <iostream>
 #include <stdexcept>
+#include <string>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -77,17 +80,54 @@ void ProcessRunner::Run(const std::filesystem::path& executable,
     }
     std::vector<wchar_t> mutableCommand(commandLine.begin(), commandLine.end());
     mutableCommand.push_back(L'\0');
+    PackerLogger().Debug("Run tool: " + WideToUtf8(commandLine));
+
+    SECURITY_ATTRIBUTES security{sizeof(security), nullptr, TRUE};
+    HANDLE outputRead = nullptr;
+    HANDLE outputWrite = nullptr;
+    if (!CreatePipe(&outputRead, &outputWrite, &security, 0) ||
+        !SetHandleInformation(outputRead, HANDLE_FLAG_INHERIT, 0)) {
+        const auto pipeError = GetLastError();
+        if (outputRead) CloseHandle(outputRead);
+        if (outputWrite) CloseHandle(outputWrite);
+        throw std::runtime_error("Unable to create tool output pipe (Windows error " +
+                                 std::to_string(pipeError) + ")");
+    }
     STARTUPINFOW startup{};
     startup.cb = sizeof(startup);
+    startup.dwFlags = STARTF_USESTDHANDLES;
+    startup.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+    startup.hStdOutput = outputWrite;
+    startup.hStdError = outputWrite;
     PROCESS_INFORMATION process{};
     const auto working = workingDirectory.empty() ? std::wstring() : workingDirectory.wstring();
     const BOOL started = CreateProcessW(executable.c_str(), mutableCommand.data(), nullptr, nullptr, TRUE, 0,
                                         nullptr, working.empty() ? nullptr : working.c_str(), &startup, &process);
+    const auto startError = started ? ERROR_SUCCESS : GetLastError();
+    CloseHandle(outputWrite);
     if (!started) {
-        throw std::runtime_error("Unable to start tool (Windows error " + std::to_string(GetLastError()) + "): " +
+        CloseHandle(outputRead);
+        throw std::runtime_error("Unable to start tool (Windows error " + std::to_string(startError) + "): " +
                                  executable.u8string());
     }
     CloseHandle(process.hThread);
+    std::string pending;
+    char buffer[4096];
+    DWORD count = 0;
+    while (ReadFile(outputRead, buffer, static_cast<DWORD>(sizeof(buffer)), &count, nullptr) && count != 0) {
+        std::cout.write(buffer, static_cast<std::streamsize>(count));
+        std::cout.flush();
+        pending.append(buffer, count);
+        std::size_t newline = 0;
+        while ((newline = pending.find('\n')) != std::string::npos) {
+            auto line = pending.substr(0, newline);
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            if (!line.empty()) PackerLogger().Info("[tool] " + line);
+            pending.erase(0, newline + 1U);
+        }
+    }
+    CloseHandle(outputRead);
+    if (!pending.empty()) PackerLogger().Info("[tool] " + pending);
     const DWORD waitResult = WaitForSingleObject(process.hProcess, INFINITE);
     DWORD exitCode = 0;
     const BOOL readExitCode = GetExitCodeProcess(process.hProcess, &exitCode);
@@ -96,6 +136,7 @@ void ProcessRunner::Run(const std::filesystem::path& executable,
         throw std::runtime_error("Failed while waiting for tool: " + executable.u8string());
     }
     if (exitCode != 0) {
+        PackerLogger().Error("Tool exited with code " + std::to_string(exitCode) + ": " + executable.u8string());
         throw std::runtime_error("Tool exited with code " + std::to_string(exitCode) + ": " + executable.u8string());
     }
 #else

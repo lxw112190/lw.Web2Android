@@ -3,6 +3,7 @@
 #include "core/ApkAssembler.h"
 #include "core/Generators.h"
 #include "core/Hash.h"
+#include "core/Logging.h"
 #include "core/ProcessRunner.h"
 #include "core/ProjectValidator.h"
 #include "core/ReleaseMetadata.h"
@@ -140,6 +141,7 @@ std::filesystem::path EnsureCanonicalAssetEntries(const std::filesystem::path& r
     ApkAssembler::InjectEntries(resourceApk, missing, canonicalApk);
     std::cout << "Added " << missing.size() << " canonical asset entr"
               << (missing.size() == 1U ? "y" : "ies") << std::endl;
+    PackerLogger().Info("Added " + std::to_string(missing.size()) + " canonical asset entries");
     return canonicalApk;
 }
 
@@ -155,6 +157,7 @@ std::filesystem::path CreateWorkspace() {
 
 void LogStep(const BuildOptions& options, int number, const char* name) {
     std::cout << '[' << number << "/15] " << name << std::endl;
+    PackerLogger().Info("[" + std::to_string(number) + "/15] " + name);
     if (options.progress) options.progress(number, 15, name);
 }
 
@@ -180,12 +183,21 @@ void PublishOutput(const std::filesystem::path& verifiedApk, const std::filesyst
 }  // namespace
 
 BuildResult BuildPipeline::Build(const ProjectConfig& config, const BuildOptions& options) {
+    auto& log = PackerLogger();
+    const auto started = std::chrono::steady_clock::now();
+    log.Info("Packaging started");
+    log.Info("Application: " + config.name + " (" + config.packageName + ")");
+    log.Info("Mode: " + config.mode + ", version: " + config.versionName +
+             " (" + std::to_string(config.versionCode) + ")");
+    if (config.mode == "local") log.Info("Source: " + config.source.u8string());
+    try {
     LogStep(options, 1, "Validate project");
     ProjectValidator::Validate(config);
 
     LogStep(options, 2, "Resolve locked Android toolchain");
     const auto lock = ToolchainLock::Load(config.toolchainLock);
     const auto toolchain = AndroidToolchain::Resolve(lock, options.androidSdk, options.javaHome);
+    log.Debug("Toolchain root: " + toolchain.sdkRoot.u8string());
     auto runtimeDirectory = options.runtimeDirectory.empty() ? config.runtimeDirectory :
                             std::filesystem::absolute(options.runtimeDirectory).lexically_normal();
     const auto minimalRuntime = toolchain.sdkRoot / "runtime";
@@ -197,6 +209,7 @@ BuildResult BuildPipeline::Build(const ProjectConfig& config, const BuildOptions
 
     LogStep(options, 3, "Prepare isolated workspace");
     const auto workspace = CreateWorkspace();
+    log.Debug("Workspace: " + workspace.u8string());
     WorkspaceGuard workspaceGuard(workspace, options.keepWorkingDirectory);
     const auto assets = workspace / "assets";
     const auto resources = workspace / "res";
@@ -234,6 +247,8 @@ BuildResult BuildPipeline::Build(const ProjectConfig& config, const BuildOptions
     const auto identity = keyManager.Resolve(config.packageName);
     std::cout << (identity.newlyCreated ? "Created" : "Reused") << " signing identity: "
               << identity.certificateSha256 << std::endl;
+    log.Info(std::string(identity.newlyCreated ? "Created" : "Reused") +
+             " signing identity: " + identity.certificateSha256);
 
     LogStep(options, 12, "Sign APK");
     const auto temporaryKey = workspace / "signing-key.pk8";
@@ -276,12 +291,27 @@ BuildResult BuildPipeline::Build(const ProjectConfig& config, const BuildOptions
     std::cout << "APK SHA-256: " << apkSha256 << std::endl;
     std::cout << "Certificate SHA-256: " << identity.certificateSha256 << std::endl;
     if (options.keepWorkingDirectory) std::cout << "Workspace: " << workspace.u8string() << std::endl;
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - started);
+    log.Info("Signed APK: " + outputApk.u8string());
+    log.Info("APK SHA-256: " + apkSha256);
+    log.Info("Packaging completed in " + std::to_string(elapsed.count()) + " ms");
+    log.Flush();
     return BuildResult{outputApk,
                        releaseJson,
                        releaseMarkdown,
                        options.keepWorkingDirectory ? workspace : std::filesystem::path{},
                        identity.certificateSha256,
                        apkSha256};
+    } catch (const std::exception& error) {
+        log.Error(std::string("Packaging failed: ") + error.what());
+        log.Flush();
+        throw;
+    } catch (...) {
+        log.Error("Packaging failed with an unknown exception");
+        log.Flush();
+        throw;
+    }
 }
 
 }  // namespace lw::web2android

@@ -50,6 +50,16 @@ metadata.json    Package、证书 SHA-256 与创建时间
 
 私钥仅在调用 `apksigner` 时解密到隔离工作目录，签名结束后立即覆盖删除。相同 Package 会复用同一证书，不同 Package 不共享私钥。
 
+## 打包日志
+
+CLI 与 GUI 使用 spdlog 的同步 rotating sink 记录 15 个构建阶段、AAPT2/zipalign/apksigner 输出、结果摘要及异常：
+
+```text
+%LOCALAPPDATA%\lw.Web2Android\logs\packer.log
+```
+
+单文件最大 2 MiB，保留当前文件和 5 个轮转文件。日志初始化或写入失败不会阻断 APK 构建。GUI 构建失败时会在错误弹窗中显示日志路径；签名私钥与 PKCS#12 备份密码不会写入日志。
+
 未在 `project.json` 中设置 `outputFile` 时，默认 APK 文件名为 `<AppName>-<Version>-android.apk`。每次构建同时输出 `<APK>.sha256`、`<APK名称>.release.json` 和 `<APK名称>-RELEASE.md`。发行元数据包含应用版本、APK 与证书 SHA-256、Runtime/Toolchain 版本和 UTC 构建时间。
 
 `signing info` 只读取已有身份，不会自动创建新密钥。`signing export` 会在控制台关闭回显后要求输入并确认至少 8 个字符的密码，生成包含证书和私钥的标准 PKCS#12 备份；密码不会进入命令行或日志。目标文件已存在时命令会拒绝覆盖。请把备份和密码分开保管，丢失签名身份后将无法发布可覆盖安装的更新。
