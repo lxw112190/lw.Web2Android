@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Hello lw.Web2Android</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      color: #17233d;
+      background: linear-gradient(145deg, #edf4ff, #ffffff 58%, #e9f9f3);
+    }
+    main { width: min(88vw, 420px); padding: 32px; border-radius: 24px; background: #fff; box-shadow: 0 20px 60px #165dff20; }
+    .tag { color: #165dff; font-weight: 700; letter-spacing: .12em; }
+    h1 { margin: 12px 0 8px; font-size: 2rem; line-height: 1.15; }
+    p { color: #5a667d; line-height: 1.65; }
+    button { border: 0; border-radius: 12px; padding: 12px 16px; color: #fff; background: #165dff; font: inherit; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="tag">M0 PROOF OF CONCEPT</div>
+    <h1>Hello lw.Web2Android</h1>
+    <p>页面已从 APK assets 加载。点击按钮验证 JavaScript 和 DOM Storage。</p>
+    <button id="counter" type="button">计数：0</button>
+  </main>
+  <script>
+    const button = document.querySelector('#counter');
+    let count = Number(localStorage.getItem('m0-count') || 0);
+    const render = () => { button.textContent = `计数：${count}`; };
+    button.addEventListener('click', () => {
+      localStorage.setItem('m0-count', String(++count));
+      render();
+    });
+    render();
+  </script>
+</body>
+</html>
+

@@ -1,0 +1,65 @@
+# Build output
+build/
+out/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+install_manifest.txt
+*.obj
+*.o
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.dll
+*.exe
+*.class
+*.apk
+*.aab
+*.ap_
+*.idsig
+
+# Android / Gradle local state
+.gradle/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Local toolchains and dependency caches
+/.deps/
+/.cache/
+/toolchain/
+/android-sdk/
+
+# Signing material and secrets
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pk8
+*.key
+signing.key.lw
+
+# Editors and local workspace state
+.idea/
+.vs/
+.vscode/
+*.user
+*.suo
+*.user.*
+CMakeUserPresets.json
+*.code-workspace
+
+# Logs and operating-system files
+*.log
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local design notes
+/DESIGN.md
