@@ -10,7 +10,7 @@
   "fullscreen": false,
   "orientation": "auto",
   "allowHttp": false,
-  "output": "../../build/m6",
+  "output": "../../build/v0.2",
   "runtime": "../../runtime-dist/runtime-v1",
   "toolchainLock": "../../toolchain.lock.json"
 }

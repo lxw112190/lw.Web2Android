@@ -1,4 +1,4 @@
-# Packer CLI 与 GUI（M6）
+# Packer CLI 与 GUI（v0.2.0）
 
 Packer 是 Windows C++17 程序。它读取 `project.json`，动态生成 Manifest、资源和 Runtime 配置，通过锁定版本的 AAPT2 生成资源 APK，在内部注入预编译 Runtime DEX，执行 `zipalign` 后使用 Package 独立身份签名并验证 APK。
 
@@ -18,6 +18,8 @@ lw.Web2Android.GUI.exe   原生 Win32 GUI
 ```
 
 GUI 参考 `lw.Web2App` 的设计语言，支持 Per-Monitor V2 高 DPI、后台工作线程和 15 步构建状态。GUI 只把表单映射为 `ProjectConfig`，所有 APK 逻辑仍由 `BuildPipeline` 完成。
+
+首次使用可在 GUI 点击“初始化工具链”。公开包已包含 Temurin 17 JRE 与 Runtime；用户确认 Android SDK License 后，初始化器从官方源下载并校验锁定的 Android 组件，安装到当前应用目录的 `toolchain/`。下载临时文件会自动清理，后续构建直接复用，无需系统 Android SDK 或 JAVA_HOME。
 
 ## 使用
 
@@ -52,7 +54,7 @@ metadata.json    Package、证书 SHA-256 与创建时间
 
 `signing info` 只读取已有身份，不会自动创建新密钥。`signing export` 会在控制台关闭回显后要求输入并确认至少 8 个字符的密码，生成包含证书和私钥的标准 PKCS#12 备份；密码不会进入命令行或日志。目标文件已存在时命令会拒绝覆盖。请把备份和密码分开保管，丢失签名身份后将无法发布可覆盖安装的更新。
 
-GitHub Actions 使用统一的 `lw.Web2Android CI` workflow。CLI、GUI、Runtime Bundle、M0 APK、M6 local/remote 签名 APK、发行元数据和总校验文件会合并到单个 `lw-Web2Android-v0.1.0-windows-x64` Artifact 中。推送 `v*` 标签会在全部验证通过后发布同名 ZIP 与 SHA-256 文件。GUI 读取 `ANDROID_SDK_ROOT` 与 `JAVA_HOME`；发行包不重新分发 Android SDK。
+GitHub Actions 使用统一的 `lw.Web2Android CI` workflow。CI 会从已安装 SDK 组装扁平最小工具链，再用该目录构建 v0.2 local/remote 样例。CLI、GUI、Runtime、初始化脚本、MIT License、样例 APK、发行元数据和总校验文件会合并到单个 `lw-Web2Android-v0.2.0-windows-x64` Artifact。公开发行包不重新分发 Android SDK。
 
 ## project.json
 

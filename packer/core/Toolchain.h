@@ -29,4 +29,7 @@ struct AndroidToolchain {
                                     const std::filesystem::path& javaHomeOverride = {});
 };
 
+std::filesystem::path DefaultApplicationToolchainDirectory();
+bool IsMinimalToolchainDirectory(const std::filesystem::path& directory);
+
 }  // namespace lw::web2android

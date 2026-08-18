@@ -5,6 +5,7 @@
 #include "core/ProjectValidator.h"
 #include "core/ReleaseMetadata.h"
 #include "core/SigningKeyManager.h"
+#include "core/Toolchain.h"
 #include "gui/GuiProjectModel.h"
 
 #include <algorithm>
@@ -268,10 +269,10 @@ void TestReleaseMetadata() {
                                                     std::string(64, 'a'),
                                                     std::string(64, 'b'),
                                                     "1",
-                                                    "m6-1",
+                                                    "m7-1",
                                                     "2026-08-18T01:02:03Z"};
     const auto json = metadata.ToJson();
-    Require(json.find("\"toolchainVersion\": \"m6-1\"") != std::string::npos,
+    Require(json.find("\"toolchainVersion\": \"m7-1\"") != std::string::npos,
             "release JSON must record the toolchain version");
     Require(json.find("\"apkSha256\": \"" + std::string(64, 'a') + "\"") != std::string::npos,
             "release JSON must record the APK digest");
@@ -279,6 +280,38 @@ void TestReleaseMetadata() {
     Require(markdown.find("Demo \\| Web") != std::string::npos, "release Markdown must escape table cells");
     Require(markdown.find("2026-08-18T01:02:03Z") != std::string::npos,
             "release Markdown must record the UTC build time");
+}
+
+void TestMinimalToolchainResolution(const std::filesystem::path& root) {
+    const auto toolchain = root / "minimal-toolchain";
+#ifdef _WIN32
+    const auto aapt2 = toolchain / "aapt2.exe";
+    const auto zipalign = toolchain / "zipalign.exe";
+    const auto java = toolchain / "jre" / "bin" / "java.exe";
+#else
+    const auto aapt2 = toolchain / "aapt2";
+    const auto zipalign = toolchain / "zipalign";
+    const auto java = toolchain / "jre" / "bin" / "java";
+#endif
+    lw::web2android::WriteTextFile(aapt2, "test");
+    lw::web2android::WriteTextFile(zipalign, "test");
+    lw::web2android::WriteTextFile(java, "test");
+    lw::web2android::WriteTextFile(toolchain / "android.jar", "test");
+    lw::web2android::WriteTextFile(toolchain / "apksigner" / "apksigner.jar", "test");
+    Require(lw::web2android::IsMinimalToolchainDirectory(toolchain), "minimal toolchain layout detection");
+
+    lw::web2android::ToolchainLock lock;
+    lock.toolchainVersion = "m7-test";
+    lock.platformApi = 35;
+    lock.buildToolsVersion = "35.0.0";
+    lock.runtimeVersion = "1";
+    const auto resolved = lw::web2android::AndroidToolchain::Resolve(lock, toolchain);
+    Require(resolved.aapt2 == aapt2, "minimal AAPT2 resolution");
+    Require(resolved.zipalign == zipalign, "minimal zipalign resolution");
+    Require(resolved.androidJar == toolchain / "android.jar", "minimal android.jar resolution");
+    Require(resolved.apksignerJar == toolchain / "apksigner" / "apksigner.jar",
+            "minimal apksigner resolution");
+    Require(resolved.java == java, "minimal JRE resolution");
 }
 
 }  // namespace
@@ -292,6 +325,7 @@ int main() {
         TestSigningIdentity(temporary.path);
         TestSha256(temporary.path);
         TestReleaseMetadata();
+        TestMinimalToolchainResolution(temporary.path);
         std::cout << "All Packer tests passed" << std::endl;
         return 0;
     } catch (const std::exception& error) {

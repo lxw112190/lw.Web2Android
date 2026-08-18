@@ -20,14 +20,15 @@ namespace {
 
 void PrintUsage() {
     std::cout <<
-        "lw.Web2Android Packer v0.1 (M4)\n\n"
+        "lw.Web2Android Packer v" LW_WEB2ANDROID_VERSION "\n\n"
         "Usage:\n"
         "  lw.Web2Android.exe validate <project.json>\n"
         "  lw.Web2Android.exe build <project.json> [options]\n"
+        "  pwsh tools/install-minimal-toolchain.ps1 -AcceptAndroidSdkLicense\n"
         "  lw.Web2Android.exe signing info <package-name> [--keys-dir <directory>]\n"
         "  lw.Web2Android.exe signing export <package-name> <backup.pfx|backup.p12> [--keys-dir <directory>]\n\n"
         "Options:\n"
-        "  --android-sdk <directory>  Override ANDROID_SDK_ROOT\n"
+        "  --android-sdk <directory>  Override the minimal toolchain or Android SDK directory\n"
         "  --java-home <directory>    Override JAVA_HOME\n"
         "  --runtime <directory>      Override the Runtime Bundle directory\n"
         "  --keys-dir <directory>     Override DPAPI signing identity storage\n"

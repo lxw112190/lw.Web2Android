@@ -2,11 +2,13 @@
 
 #include "core/BuildPipeline.h"
 #include "core/ProcessRunner.h"
+#include "core/Toolchain.h"
 
 #include <Windows.h>
 #include <CommCtrl.h>
 #include <Dwmapi.h>
 #include <ShObjIdl.h>
+#include <Shellapi.h>
 #include <Uxtheme.h>
 
 #include <filesystem>
@@ -46,6 +48,8 @@ enum ControlId {
     kOutput,
     kBrowseOutput,
     kBuild,
+    kToolchainStatus,
+    kInstallToolchain,
     kSourceLabel,
     kModeHint,
 };
@@ -83,6 +87,7 @@ struct BuildCompletion {
 constexpr RECT kStatusRect{48, 828, 712, 856};
 constexpr UINT kBuildProgressMessage = WM_APP + 1;
 constexpr UINT kBuildFinishedMessage = WM_APP + 2;
+constexpr UINT kToolchainFinishedMessage = WM_APP + 3;
 
 int Scale(int value, UINT dpi) { return MulDiv(value, static_cast<int>(dpi), 96); }
 
@@ -273,7 +278,7 @@ std::wstring ProgressText(int step, int total, const std::string& name) {
     else if (name == "Resolve package signing identity") action = L"正在加载 Package 独立签名";
     else if (name == "Sign APK") action = L"正在签名 APK";
     else if (name == "Verify APK signature") action = L"正在验证 APK 签名";
-    else if (name == "Publish signed APK") action = L"正在发布 APK 与 SHA-256";
+    else if (name == "Publish APK and release metadata") action = L"正在发布 APK 与发行元数据";
     else action = L"构建完成";
     return L"[" + std::to_wstring(step) + L"/" + std::to_wstring(total) + L"] " + action + L"…";
 }
@@ -308,10 +313,9 @@ void StartBuild(HWND window) {
         auto config = CreateProjectConfig(input, state->environment);
         BuildOptions options;
         options.runtimeDirectory = state->environment.runtimeDirectory;
-        const auto packagedSdk = state->environment.applicationRoot / "toolchain" / "android-sdk";
-        const auto packagedJava = state->environment.applicationRoot / "toolchain" / "jre";
-        if (std::filesystem::is_directory(packagedSdk)) options.androidSdk = packagedSdk;
-        if (std::filesystem::is_regular_file(packagedJava / "bin" / "java.exe")) options.javaHome = packagedJava;
+        if (!state->environment.toolchainDirectory.empty()) {
+            options.androidSdk = state->environment.toolchainDirectory;
+        }
         options.progress = [window](int step, int total, const std::string& name) {
             auto update = std::make_unique<std::wstring>(ProgressText(step, total, name));
             if (PostMessageW(window, kBuildProgressMessage, 0, reinterpret_cast<LPARAM>(update.get()))) {
@@ -344,10 +348,68 @@ void StartBuild(HWND window) {
     }
 }
 
+void UpdateToolchainDisplay(State& state) {
+    const bool ready = IsMinimalToolchainDirectory(state.environment.toolchainDirectory);
+    SetWindowTextW(GetDlgItem(state.window, kToolchainStatus),
+                   ready ? L"工具链：最小工具链已就绪，可直接生成 APK"
+                         : L"工具链：尚未初始化（也可使用系统开发环境）");
+    SetWindowTextW(GetDlgItem(state.window, kInstallToolchain), ready ? L"已初始化" : L"初始化工具链");
+    EnableWindow(GetDlgItem(state.window, kInstallToolchain), !ready && !state.busy);
+}
+
+void StartToolchainInstall(HWND window) {
+    auto* state = reinterpret_cast<State*>(GetWindowLongPtrW(window, GWLP_USERDATA));
+    if (!state || state->busy) return;
+    const auto script = state->environment.applicationRoot / "tools" / "install-minimal-toolchain.ps1";
+    if (!std::filesystem::is_regular_file(script)) {
+        MessageBoxW(window, L"工具链初始化脚本不存在，请重新下载完整发行包。", L"无法初始化",
+                    MB_OK | MB_ICONERROR);
+        return;
+    }
+    const auto consent = MessageBoxW(
+        window,
+        L"将从 Android 和 Eclipse Adoptium 官方源下载锁定版本的 Android 构建组件与 Java 17 JRE。\n\n"
+        L"继续前请阅读 Android SDK License：\nhttps://developer.android.com/studio/terms\n\n"
+        L"点击“是”表示你已阅读并接受该许可，是否继续？",
+        L"初始化最小工具链", MB_YESNO | MB_ICONINFORMATION | MB_DEFBUTTON2);
+    if (consent != IDYES) return;
+
+    const auto destination = state->environment.applicationRoot / "toolchain";
+    auto parameters = std::wstring(L"-NoProfile -ExecutionPolicy Bypass -File \"") + script.wstring() +
+                      L"\" -Destination \"" + destination.wstring() +
+                      L"\" -AcceptAndroidSdkLicense -Force";
+    SHELLEXECUTEINFOW execute{};
+    execute.cbSize = sizeof(execute);
+    execute.fMask = SEE_MASK_NOCLOSEPROCESS;
+    execute.hwnd = window;
+    execute.lpVerb = L"open";
+    execute.lpFile = L"powershell.exe";
+    execute.lpParameters = parameters.c_str();
+    execute.lpDirectory = state->environment.applicationRoot.c_str();
+    execute.nShow = SW_SHOW;
+    if (!ShellExecuteExW(&execute) || execute.hProcess == nullptr) {
+        MessageBoxW(window, L"无法启动工具链初始化程序。", L"无法初始化", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    state->busy = true;
+    EnableWindow(GetDlgItem(window, kBuild), FALSE);
+    EnableWindow(GetDlgItem(window, kInstallToolchain), FALSE);
+    SetStatus(window, L"正在初始化最小工具链，请查看下载窗口…");
+    std::thread([window, process = execute.hProcess]() {
+        WaitForSingleObject(process, INFINITE);
+        DWORD exitCode = 1;
+        GetExitCodeProcess(process, &exitCode);
+        CloseHandle(process);
+        PostMessageW(window, kToolchainFinishedMessage, static_cast<WPARAM>(exitCode), 0);
+    }).detach();
+}
+
 void BuildInterface(State& state) {
     AddLabel(state, L"lw.Web2Android", 34, 22, 360, 38, 0, FontRole::Title);
     AddLabel(state, L"把网页项目快速转换为可安装的 Android APK", 35, 63, 520, 24, 0, FontRole::Small);
-    AddLabel(state, L"C++17 · Win32 · Android", 520, 39, 205, 22, 0, FontRole::Small);
+    const auto productVersion = std::wstring(L"v") + Utf8ToWide(LW_WEB2ANDROID_VERSION);
+    AddControl(state, L"STATIC", productVersion.c_str(), SS_RIGHT, 620, 39, 92, 22, 0, FontRole::Small);
 
     AddLabel(state, L"01  网页来源", 48, 126, 200, 28, 0, FontRole::Section);
     AddControl(state, L"BUTTON", L"本地静态目录", WS_TABSTOP | BS_AUTORADIOBUTTON | WS_GROUP,
@@ -381,12 +443,12 @@ void BuildInterface(State& state) {
                584, 541, 120, 26, kFullscreen);
 
     AddLabel(state, L"输出目录", 48, 597, 120, 22, 0, FontRole::Small);
-    AddEdit(state, L"", 48, 621, 548, kOutput, L"APK 和 SHA-256 文件的输出目录");
+    AddEdit(state, L"", 48, 621, 548, kOutput, L"APK、校验和与发行元数据的输出目录");
     AddButton(state, L"选择位置", 610, 621, 102, 34, kBrowseOutput);
     AddLabel(state, L"签名：按 Package Name 自动创建或复用独立身份，可在 CLI 中导出 PFX 备份",
              48, 674, 650, 24, 0, FontRole::Small);
-    AddLabel(state, L"工具链：读取 ANDROID_SDK_ROOT / JAVA_HOME；发行包不内置 Android SDK",
-             48, 702, 650, 24, 0, FontRole::Small);
+    AddLabel(state, L"", 48, 702, 470, 24, kToolchainStatus, FontRole::Small);
+    AddButton(state, L"初始化工具链", 560, 694, 152, 34, kInstallToolchain);
 
     AddButton(state, L"生成 Android APK", 48, 755, 664, 48, kBuild);
 
@@ -394,6 +456,7 @@ void BuildInterface(State& state) {
     if (std::filesystem::is_directory(samples)) SetWindowTextW(GetDlgItem(state.window, kSource), samples.c_str());
     const auto output = std::filesystem::current_path() / "output";
     SetWindowTextW(GetDlgItem(state.window, kOutput), output.c_str());
+    UpdateToolchainDisplay(state);
 }
 
 LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
@@ -448,6 +511,28 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
             }
             return 0;
         }
+        case kToolchainFinishedMessage: {
+            if (!state) return 0;
+            state->busy = false;
+            EnableWindow(GetDlgItem(window, kBuild), TRUE);
+            const auto installed = state->environment.applicationRoot / "toolchain";
+            if (wparam == 0 && IsMinimalToolchainDirectory(installed)) {
+                state->environment.toolchainDirectory = installed;
+                const auto toolchainRuntime = installed / "runtime";
+                if (std::filesystem::is_directory(toolchainRuntime)) {
+                    state->environment.runtimeDirectory = toolchainRuntime;
+                }
+                SetStatus(window, L"最小工具链初始化完成 · 以后将自动复用");
+                MessageBoxW(window, L"最小工具链已安装，可以直接生成 APK。", L"初始化完成",
+                            MB_OK | MB_ICONINFORMATION);
+            } else {
+                SetStatus(window, L"工具链初始化失败，请查看下载窗口中的错误信息", kFailure);
+                MessageBoxW(window, L"工具链初始化未完成，请查看下载窗口中的错误信息。",
+                            L"初始化失败", MB_OK | MB_ICONERROR);
+            }
+            UpdateToolchainDisplay(*state);
+            return 0;
+        }
         case WM_COMMAND:
             if (!state) break;
             switch (LOWORD(wparam)) {
@@ -467,6 +552,9 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
                 }
                 case kBuild:
                     StartBuild(window);
+                    return 0;
+                case kInstallToolchain:
+                    StartToolchainInstall(window);
                     return 0;
             }
             break;
@@ -490,7 +578,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
             return TRUE;
         case WM_CLOSE:
             if (state && state->busy) {
-                MessageBoxW(window, L"正在生成 APK，请等待任务完成后再关闭窗口。",
+                MessageBoxW(window, L"后台任务正在进行，请等待完成后再关闭窗口。",
                             L"lw.Web2Android", MB_OK | MB_ICONINFORMATION);
                 return 0;
             }

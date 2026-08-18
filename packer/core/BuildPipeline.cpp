@@ -186,8 +186,12 @@ BuildResult BuildPipeline::Build(const ProjectConfig& config, const BuildOptions
     LogStep(options, 2, "Resolve locked Android toolchain");
     const auto lock = ToolchainLock::Load(config.toolchainLock);
     const auto toolchain = AndroidToolchain::Resolve(lock, options.androidSdk, options.javaHome);
-    const auto runtimeDirectory = options.runtimeDirectory.empty() ? config.runtimeDirectory :
-                                  std::filesystem::absolute(options.runtimeDirectory).lexically_normal();
+    auto runtimeDirectory = options.runtimeDirectory.empty() ? config.runtimeDirectory :
+                            std::filesystem::absolute(options.runtimeDirectory).lexically_normal();
+    const auto minimalRuntime = toolchain.sdkRoot / "runtime";
+    if (!std::filesystem::is_directory(runtimeDirectory) && std::filesystem::is_directory(minimalRuntime)) {
+        runtimeDirectory = minimalRuntime;
+    }
     ValidateRuntimeMetadata(runtimeDirectory, lock);
     const auto dexFiles = FindRuntimeDexFiles(runtimeDirectory);
 

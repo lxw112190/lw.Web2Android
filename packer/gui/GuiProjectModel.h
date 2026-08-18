@@ -10,6 +10,7 @@ namespace lw::web2android::gui {
 struct GuiEnvironment {
     std::filesystem::path applicationRoot;
     std::filesystem::path toolchainLock;
+    std::filesystem::path toolchainDirectory;
     std::filesystem::path runtimeDirectory;
 
     static GuiEnvironment Discover(const std::filesystem::path& executable,

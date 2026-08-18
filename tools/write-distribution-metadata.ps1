@@ -6,7 +6,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Version,
 
-    [string]$Commit = 'local'
+    [string]$Commit = 'local',
+
+    [switch]$IncludesPrivateToolchain
 )
 
 $ErrorActionPreference = 'Stop'
@@ -25,8 +27,16 @@ $metadata = [ordered]@{
     toolchainVersion = [string]$lock.toolchainVersion
     commit           = $Commit
     buildTimeUtc     = $builtAt
+    androidSdkIncluded = [bool]$IncludesPrivateToolchain
+    javaRuntimeIncluded = $true
 }
 $metadata | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $package 'release.json') -Encoding utf8NoBOM
+
+$toolchainNotice = if ($IncludesPrivateToolchain) {
+    'This private local package contains Android SDK components installed after the local user accepted the Android SDK License. Do not publish or redistribute it without confirming that you have the required rights.'
+} else {
+    'This public package does not redistribute the Android SDK or Google Build Tools. Use the included initializer to download locked components from official sources after accepting the applicable license.'
+}
 
 $markdown = @"
 # lw.Web2Android $Version
@@ -50,6 +60,6 @@ Verify every distributed file against ``SHA256SUMS.txt`` before use. Each sample
 
 ## Toolchain notice
 
-This package does not redistribute the Android SDK or Google Build Tools. Android integration is verified in GitHub Actions with versions pinned by ``toolchain.lock.json``.
+$toolchainNotice
 "@
 $markdown | Set-Content -LiteralPath (Join-Path $package 'RELEASE.md') -Encoding utf8NoBOM

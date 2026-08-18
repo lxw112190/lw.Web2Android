@@ -102,7 +102,7 @@ void ProcessRunner::Run(const std::filesystem::path& executable,
     (void)executable;
     (void)arguments;
     (void)workingDirectory;
-    throw std::runtime_error("The v0.1 Packer is supported on Windows only");
+    throw std::runtime_error("The v0.2 Packer is supported on Windows only");
 #endif
 }
 

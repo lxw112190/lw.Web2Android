@@ -1,11 +1,16 @@
 {
   "schemaVersion": 1,
-  "toolchainVersion": "m6-1",
+  "toolchainVersion": "m7-1",
   "platformApi": 35,
   "buildToolsVersion": "35.0.0",
-  "commandLineToolsVersion": "14742923",
+  "commandLineToolsVersion": "15859902",
+  "commandLineToolsUrl": "https://dl.google.com/android/repository/commandlinetools-win-15859902_latest.zip",
+  "commandLineToolsSha256": "90ae805d20434428bffcb699c290860f19bb5f66a67e6b330067e3de801fb04a",
   "runtimeVersion": "1",
   "javaVersion": 17,
+  "javaRuntimeVersion": "17.0.20+8",
+  "javaRuntimeUrl": "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20%2B8/OpenJDK17U-jre_x64_windows_hotspot_17.0.20_8.zip",
+  "javaRuntimeSha256": "7fe2324cc5901a89aaa0e8dc232075c59f2aca5270c533bdb1b861a5274af834",
   "gradleVersion": "8.9",
   "androidGradlePluginVersion": "8.7.3",
   "androidXWebKitVersion": "1.15.0"

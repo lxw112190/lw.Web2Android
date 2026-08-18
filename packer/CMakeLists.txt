@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(lw_Web2Android VERSION 0.1.0 LANGUAGES CXX)
+project(lw_Web2Android VERSION 0.2.0 LANGUAGES CXX)
 
 add_library(lw_packer_core
     core/ApkAssembler.cpp
@@ -30,7 +30,10 @@ endif()
 
 add_executable(lw.Web2Android main.cpp)
 target_link_libraries(lw.Web2Android PRIVATE lw_packer_core)
-target_compile_definitions(lw.Web2Android PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE)
+target_compile_definitions(lw.Web2Android PRIVATE
+    NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE
+    LW_WEB2ANDROID_VERSION="${PROJECT_VERSION}"
+)
 
 add_library(lw_packer_gui_model gui/GuiProjectModel.cpp)
 target_link_libraries(lw_packer_gui_model PUBLIC lw_packer_core)
@@ -40,7 +43,10 @@ target_compile_features(lw_packer_gui_model PUBLIC cxx_std_17)
 if(WIN32)
     add_executable(lw.Web2Android.GUI WIN32 gui/GuiMain.cpp)
     target_link_libraries(lw.Web2Android.GUI PRIVATE lw_packer_gui_model comctl32 dwmapi ole32 shell32 uxtheme)
-    target_compile_definitions(lw.Web2Android.GUI PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE)
+    target_compile_definitions(lw.Web2Android.GUI PRIVATE
+        NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE
+        LW_WEB2ANDROID_VERSION="${PROJECT_VERSION}"
+    )
 endif()
 
 if(MSVC)

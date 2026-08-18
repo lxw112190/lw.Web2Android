@@ -1,6 +1,7 @@
 #include "gui/GuiProjectModel.h"
 
 #include "core/ProjectValidator.h"
+#include "core/Toolchain.h"
 
 #include <stdexcept>
 #include <vector>
@@ -15,7 +16,8 @@ std::filesystem::path Normalize(const std::filesystem::path& path) {
 bool IsEnvironmentRoot(const std::filesystem::path& root) {
     if (!std::filesystem::is_regular_file(root / "toolchain.lock.json")) return false;
     return std::filesystem::is_directory(root / "runtime" / "runtime-v1") ||
-           std::filesystem::is_directory(root / "runtime-dist" / "runtime-v1");
+           std::filesystem::is_directory(root / "runtime-dist" / "runtime-v1") ||
+           std::filesystem::is_directory(root / "toolchain" / "runtime");
 }
 
 }  // namespace
@@ -33,10 +35,14 @@ GuiEnvironment GuiEnvironment::Discover(const std::filesystem::path& executable,
         GuiEnvironment environment;
         environment.applicationRoot = candidate;
         environment.toolchainLock = candidate / "toolchain.lock.json";
+        const auto packagedToolchain = candidate / "toolchain";
+        if (IsMinimalToolchainDirectory(packagedToolchain)) environment.toolchainDirectory = packagedToolchain;
         const auto packagedRuntime = candidate / "runtime" / "runtime-v1";
-        environment.runtimeDirectory = std::filesystem::is_directory(packagedRuntime)
-                                           ? packagedRuntime
-                                           : candidate / "runtime-dist" / "runtime-v1";
+        const auto developmentRuntime = candidate / "runtime-dist" / "runtime-v1";
+        const auto toolchainRuntime = candidate / "toolchain" / "runtime";
+        if (std::filesystem::is_directory(packagedRuntime)) environment.runtimeDirectory = packagedRuntime;
+        else if (std::filesystem::is_directory(developmentRuntime)) environment.runtimeDirectory = developmentRuntime;
+        else environment.runtimeDirectory = toolchainRuntime;
         return environment;
     }
     throw std::runtime_error(

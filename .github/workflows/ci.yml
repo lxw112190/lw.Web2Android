@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 env:
-  PRODUCT_VERSION: '0.1.0'
-  PACKAGE_NAME: lw-Web2Android-v0.1.0-windows-x64
+  PRODUCT_VERSION: '0.2.0'
+  PACKAGE_NAME: lw-Web2Android-v0.2.0-windows-x64
 
 jobs:
   build-test-package:
@@ -29,6 +29,7 @@ jobs:
           $lock = Get-Content -Raw toolchain.lock.json | ConvertFrom-Json
           "platform_api=$($lock.platformApi)" >> $env:GITHUB_OUTPUT
           "build_tools=$($lock.buildToolsVersion)" >> $env:GITHUB_OUTPUT
+          "command_line_tools=$($lock.commandLineToolsVersion)" >> $env:GITHUB_OUTPUT
 
       - name: Set up Java 17
         uses: actions/setup-java@v5
@@ -36,10 +37,27 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Download locked redistributable Temurin JRE
+        shell: pwsh
+        run: |
+          $lock = Get-Content -Raw toolchain.lock.json | ConvertFrom-Json
+          $archive = 'build/temurin-jre.zip'
+          New-Item -ItemType Directory -Force -Path build/ci-jre-extract | Out-Null
+          curl.exe -L --fail --retry 3 --output $archive $lock.javaRuntimeUrl
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $lock.javaRuntimeSha256) { throw 'Temurin JRE SHA-256 mismatch' }
+          Expand-Archive -LiteralPath $archive -DestinationPath build/ci-jre-extract
+          $jre = Get-ChildItem build/ci-jre-extract -Directory | Select-Object -First 1
+          if (-not $jre -or -not (Test-Path -LiteralPath "$($jre.FullName)/bin/java.exe")) {
+            throw 'Temurin JRE archive has an unexpected layout'
+          }
+          Move-Item -LiteralPath $jre.FullName -Destination build/ci-jre
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
         with:
-          cmdline-tools-version: '14742923'
+          cmdline-tools-version: ${{ steps.toolchain.outputs.command_line_tools }}
           packages: ''
 
       - name: Restore locked Android Platform and Build Tools
@@ -75,6 +93,25 @@ jobs:
           New-Item -ItemType Directory -Force -Path build/ci-runtime | Out-Null
           Expand-Archive -LiteralPath build/runtime-dist/runtime-v1.zip -DestinationPath build/ci-runtime -Force
 
+      - name: Assemble and validate minimal end-user toolchain
+        shell: pwsh
+        run: |
+          ./tools/assemble-minimal-toolchain.ps1 `
+            -AndroidSdk $env:ANDROID_SDK_ROOT `
+            -JavaHome build/ci-jre `
+            -RuntimeDirectory build/ci-runtime `
+            -Destination build/ci-minimal-toolchain
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $required = @(
+            'aapt2.exe', 'zipalign.exe', 'android.jar', 'apksigner/apksigner.jar',
+            'jre/bin/java.exe', 'runtime/classes.dex', 'runtime/metadata.json', 'metadata.json'
+          )
+          foreach ($relative in $required) {
+            if (-not (Test-Path -LiteralPath "build/ci-minimal-toolchain/$relative")) {
+              throw "Minimal toolchain is missing $relative"
+            }
+          }
+
       - name: Build M0 proof APK
         shell: pwsh
         run: ./tools/m0-build.ps1
@@ -95,7 +132,7 @@ jobs:
         shell: pwsh
         run: |
           $packer = Resolve-Path 'build/packer/Release/lw.Web2Android.exe'
-          $common = @('--android-sdk', $env:ANDROID_SDK_ROOT, '--runtime', 'build/ci-runtime', '--keys-dir', 'build/test-keys')
+          $common = @('--android-sdk', 'build/ci-minimal-toolchain', '--runtime', 'build/ci-minimal-toolchain/runtime', '--keys-dir', 'build/test-keys')
 
           & $packer build samples/hello/project.json @common
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -130,8 +167,8 @@ jobs:
           $zipalign = Join-Path $env:ANDROID_SDK_ROOT "build-tools/$($lock.buildToolsVersion)/zipalign.exe"
           $apksigner = Join-Path $env:ANDROID_SDK_ROOT "build-tools/$($lock.buildToolsVersion)/lib/apksigner.jar"
           $expectations = @{
-            'build/m6/lw-Web2Android-Hello-1.0.0-android.apk' = @('classes.dex', 'assets/lw-config.json', 'assets/www/index.html')
-            'build/m6/lw-Web2Android-Remote-1.0.0-android.apk' = @('classes.dex', 'assets/lw-config.json')
+            'build/v0.2/lw-Web2Android-Hello-1.0.0-android.apk' = @('classes.dex', 'assets/lw-config.json', 'assets/www/index.html')
+            'build/v0.2/lw-Web2Android-Remote-1.0.0-android.apk' = @('classes.dex', 'assets/lw-config.json')
           }
 
           foreach ($apk in $expectations.Keys) {
@@ -187,23 +224,28 @@ jobs:
           $package = "build/ci-package/$env:PACKAGE_NAME"
           $directories = @(
             "$package/bin",
-            "$package/runtime",
+            "$package/toolchain/runtime",
+            "$package/toolchain/jre",
+            "$package/tools",
             "$package/samples/m0",
-            "$package/samples/m6",
+            "$package/samples/v0.2",
             "$package/docs/assets"
           )
           New-Item -ItemType Directory -Force -Path $directories | Out-Null
 
           Copy-Item build/packer/Release/lw.Web2Android.exe "$package/bin/"
           Copy-Item build/packer/Release/lw.Web2Android.GUI.exe "$package/bin/"
-          Copy-Item build/runtime-dist/runtime-v1.zip "$package/runtime/"
-          Copy-Item build/ci-runtime "$package/runtime/runtime-v1" -Recurse
+          Copy-Item build/runtime-dist/runtime-v1.zip "$package/toolchain/"
+          Copy-Item build/ci-runtime/* "$package/toolchain/runtime/" -Recurse
+          Copy-Item build/ci-jre/* "$package/toolchain/jre/" -Recurse
           Copy-Item toolchain.lock.json "$package/"
           Copy-Item build/m0/out/sample-debug.apk,build/m0/out/sample-debug.apk.sha256 "$package/samples/m0/"
-          Copy-Item build/m6/*-android.apk,build/m6/*-android.apk.sha256,build/m6/*.release.json,build/m6/*-RELEASE.md "$package/samples/m6/"
+          Copy-Item build/v0.2/*-android.apk,build/v0.2/*-android.apk.sha256,build/v0.2/*.release.json,build/v0.2/*-RELEASE.md "$package/samples/v0.2/"
+          Copy-Item tools/install-minimal-toolchain.ps1,tools/assemble-minimal-toolchain.ps1 "$package/tools/"
           Copy-Item README.md "$package/docs/README.md"
           Copy-Item packer/README.md "$package/docs/PACKER.md"
           Copy-Item assets/sponsor.jpg "$package/docs/assets/"
+          Copy-Item LICENSE,THIRD-PARTY-NOTICES.md "$package/"
           ./tools/write-distribution-metadata.ps1 -PackageDirectory $package -Version $env:PRODUCT_VERSION -Commit $env:GITHUB_SHA
 
           $root = (Resolve-Path $package).Path
