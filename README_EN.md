@@ -151,7 +151,7 @@ Export and keep an offline PFX/P12 backup. Losing the signing identity means fut
 Windows Packer log:
 
 ```text
-%LOCALAPPDATA%\lw.Web2Android\logs\packer.log
+<distribution directory>\logs\packer.log
 ```
 
 Android Runtime log:
@@ -160,7 +160,7 @@ Android Runtime log:
 /sdcard/Android/data/<Package Name>/files/logs/runtime.log
 ```
 
-Both logs rotate at 2 MiB per file and retain up to five archives. Runtime logging includes navigation, HTTP/SSL failures, WebView renderer exits, JavaScript Console output, and uncaught exceptions.
+The Packer creates `logs` under the current distribution directory. When an executable is used standalone, it creates `logs` beside that executable. Both logs rotate at 2 MiB per file and retain up to five archives. Runtime logging includes navigation, HTTP/SSL failures, WebView renderer exits, JavaScript Console output, and uncaught exceptions.
 
 ## Real Web demo and CI
 
@@ -253,4 +253,6 @@ See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for third-party notices. Th
 
 If this project helps you, you can support its maintenance by scanning the QR code:
 
-![WeChat sponsorship](assets/sponsor.jpg)
+<p align="center">
+  <img src="assets/sponsor.jpg" alt="WeChat sponsorship" width="320">
+</p>

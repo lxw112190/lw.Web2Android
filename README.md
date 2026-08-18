@@ -151,7 +151,7 @@ npm run build -- --base=./
 Packer 日志：
 
 ```text
-%LOCALAPPDATA%\lw.Web2Android\logs\packer.log
+<发布包目录>\logs\packer.log
 ```
 
 Android Runtime 日志：
@@ -160,7 +160,7 @@ Android Runtime 日志：
 /sdcard/Android/data/<Package Name>/files/logs/runtime.log
 ```
 
-两类日志均按单文件 2 MiB 轮转，最多保留 5 个归档。Runtime 日志同时记录页面加载、HTTP/SSL、WebView renderer、JavaScript Console 和未捕获异常。
+Packer 会在发布包当前目录自动创建 `logs` 文件夹；直接单独运行 EXE 时，则在 EXE 所在目录创建。两类日志均按单文件 2 MiB 轮转，最多保留 5 个归档。Runtime 日志同时记录页面加载、HTTP/SSL、WebView renderer、JavaScript Console 和未捕获异常。
 
 ## 真实 Web Demo 与 CI
 
@@ -253,4 +253,6 @@ tools/        Runtime、工具链与发行打包脚本
 
 如果项目对你有帮助，可以扫码支持维护：
 
-![微信赞助](assets/sponsor.jpg)
+<p align="center">
+  <img src="assets/sponsor.jpg" alt="微信赞助" width="320">
+</p>

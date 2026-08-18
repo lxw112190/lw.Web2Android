@@ -41,6 +41,7 @@ private:
 };
 
 std::filesystem::path PackerLogFile();
+std::filesystem::path PackerLogFileForExecutable(const std::filesystem::path& executable);
 Logger& PackerLogger() noexcept;
 
 }  // namespace lw::web2android

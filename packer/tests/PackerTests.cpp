@@ -259,6 +259,15 @@ void TestSha256(const std::filesystem::path& root) {
 }
 
 void TestRotatingLog(const std::filesystem::path& root) {
+    const auto distribution = root / "distribution";
+    lw::web2android::WriteTextFile(distribution / "toolchain.lock.json", "{}");
+    Require(lw::web2android::PackerLogFileForExecutable(distribution / "bin" / "lw.Web2Android.exe") ==
+                distribution / "logs" / "packer.log",
+            "release log must be stored under the distribution root");
+    Require(lw::web2android::PackerLogFileForExecutable(root / "standalone" / "lw.Web2Android.exe") ==
+                root / "standalone" / "logs" / "packer.log",
+            "standalone log must be stored beside the executable");
+
     const auto logFile = root / "logs" / "rotation.log";
     {
         auto logger = lw::web2android::Logger::Rotating(

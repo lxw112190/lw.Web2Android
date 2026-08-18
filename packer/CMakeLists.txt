@@ -46,7 +46,7 @@ target_compile_definitions(lw_packer_core PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN U
 target_link_libraries(lw_packer_core PRIVATE spdlog::spdlog)
 
 if(WIN32)
-    target_link_libraries(lw_packer_core PRIVATE bcrypt crypt32 ncrypt shell32)
+    target_link_libraries(lw_packer_core PRIVATE bcrypt crypt32 ncrypt)
 endif()
 
 if(MSVC)

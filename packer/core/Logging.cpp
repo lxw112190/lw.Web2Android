@@ -5,9 +5,9 @@
 
 #include <atomic>
 #include <stdexcept>
+#include <vector>
 
 #ifdef _WIN32
-#include <ShlObj.h>
 #include <Windows.h>
 #endif
 
@@ -16,17 +16,14 @@ namespace {
 
 std::atomic<unsigned long long> loggerSequence{0};
 
-std::filesystem::path LocalStateRoot() {
+std::filesystem::path CurrentExecutable() {
 #ifdef _WIN32
-    PWSTR localAppData = nullptr;
-    if (FAILED(SHGetKnownFolderPath(FOLDERID_LocalAppData, KF_FLAG_CREATE, nullptr, &localAppData))) {
-        throw std::runtime_error("Unable to locate the local application data directory");
-    }
-    const std::filesystem::path root(localAppData);
-    CoTaskMemFree(localAppData);
-    return root / L"lw.Web2Android";
+    std::vector<wchar_t> buffer(32768U, L'\0');
+    const auto length = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+    if (length == 0U || length >= buffer.size()) return {};
+    return std::filesystem::path(std::wstring(buffer.data(), length));
 #else
-    return std::filesystem::temp_directory_path() / "lw.Web2Android";
+    return {};
 #endif
 }
 
@@ -90,7 +87,19 @@ void Logger::Flush() const noexcept {
 }
 
 std::filesystem::path PackerLogFile() {
-    return LocalStateRoot() / "logs" / "packer.log";
+    return PackerLogFileForExecutable(CurrentExecutable());
+}
+
+std::filesystem::path PackerLogFileForExecutable(const std::filesystem::path& executable) {
+    auto executableDirectory = executable.empty()
+                                   ? std::filesystem::current_path()
+                                   : std::filesystem::absolute(executable).lexically_normal().parent_path();
+    auto applicationRoot = executableDirectory;
+    if (executableDirectory.filename() == "bin" &&
+        std::filesystem::is_regular_file(executableDirectory.parent_path() / "toolchain.lock.json")) {
+        applicationRoot = executableDirectory.parent_path();
+    }
+    return applicationRoot / "logs" / "packer.log";
 }
 
 Logger& PackerLogger() noexcept {

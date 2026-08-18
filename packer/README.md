@@ -55,10 +55,10 @@ metadata.json    Package、证书 SHA-256 与创建时间
 CLI 与 GUI 使用 spdlog 的同步 rotating sink 记录 15 个构建阶段、AAPT2/zipalign/apksigner 输出、结果摘要及异常：
 
 ```text
-%LOCALAPPDATA%\lw.Web2Android\logs\packer.log
+<发布包目录>\logs\packer.log
 ```
 
-单文件最大 2 MiB，保留当前文件和 5 个轮转文件。日志初始化或写入失败不会阻断 APK 构建。GUI 构建失败时会在错误弹窗中显示日志路径；签名私钥与 PKCS#12 备份密码不会写入日志。
+Packer 会在发布包当前目录自动创建 `logs` 文件夹；如果单独复制并运行 EXE，则在 EXE 所在目录创建。单文件最大 2 MiB，保留当前文件和 5 个轮转文件。日志初始化或写入失败不会阻断 APK 构建。GUI 构建失败时会在错误弹窗中显示日志路径；签名私钥与 PKCS#12 备份密码不会写入日志。
 
 未在 `project.json` 中设置 `outputFile` 时，默认 APK 文件名为 `<AppName>-<Version>-android.apk`。每次构建同时输出 `<APK>.sha256`、`<APK名称>.release.json` 和 `<APK名称>-RELEASE.md`。发行元数据包含应用版本、APK 与证书 SHA-256、Runtime/Toolchain 版本和 UTC 构建时间。
 
