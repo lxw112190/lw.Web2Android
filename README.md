@@ -154,13 +154,19 @@ Packer 日志：
 <发布包目录>\logs\packer.log
 ```
 
+工具链初始化日志：
+
+```text
+<发布包目录>\logs\toolchain-init.log
+```
+
 Android Runtime 日志：
 
 ```text
 /sdcard/Android/data/<Package Name>/files/logs/runtime.log
 ```
 
-Packer 会在发布包当前目录自动创建 `logs` 文件夹；直接单独运行 EXE 时，则在 EXE 所在目录创建。两类日志均按单文件 2 MiB 轮转，最多保留 5 个归档。Runtime 日志同时记录页面加载、HTTP/SSL、WebView renderer、JavaScript Console 和未捕获异常。
+Packer 和工具链初始化器会在发布包当前目录自动创建 `logs` 文件夹。初始化日志记录下载地址、SHA-256 校验、JRE 选择、`sdkmanager` 输出、工具链组装、临时目录清理和完整失败原因。三类日志均按单文件 2 MiB 轮转，最多保留 5 个归档。Runtime 日志同时记录页面加载、HTTP/SSL、WebView renderer、JavaScript Console 和未捕获异常。
 
 ## 真实 Web Demo 与 CI
 

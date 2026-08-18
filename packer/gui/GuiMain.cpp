@@ -535,10 +535,14 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
                 MessageBoxW(window, L"最小工具链已安装，可以直接生成 APK。", L"初始化完成",
                             MB_OK | MB_ICONINFORMATION);
             } else {
+                const auto initializationLog = state->environment.applicationRoot / "logs" / "toolchain-init.log";
                 PackerLogger().Error("Toolchain initialization failed with exit code " +
-                                     std::to_string(static_cast<unsigned long long>(wparam)));
-                SetStatus(window, L"工具链初始化失败，请查看下载窗口中的错误信息", kFailure);
-                MessageBoxW(window, L"工具链初始化未完成，请查看下载窗口中的错误信息。",
+                                     std::to_string(static_cast<unsigned long long>(wparam)) +
+                                     "; log: " + initializationLog.u8string());
+                SetStatus(window, L"工具链初始化失败，请查看 logs/toolchain-init.log", kFailure);
+                const auto errorMessage = std::wstring(L"工具链初始化未完成。\n\n请查看日志：\n") +
+                                          initializationLog.wstring();
+                MessageBoxW(window, errorMessage.c_str(),
                             L"初始化失败", MB_OK | MB_ICONERROR);
             }
             UpdateToolchainDisplay(*state);

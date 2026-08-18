@@ -154,13 +154,19 @@ Windows Packer log:
 <distribution directory>\logs\packer.log
 ```
 
+Toolchain initialization log:
+
+```text
+<distribution directory>\logs\toolchain-init.log
+```
+
 Android Runtime log:
 
 ```text
 /sdcard/Android/data/<Package Name>/files/logs/runtime.log
 ```
 
-The Packer creates `logs` under the current distribution directory. When an executable is used standalone, it creates `logs` beside that executable. Both logs rotate at 2 MiB per file and retain up to five archives. Runtime logging includes navigation, HTTP/SSL failures, WebView renderer exits, JavaScript Console output, and uncaught exceptions.
+The Packer and toolchain initializer create `logs` under the current distribution directory. Initialization logging includes download URLs, SHA-256 verification, JRE selection, `sdkmanager` output, toolchain assembly, temporary-directory cleanup, and complete failure details. All three logs rotate at 2 MiB per file and retain up to five archives. Runtime logging includes navigation, HTTP/SSL failures, WebView renderer exits, JavaScript Console output, and uncaught exceptions.
 
 ## Real Web demo and CI
 
