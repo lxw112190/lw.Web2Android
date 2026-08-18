@@ -157,10 +157,16 @@ jobs:
             $actualHash = (Get-FileHash $apk -Algorithm SHA256).Hash.ToLowerInvariant()
             if ($expectedHash -ne $actualHash) { throw "$apk SHA-256 sidecar does not match" }
 
-            $releaseJsonPath = [System.IO.Path]::ChangeExtension($apk, 'release.json')
-            $releaseMarkdownPath = [System.IO.Path]::ChangeExtension($apk, $null) + '-RELEASE.md'
-            if (-not (Test-Path -LiteralPath $releaseJsonPath) -or -not (Test-Path -LiteralPath $releaseMarkdownPath)) {
-              throw "$apk is missing release metadata"
+            $releaseDirectory = [System.IO.Path]::GetDirectoryName($apk)
+            $releaseFileStem = [System.IO.Path]::GetFileNameWithoutExtension($apk)
+            $releaseStem = Join-Path $releaseDirectory $releaseFileStem
+            $releaseJsonPath = "$releaseStem.release.json"
+            $releaseMarkdownPath = "$releaseStem-RELEASE.md"
+            if (-not (Test-Path -LiteralPath $releaseJsonPath)) {
+              throw "$apk is missing release metadata: $releaseJsonPath"
+            }
+            if (-not (Test-Path -LiteralPath $releaseMarkdownPath)) {
+              throw "$apk is missing release metadata: $releaseMarkdownPath"
             }
             $release = Get-Content -Raw -LiteralPath $releaseJsonPath | ConvertFrom-Json
             if ($release.apkSha256 -ne $actualHash -or $release.certificateSha256 -notmatch '^[0-9a-f]{64}$') {
