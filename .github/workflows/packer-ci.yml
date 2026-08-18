@@ -1,0 +1,44 @@
+name: Packer CI
+
+on:
+  push:
+    paths:
+      - 'packer/**'
+      - 'samples/**/project.json'
+      - '.github/workflows/packer-ci.yml'
+  pull_request:
+    paths:
+      - 'packer/**'
+      - 'samples/**/project.json'
+      - '.github/workflows/packer-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-packer:
+    name: Build and test Windows C++17 Packer
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Configure
+        run: cmake -S packer -B build/packer -A x64 -DBUILD_TESTING=ON
+
+      - name: Build
+        run: cmake --build build/packer --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build/packer -C Release --output-on-failure
+
+      - name: Upload Packer CLI
+        uses: actions/upload-artifact@v4
+        with:
+          name: lw-Web2Android-packer-m2
+          path: build/packer/Release/lw.Web2Android.exe
+          if-no-files-found: error
+          retention-days: 14

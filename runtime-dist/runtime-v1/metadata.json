@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "runtimeVersion": "1",
+  "namespace": "com.lw.web2android.runtime",
+  "mainActivity": "com.lw.web2android.runtime.MainActivity",
+  "minSdk": 23,
+  "targetSdk": 35,
+  "androidXWebKitVersion": "1.15.0",
+  "dexFiles": [
+    {
+      "name": "classes.dex",
+      "size": 71908,
+      "sha256": "0bfbc870e75448f21a2aa747e7e9906e6f0c833c1885299f6a45e0e8710ad6cb"
+    }
+  ]
+}

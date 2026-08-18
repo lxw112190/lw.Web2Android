@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "mode": "remote",
+  "name": "lw Web2Android Remote",
+  "packageName": "com.lw.samples.remote",
+  "versionName": "1.0.0",
+  "versionCode": 1,
+  "url": "https://example.com",
+  "fullscreen": false,
+  "orientation": "auto",
+  "allowHttp": false,
+  "output": "../../build/m2",
+  "outputFile": "remote-1.0.0-unsigned.apk",
+  "runtime": "../../runtime-dist/runtime-v1",
+  "toolchainLock": "../../toolchain.lock.json"
+}
