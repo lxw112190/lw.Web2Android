@@ -18,7 +18,7 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 - rotating logs for both the Windows Packer and Android Runtime;
 - GitHub Actions builds the Runtime, Packer, GUI, and a real React/Vite demo.
 
-Current version: `v0.2.1`<br>
+Current version: `v0.2.2`<br>
 Android: `minSdk 23`, `targetSdk 35`
 
 ## Download and first run
@@ -32,14 +32,14 @@ bin/lw.Web2Android.GUI.exe
 The public distribution contains:
 
 ```text
-lw-Web2Android-v0.2.1-windows-x64/
+lw-Web2Android-v0.2.2-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
 ├── toolchain/
 │   ├── jre/
 │   ├── runtime/
-│   └── runtime-v1.zip
+│   └── runtime-v2.zip
 ├── tools/
 ├── samples/wechat-article-formatter/
 ├── docs/
@@ -129,6 +129,27 @@ Paths are resolved relative to `project.json`. `entry` is relative to `source` a
 
 See [packer/README.md](packer/README.md) for all CLI options.
 
+## Enterprise intranet and HTTP
+
+The GUI provides **Allow HTTP (trusted intranet only)**. It is selected automatically when a remote URL starts with `http://`; select it manually when a packaged Vue/React application calls an HTTP API. This option generates a cleartext [Network Security Config](https://developer.android.com/privacy-and-security/security-config) and enables the [WebView mixed-content](https://developer.android.com/reference/android/webkit/WebSettings) allow mode. HTTP traffic can be observed or modified by other parties on the network, so prefer HTTPS for production deployments.
+
+When the frontend is already hosted on an intranet server, select **Remote URL** and enter the real address, for example:
+
+```text
+http://intranet.example.test:9000/
+```
+
+`intranet.example.test` is documentation-only. Replace it with an intranet host reachable from the phone over corporate Wi-Fi, a private network, or VPN. The server must listen on a reachable interface and its firewall must allow the selected port.
+
+For a local Vue `dist` packaged in the APK with a Spring Boot backend on the intranet:
+
+1. set the Vue API base URL before building, for example `http://api.intranet.example.test:9001`;
+2. select **Local static directory** and enable **Allow HTTP**;
+3. allow the Origin `https://appassets.androidplatform.net` in Spring Boot CORS;
+4. when using cookies or sessions, explicitly allow that Origin and credentials instead of using the `*` wildcard.
+
+`WebViewAssetLoader` preserves the standard Web Origin and CORS model. lw.Web2Android does not use a Native Bridge to bypass the same-origin policy. Prefer deploying the frontend and API under one HTTPS Origin when possible.
+
 ## Output, signing, and logs
 
 Every successful build produces:
@@ -164,9 +185,10 @@ Android Runtime log:
 
 ```text
 /sdcard/Android/data/<Package Name>/files/logs/runtime.log
+/sdcard/Android/data/<Package Name>/files/logs/device-info.log
 ```
 
-The Packer and toolchain initializer create `logs` under the current distribution directory. Initialization logging includes download URLs, SHA-256 verification, JRE selection, `sdkmanager` output, toolchain assembly, temporary-directory cleanup, and complete failure details. All three logs rotate at 2 MiB per file and retain up to five archives. Runtime logging includes navigation, HTTP/SSL failures, WebView renderer exits, JavaScript Console output, and uncaught exceptions.
+The Packer and toolchain initializer create `logs` under the current distribution directory. Initialization logging includes download URLs, SHA-256 verification, JRE selection, `sdkmanager` output, toolchain assembly, temporary-directory cleanup, and complete failure details. Every log file rotates at 2 MiB and retains up to five archives. `runtime.log` includes navigation, HTTP/SSL failures, WebView renderer exits, JavaScript Console output, and uncaught exceptions. `device-info.log` records an app, device, WebView, network-transport, and Runtime-configuration snapshot at each start. It never collects IMEI, Android ID, MAC address, SSID, the phone's own IP address, cookies, tokens, or request headers. To diagnose connectivity, it records the configured start URL after removing its query and fragment.
 
 ## Real Web demo and CI
 
@@ -186,8 +208,8 @@ The demo APK has passed validation on a physical Android device. The pinned sour
 Pushing a `v*` tag creates a GitHub Release only after the full workflow passes:
 
 ```bash
-git tag -a v0.2.1 -m "lw.Web2Android v0.2.1"
-git push origin v0.2.1
+git tag -a v0.2.2 -m "lw.Web2Android v0.2.2"
+git push origin v0.2.2
 ```
 
 ## Architecture

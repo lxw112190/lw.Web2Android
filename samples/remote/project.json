@@ -5,11 +5,11 @@
   "packageName": "com.lw.samples.remote",
   "versionName": "1.0.0",
   "versionCode": 1,
-  "url": "https://example.com",
+  "url": "http://intranet.example.test:9000/",
   "fullscreen": false,
   "orientation": "auto",
-  "allowHttp": false,
+  "allowHttp": true,
   "output": "../../build/samples/remote",
-  "runtime": "../../build/runtime-dist/runtime-v1",
+  "runtime": "../../build/runtime-dist/runtime-v2",
   "toolchainLock": "../../toolchain.lock.json"
 }

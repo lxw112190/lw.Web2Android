@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$BuildDirectory = 'build/packer-v020/Release',
+    [string]$BuildDirectory = 'build/packer/Release',
     [string]$ToolchainDirectory
 )
 
@@ -9,7 +9,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $build = (Resolve-Path -LiteralPath (Join-Path $repoRoot $BuildDirectory)).Path
 if ([string]::IsNullOrWhiteSpace($ToolchainDirectory)) { $ToolchainDirectory = Join-Path $repoRoot 'toolchain' }
 $toolchain = (Resolve-Path -LiteralPath $ToolchainDirectory).Path
-$version = '0.2.1'
+$version = '0.2.2'
 $packageName = "lw-Web2Android-v$version-windows-x64-complete-private"
 $releaseRoot = Join-Path $repoRoot 'build/releases'
 $package = Join-Path $releaseRoot $packageName

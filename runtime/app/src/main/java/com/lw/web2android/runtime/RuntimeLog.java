@@ -35,6 +35,14 @@ final class RuntimeLog {
     private BufferedWriter writer;
 
     private RuntimeLog(Context context) throws IOException {
+        directory = resolveLogDirectory(context);
+        currentFile = new File(directory, "runtime.log");
+        timestamp = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
+        timestamp.setTimeZone(TimeZone.getTimeZone("UTC"));
+        openWriter();
+    }
+
+    static File resolveLogDirectory(Context context) throws IOException {
         File selected = context.getExternalFilesDir("logs");
         if (selected == null) {
             selected = new File(context.getFilesDir(), "logs");
@@ -42,11 +50,7 @@ final class RuntimeLog {
         if ((!selected.isDirectory() && !selected.mkdirs()) || !selected.isDirectory()) {
             throw new IOException("Unable to create Runtime log directory: " + selected);
         }
-        directory = selected;
-        currentFile = new File(directory, "runtime.log");
-        timestamp = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
-        timestamp.setTimeZone(TimeZone.getTimeZone("UTC"));
-        openWriter();
+        return selected;
     }
 
     static void initialize(Context context) {

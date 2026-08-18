@@ -101,15 +101,19 @@ void TestProjectAndGenerators(const std::filesystem::path& root) {
     Require(manifest.find("com.example.demo") != std::string::npos, "manifest package");
     Require(manifest.find("screenOrientation=\"portrait\"") != std::string::npos, "manifest orientation");
     Require(manifest.find("INTERNET") == std::string::npos, "local manifest must not request INTERNET");
-    const auto runtime = lw::web2android::RuntimeConfigGenerator::Generate(config);
+    Require(manifest.find("ACCESS_NETWORK_STATE") != std::string::npos,
+            "manifest must allow non-sensitive network diagnostics");
+    const auto runtime = lw::web2android::RuntimeConfigGenerator::Generate(config, "1");
     Require(runtime.find("\"fullscreen\": true") != std::string::npos, "runtime fullscreen config");
+    Require(runtime.find("\"runtimeVersion\": \"1\"") != std::string::npos,
+            "runtime version config");
     Require(runtime.find("\"entry\": \"www/index.html\"") != std::string::npos,
             "runtime entry must point to the packaged local web asset");
 
     const auto resources = root / "generated-res";
     const auto assets = root / "generated-assets";
     lw::web2android::ResourceGenerator::Generate(config, resources);
-    lw::web2android::WebAssetManager::Prepare(config, assets);
+    lw::web2android::WebAssetManager::Prepare(config, assets, "1");
     Require(std::filesystem::is_regular_file(resources / "drawable" / "ic_launcher.xml"), "generated icon");
     Require(std::filesystem::is_regular_file(assets / "www" / "index.html"), "copied web entry");
     const auto generatedRuntimeConfig = ReadBinary(assets / "lw-config.json");
@@ -117,6 +121,18 @@ void TestProjectAndGenerators(const std::filesystem::path& root) {
     Require(generatedRuntimeConfigText.find("\"entry\": \"www/index.html\"") != std::string::npos,
             "prepared Runtime config must match the copied web entry");
     Require(!std::filesystem::exists(assets / "www" / "project.json"), "project config must not become a web asset");
+
+    auto httpConfig = config;
+    httpConfig.allowHttp = true;
+    const auto httpManifest = lw::web2android::ManifestGenerator::Generate(httpConfig);
+    Require(httpManifest.find("INTERNET") != std::string::npos,
+            "local HTTP API mode must request INTERNET");
+    Require(httpManifest.find("@xml/network_security_config") != std::string::npos,
+            "HTTP mode must reference Network Security Config");
+    const auto httpResources = root / "generated-http-res";
+    lw::web2android::ResourceGenerator::Generate(httpConfig, httpResources);
+    Require(std::filesystem::is_regular_file(httpResources / "xml" / "network_security_config.xml"),
+            "HTTP mode must generate Network Security Config");
 }
 
 void TestZipAssembler(const std::filesystem::path& root) {
@@ -170,6 +186,7 @@ void TestGuiProjectModel(const std::filesystem::path& root) {
             "GUI local source normalization");
     Require(localConfig.toolchainLock == root / "toolchain.lock.json", "GUI toolchain lock mapping");
     Require(localConfig.runtimeDirectory == runtime, "GUI Runtime Bundle mapping");
+    Require(!localConfig.allowHttp, "GUI must keep HTTP disabled by default");
 
     lw::web2android::gui::GuiProjectInput remote = local;
     remote.remote = true;
@@ -179,6 +196,12 @@ void TestGuiProjectModel(const std::filesystem::path& root) {
     const auto remoteConfig = lw::web2android::gui::CreateProjectConfig(remote, environment);
     Require(remoteConfig.mode == "remote" && remoteConfig.source.empty(), "GUI remote project mapping");
     Require(remoteConfig.url == remote.remoteUrl, "GUI remote URL mapping");
+
+    remote.remoteUrl = "http://intranet.example.test:9000/app";
+    remote.allowHttp = true;
+    const auto remoteHttpConfig = lw::web2android::gui::CreateProjectConfig(remote, environment);
+    Require(remoteHttpConfig.allowHttp && remoteHttpConfig.url == remote.remoteUrl,
+            "GUI trusted intranet HTTP mapping");
 }
 
 void TestSigningIdentity(const std::filesystem::path& root) {
@@ -303,10 +326,10 @@ void TestReleaseMetadata() {
                                                     std::string(64, 'a'),
                                                     std::string(64, 'b'),
                                                     "1",
-                                                    "0.2.0-1",
+                                                    "0.2.2-1",
                                                     "2026-08-18T01:02:03Z"};
     const auto json = metadata.ToJson();
-    Require(json.find("\"toolchainVersion\": \"0.2.0-1\"") != std::string::npos,
+    Require(json.find("\"toolchainVersion\": \"0.2.2-1\"") != std::string::npos,
             "release JSON must record the toolchain version");
     Require(json.find("\"apkSha256\": \"" + std::string(64, 'a') + "\"") != std::string::npos,
             "release JSON must record the APK digest");

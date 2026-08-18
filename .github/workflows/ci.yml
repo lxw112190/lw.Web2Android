@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 env:
-  PRODUCT_VERSION: '0.2.1'
-  PACKAGE_NAME: lw-Web2Android-v0.2.1-windows-x64
+  PRODUCT_VERSION: '0.2.2'
+  PACKAGE_NAME: lw-Web2Android-v0.2.2-windows-x64
   WECHAT_DEMO_REPOSITORY: lxw112190/wechat-article-formatter
   WECHAT_DEMO_REF: ad1afc5a2c31d7cb7dc458a69944d6cb7ee0cd88
 
@@ -129,7 +129,7 @@ jobs:
           ./tools/package-runtime.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           New-Item -ItemType Directory -Force -Path build/ci-runtime | Out-Null
-          Expand-Archive -LiteralPath build/runtime-dist/runtime-v1.zip -DestinationPath build/ci-runtime -Force
+          Expand-Archive -LiteralPath build/runtime-dist/runtime-v2.zip -DestinationPath build/ci-runtime -Force
 
       - name: Assemble and validate minimal end-user toolchain
         shell: pwsh
@@ -276,10 +276,12 @@ jobs:
             [pscustomobject]@{
               apk = 'build/samples/wechat-article-formatter/wechat-article-formatter-android.apk'
               required = @('classes.dex', 'assets/lw-config.json', 'assets/www/index.html')
+              expectHttp = $false
             },
             [pscustomobject]@{
               apk = 'build/samples/remote/lw-Web2Android-Remote-1.0.0-android.apk'
-              required = @('classes.dex', 'assets/lw-config.json')
+              required = @('classes.dex', 'assets/lw-config.json', 'res/xml/network_security_config.xml')
+              expectHttp = $true
             }
           )
 
@@ -302,6 +304,9 @@ jobs:
                 $runtimeConfig = $reader.ReadToEnd() | ConvertFrom-Json
               } finally {
                 $reader.Dispose()
+              }
+              if ($expectation.expectHttp -and -not $runtimeConfig.allowHttp) {
+                throw "$apk did not preserve the trusted-intranet HTTP setting"
               }
               if ($runtimeConfig.mode -eq 'local') {
                 $packagedEntry = "assets/$($runtimeConfig.entry)"
@@ -370,7 +375,7 @@ jobs:
 
           Copy-Item build/packer/Release/lw.Web2Android.exe "$package/bin/"
           Copy-Item build/packer/Release/lw.Web2Android.GUI.exe "$package/bin/"
-          Copy-Item build/runtime-dist/runtime-v1.zip "$package/toolchain/"
+          Copy-Item build/runtime-dist/runtime-v2.zip "$package/toolchain/"
           Copy-Item build/ci-runtime/* "$package/toolchain/runtime/" -Recurse
           Copy-Item build/ci-jre/* "$package/toolchain/jre/" -Recurse
           Copy-Item toolchain.lock.json "$package/"

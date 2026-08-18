@@ -16,14 +16,19 @@ void WriteTextFile(const std::filesystem::path& file, const std::string& content
 }
 
 std::string ManifestGenerator::Generate(const ProjectConfig& config) {
-    std::string permissions;
-    if (config.mode == "remote") {
-        permissions = "    <uses-permission android:name=\"android.permission.INTERNET\"/>\n\n";
+    std::string permissions =
+        "    <uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\"/>\n";
+    if (config.mode == "remote" || config.allowHttp) {
+        permissions += "    <uses-permission android:name=\"android.permission.INTERNET\"/>\n";
     }
+    permissions += "\n";
     std::string orientation;
     if (config.orientation != "auto") {
         orientation = "\n            android:screenOrientation=\"" + config.orientation + "\"";
     }
+    const auto networkSecurityConfig = config.allowHttp
+        ? "\n        android:networkSecurityConfig=\"@xml/network_security_config\""
+        : "";
     return "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
            "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\"\n"
            "    package=\"" + EscapeXml(config.packageName) + "\">\n\n" +
@@ -34,7 +39,8 @@ std::string ManifestGenerator::Generate(const ProjectConfig& config) {
            "        android:label=\"@string/app_name\"\n"
            "        android:supportsRtl=\"true\"\n"
            "        android:theme=\"@android:style/Theme.Material.Light.NoActionBar\"\n"
-           "        android:usesCleartextTraffic=\"" + std::string(config.allowHttp ? "true" : "false") + "\">\n"
+           "        android:usesCleartextTraffic=\"" + std::string(config.allowHttp ? "true" : "false") + "\"" +
+           networkSecurityConfig + ">\n"
            "        <activity\n"
            "            android:name=\"com.lw.web2android.runtime.MainActivity\"\n"
            "            android:exported=\"true\"" + orientation + ">\n"
@@ -47,13 +53,14 @@ std::string ManifestGenerator::Generate(const ProjectConfig& config) {
            "</manifest>\n";
 }
 
-std::string RuntimeConfigGenerator::Generate(const ProjectConfig& config) {
+std::string RuntimeConfigGenerator::Generate(const ProjectConfig& config, const std::string& runtimeVersion) {
     // ProjectConfig::entry is relative to the selected web source directory.
     // Local web files are packaged below assets/www, so the Runtime config must
     // contain the corresponding APK asset path rather than the source path.
     const auto runtimeEntry = config.mode == "local" ? "www/" + config.entry : config.entry;
     return "{\n"
            "  \"schemaVersion\": 1,\n"
+           "  \"runtimeVersion\": \"" + EscapeJson(runtimeVersion) + "\",\n"
            "  \"mode\": \"" + EscapeJson(config.mode) + "\",\n"
            "  \"entry\": \"" + EscapeJson(runtimeEntry) + "\",\n"
            "  \"url\": \"" + EscapeJson(config.url) + "\",\n"
@@ -79,11 +86,20 @@ void ResourceGenerator::Generate(const ProjectConfig& config, const std::filesys
                   "    <path android:fillColor=\"#1565C0\" android:pathData=\"M0,0h108v108h-108z\"/>\n"
                   "    <path android:fillColor=\"#FFFFFF\" android:pathData=\"M24,31h60v10h-60zM24,49h60v10h-60zM24,67h42v10h-42z\"/>\n"
                   "</vector>\n");
+    if (config.allowHttp) {
+        WriteTextFile(resourceDirectory / "xml" / "network_security_config.xml",
+                      "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                      "<network-security-config>\n"
+                      "    <base-config cleartextTrafficPermitted=\"true\"/>\n"
+                      "</network-security-config>\n");
+    }
 }
 
-void WebAssetManager::Prepare(const ProjectConfig& config, const std::filesystem::path& assetsDirectory) {
+void WebAssetManager::Prepare(const ProjectConfig& config,
+                              const std::filesystem::path& assetsDirectory,
+                              const std::string& runtimeVersion) {
     std::filesystem::create_directories(assetsDirectory);
-    WriteTextFile(assetsDirectory / "lw-config.json", RuntimeConfigGenerator::Generate(config));
+    WriteTextFile(assetsDirectory / "lw-config.json", RuntimeConfigGenerator::Generate(config, runtimeVersion));
     if (config.mode != "local") return;
 
     const auto destination = assetsDirectory / "www";

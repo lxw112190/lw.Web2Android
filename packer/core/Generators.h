@@ -14,7 +14,7 @@ public:
 
 class RuntimeConfigGenerator {
 public:
-    static std::string Generate(const ProjectConfig& config);
+    static std::string Generate(const ProjectConfig& config, const std::string& runtimeVersion);
 };
 
 class ResourceGenerator {
@@ -24,7 +24,9 @@ public:
 
 class WebAssetManager {
 public:
-    static void Prepare(const ProjectConfig& config, const std::filesystem::path& assetsDirectory);
+    static void Prepare(const ProjectConfig& config,
+                        const std::filesystem::path& assetsDirectory,
+                        const std::string& runtimeVersion);
 };
 
 void WriteTextFile(const std::filesystem::path& file, const std::string& content);

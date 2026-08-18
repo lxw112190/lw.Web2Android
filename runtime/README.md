@@ -15,8 +15,9 @@ Release 构建同时启用 R8 代码收缩与优化资源收缩。仅固定动�
 - HTTP 默认阻止，只有 `allowHttp=true` 才允许；
 - 非 HTTP(S) URL 交给系统应用处理；
 - 基本主页面错误提示。
-- 2 MiB × 5 的 Runtime 轮转日志，并同步输出 Logcat；
+- 2 MiB × 5 的 Runtime 与设备信息独立轮转日志，并同步输出 Logcat；
 - 页面加载、HTTP/SSL、WebView renderer、JS Console 与未捕获异常诊断。
+- 每次启动记录应用、设备、WebView、网络传输类型和 Runtime 配置摘要。
 
 Runtime 不调用 `addJavascriptInterface`，不提供 Native Bridge，也不引用应用动态生成的 `R` 类。
 
@@ -26,9 +27,10 @@ Runtime 优先写入无需额外存储权限的应用专属外部目录：
 
 ```text
 /sdcard/Android/data/<Package Name>/files/logs/runtime.log
+/sdcard/Android/data/<Package Name>/files/logs/device-info.log
 ```
 
-`runtime.log` 达到 2 MiB 后依次轮转为 `runtime.log.1` 至 `runtime.log.5`。日志包含 UTC 时间、级别、PID 与线程；URL 查询参数及 fragment 不会写入。通过 USB 调试复制：
+`runtime.log` 与 `device-info.log` 分别达到 2 MiB 后依次轮转为 `.1` 至 `.5`。Runtime 日志包含 UTC 时间、级别、PID 与线程；URL 查询参数及 fragment 不会写入。设备日志不采集 IMEI、Android ID、MAC、SSID、手机本机 IP、Cookie、Token 或请求头；配置启动地址会在移除 query 和 fragment 后记录。通过 USB 调试复制：
 
 ```bash
 adb pull /sdcard/Android/data/<Package Name>/files/logs ./android-runtime-logs
@@ -49,5 +51,5 @@ pwsh ./tools/package-runtime.ps1
 最终输出：
 
 ```text
-build/runtime-dist/runtime-v1.zip
+build/runtime-dist/runtime-v2.zip
 ```

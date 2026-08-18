@@ -12,7 +12,7 @@ if ([string]::IsNullOrWhiteSpace($RuntimeApk)) {
     $RuntimeApk = Join-Path $repoRoot 'runtime/app/build/outputs/apk/release/app-release-unsigned.apk'
 }
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
-    $OutputDirectory = Join-Path $repoRoot 'build/runtime-dist/runtime-v1'
+    $OutputDirectory = Join-Path $repoRoot 'build/runtime-dist/runtime-v2'
 }
 if (-not (Test-Path -LiteralPath $RuntimeApk -PathType Leaf)) {
     throw "Runtime APK was not found: $RuntimeApk"
@@ -92,7 +92,7 @@ $runtimeDexText = ($dexFiles | ForEach-Object {
     [System.Text.Encoding]::ASCII.GetString(
         [System.IO.File]::ReadAllBytes((Join-Path $outputPath $_.name)))
 }) -join ''
-foreach ($requiredLoggingMarker in @('runtime.log', 'Runtime logger initialized')) {
+foreach ($requiredLoggingMarker in @('runtime.log', 'device-info.log', 'Runtime logger initialized', 'Device Diagnostics')) {
     if (-not $runtimeDexText.Contains($requiredLoggingMarker)) {
         throw "Runtime DEX is missing required rotating-log marker: $requiredLoggingMarker"
     }
@@ -110,12 +110,13 @@ $metadata = [ordered]@{
         maxFileSizeBytes = 2097152
         maxArchives = 5
         relativeExternalPath = 'logs/runtime.log'
+        deviceInfoRelativeExternalPath = 'logs/device-info.log'
     }
     dexFiles = $dexFiles
 }
 $metadata | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $outputPath 'metadata.json') -Encoding utf8
 
-$bundleZip = Join-Path $allowedOutputRoot 'runtime-v1.zip'
+$bundleZip = Join-Path $allowedOutputRoot 'runtime-v2.zip'
 if (Test-Path -LiteralPath $bundleZip) {
     Remove-Item -LiteralPath $bundleZip -Force
 }

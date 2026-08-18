@@ -27,6 +27,7 @@ final class RuntimeConfig {
     }
 
     final Mode mode;
+    final String runtimeVersion;
     final String entry;
     final String url;
     final boolean fullscreen;
@@ -35,12 +36,14 @@ final class RuntimeConfig {
 
     private RuntimeConfig(
             Mode mode,
+            String runtimeVersion,
             String entry,
             String url,
             boolean fullscreen,
             Orientation orientation,
             boolean allowHttp) {
         this.mode = mode;
+        this.runtimeVersion = runtimeVersion;
         this.entry = entry;
         this.url = url;
         this.fullscreen = fullscreen;
@@ -57,6 +60,10 @@ final class RuntimeConfig {
             }
 
             Mode mode = parseMode(json.optString("mode", ""));
+            String runtimeVersion = json.optString("runtimeVersion", "unknown").trim();
+            if (runtimeVersion.isEmpty() || runtimeVersion.length() > 64) {
+                throw new ConfigException("runtimeVersion is invalid");
+            }
             boolean allowHttp = json.optBoolean("allowHttp", false);
             String entry = json.optString("entry", "index.html").trim();
             String url = json.optString("url", "").trim();
@@ -69,6 +76,7 @@ final class RuntimeConfig {
 
             return new RuntimeConfig(
                     mode,
+                    runtimeVersion,
                     entry,
                     url,
                     json.optBoolean("fullscreen", false),

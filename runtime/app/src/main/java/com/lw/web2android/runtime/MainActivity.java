@@ -38,7 +38,9 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
             return;
         }
 
+        DeviceInfoLog.writeSnapshot(this, config);
         RuntimeLog.info("Configuration loaded; mode=" + config.mode
+                + ", runtimeVersion=" + config.runtimeVersion
                 + ", start=" + RuntimeLog.safeUrl(config.startUrl())
                 + ", fullscreen=" + config.fullscreen
                 + ", orientation=" + config.orientation
@@ -75,7 +77,7 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setMixedContentMode(config.allowHttp
-                ? WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                ? WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 : WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             settings.setSafeBrowsingEnabled(true);

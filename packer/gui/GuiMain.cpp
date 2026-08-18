@@ -46,6 +46,7 @@ enum ControlId {
     kVersionCode,
     kOrientation,
     kFullscreen,
+    kAllowHttp,
     kOutput,
     kBrowseOutput,
     kBuild,
@@ -85,7 +86,7 @@ struct BuildCompletion {
     std::wstring error;
 };
 
-constexpr RECT kStatusRect{48, 828, 712, 856};
+constexpr RECT kStatusRect{48, 848, 712, 876};
 constexpr UINT kBuildProgressMessage = WM_APP + 1;
 constexpr UINT kBuildFinishedMessage = WM_APP + 2;
 constexpr UINT kToolchainFinishedMessage = WM_APP + 3;
@@ -252,15 +253,33 @@ void SetStatus(HWND window, const std::wstring& text, COLORREF color = kSuccess)
     RedrawWindow(window, &rect, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW | RDW_NOCHILDREN);
 }
 
+bool IsPlainHttpUrl(const std::wstring& value) {
+    const auto first = value.find_first_not_of(L" \t\r\n");
+    return first != std::wstring::npos && value.size() - first >= 7U &&
+           CompareStringOrdinal(value.data() + first, 7, L"http://", 7, TRUE) == CSTR_EQUAL;
+}
+
+void EnableHttpForRemoteUrl(HWND window) {
+    if (IsDlgButtonChecked(window, kModeRemote) != BST_CHECKED ||
+        !IsPlainHttpUrl(Text(window, kSource)) ||
+        IsDlgButtonChecked(window, kAllowHttp) == BST_CHECKED) {
+        return;
+    }
+    CheckDlgButton(window, kAllowHttp, BST_CHECKED);
+    SetStatus(window, L"已为 HTTP 地址开启明文访问 · 仅建议用于可信内网", RGB(180, 103, 0));
+}
+
 void UpdateMode(HWND window) {
     const bool local = IsDlgButtonChecked(window, kModeLocal) == BST_CHECKED;
     SetWindowTextW(GetDlgItem(window, kSourceLabel), local ? L"网页目录" : L"在线网址");
     SetWindowTextW(GetDlgItem(window, kModeHint),
                    local ? L"选择普通 HTML、Vue、React 或 Vite 的构建产物目录（入口为 index.html）"
-                         : L"输入以 https:// 开头的在线网页地址");
+                         : L"输入在线网址；HTTP 地址会自动开启可信内网选项");
     SendMessageW(GetDlgItem(window, kSource), EM_SETCUEBANNER, TRUE,
-                 reinterpret_cast<LPARAM>(local ? L"例如：D:\\project\\dist" : L"例如：https://example.com"));
+                 reinterpret_cast<LPARAM>(local ? L"例如：D:\\project\\dist"
+                                                : L"例如：https://example.com 或 http://intranet.example.test"));
     EnableWindow(GetDlgItem(window, kBrowseSource), local);
+    EnableHttpForRemoteUrl(window);
     InvalidateRect(window, nullptr, TRUE);
 }
 
@@ -310,6 +329,7 @@ void StartBuild(HWND window) {
         const auto orientationIndex = SendMessageW(GetDlgItem(window, kOrientation), CB_GETCURSEL, 0, 0);
         input.orientation = orientationIndex == 1 ? "portrait" : orientationIndex == 2 ? "landscape" : "auto";
         input.fullscreen = IsDlgButtonChecked(window, kFullscreen) == BST_CHECKED;
+        input.allowHttp = IsDlgButtonChecked(window, kAllowHttp) == BST_CHECKED;
         input.outputDirectory = std::filesystem::path(Text(window, kOutput));
         auto config = CreateProjectConfig(input, state->environment);
         PackerLogger().Info("GUI build requested for package " + config.packageName);
@@ -427,35 +447,37 @@ void BuildInterface(State& state) {
              141, 203, 565, 22, kModeHint, FontRole::Small);
     AddEdit(state, L"", 48, 228, 548, kSource, L"例如：D:\\project\\dist");
     AddButton(state, L"选择目录", 610, 228, 102, 34, kBrowseSource);
+    AddControl(state, L"BUTTON", L"允许 HTTP（仅建议可信内网）", WS_TABSTOP | BS_AUTOCHECKBOX,
+               48, 270, 300, 26, kAllowHttp, FontRole::Small);
 
-    AddLabel(state, L"02  应用设置", 48, 327, 200, 28, 0, FontRole::Section);
-    AddLabel(state, L"应用名称", 48, 369, 120, 22, 0, FontRole::Small);
-    AddEdit(state, L"我的网页应用", 48, 393, 664, kName, L"显示在 Android 桌面上的名称");
-    AddLabel(state, L"Package Name", 48, 441, 160, 22, 0, FontRole::Small);
-    AddEdit(state, L"com.example.myapp", 48, 465, 664, kPackage, L"例如：com.company.app");
+    AddLabel(state, L"02  应用设置", 48, 347, 200, 28, 0, FontRole::Section);
+    AddLabel(state, L"应用名称", 48, 389, 120, 22, 0, FontRole::Small);
+    AddEdit(state, L"我的网页应用", 48, 413, 664, kName, L"显示在 Android 桌面上的名称");
+    AddLabel(state, L"Package Name", 48, 461, 160, 22, 0, FontRole::Small);
+    AddEdit(state, L"com.example.myapp", 48, 485, 664, kPackage, L"例如：com.company.app");
 
-    AddLabel(state, L"Version Name", 48, 513, 150, 22, 0, FontRole::Small);
-    AddEdit(state, L"1.0.0", 48, 537, 170, kVersionName);
-    AddLabel(state, L"Version Code", 242, 513, 150, 22, 0, FontRole::Small);
-    AddEdit(state, L"1", 242, 537, 110, kVersionCode, nullptr, ES_NUMBER);
-    AddLabel(state, L"屏幕方向", 376, 513, 120, 22, 0, FontRole::Small);
-    const auto orientation = AddCombo(state, 376, 537, 170, kOrientation);
+    AddLabel(state, L"Version Name", 48, 533, 150, 22, 0, FontRole::Small);
+    AddEdit(state, L"1.0.0", 48, 557, 170, kVersionName);
+    AddLabel(state, L"Version Code", 242, 533, 150, 22, 0, FontRole::Small);
+    AddEdit(state, L"1", 242, 557, 110, kVersionCode, nullptr, ES_NUMBER);
+    AddLabel(state, L"屏幕方向", 376, 533, 120, 22, 0, FontRole::Small);
+    const auto orientation = AddCombo(state, 376, 557, 170, kOrientation);
     SendMessageW(orientation, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"自动"));
     SendMessageW(orientation, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"竖屏"));
     SendMessageW(orientation, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"横屏"));
     SendMessageW(orientation, CB_SETCURSEL, 0, 0);
     AddControl(state, L"BUTTON", L"全屏显示", WS_TABSTOP | BS_AUTOCHECKBOX,
-               584, 541, 120, 26, kFullscreen);
+               584, 561, 120, 26, kFullscreen);
 
-    AddLabel(state, L"输出目录", 48, 597, 120, 22, 0, FontRole::Small);
-    AddEdit(state, L"", 48, 621, 548, kOutput, L"APK、校验和与发行元数据的输出目录");
-    AddButton(state, L"选择位置", 610, 621, 102, 34, kBrowseOutput);
+    AddLabel(state, L"输出目录", 48, 617, 120, 22, 0, FontRole::Small);
+    AddEdit(state, L"", 48, 641, 548, kOutput, L"APK、校验和与发行元数据的输出目录");
+    AddButton(state, L"选择位置", 610, 641, 102, 34, kBrowseOutput);
     AddLabel(state, L"签名：按 Package Name 自动创建或复用独立身份，可在 CLI 中导出 PFX 备份",
-             48, 674, 650, 24, 0, FontRole::Small);
-    AddLabel(state, L"", 48, 702, 470, 24, kToolchainStatus, FontRole::Small);
-    AddButton(state, L"初始化工具链", 560, 694, 152, 34, kInstallToolchain);
+             48, 694, 650, 24, 0, FontRole::Small);
+    AddLabel(state, L"", 48, 722, 470, 24, kToolchainStatus, FontRole::Small);
+    AddButton(state, L"初始化工具链", 560, 714, 152, 34, kInstallToolchain);
 
-    AddButton(state, L"生成 Android APK", 48, 755, 664, 48, kBuild);
+    AddButton(state, L"生成 Android APK", 48, 775, 664, 48, kBuild);
 
     const auto output = std::filesystem::current_path() / "output";
     SetWindowTextW(GetDlgItem(state.window, kOutput), output.c_str());
@@ -555,6 +577,9 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
                 case kModeRemote:
                     UpdateMode(window);
                     return 0;
+                case kSource:
+                    if (HIWORD(wparam) == EN_CHANGE) EnableHttpForRemoteUrl(window);
+                    return 0;
                 case kBrowseSource: {
                     const auto path = PickFolder(window, L"选择网页构建产物目录");
                     if (!path.empty()) SetWindowTextW(GetDlgItem(window, kSource), path.c_str());
@@ -609,8 +634,8 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
             FillRect(dc, &header, headerBrush);
             DeleteObject(headerBrush);
             const auto dpi = state ? state->dpi : 96;
-            DrawRoundedPanel(dc, ScaleRect(RECT{28, 109, 732, 285}, dpi), kCard, kBorder, Scale(18, dpi));
-            DrawRoundedPanel(dc, ScaleRect(RECT{28, 300, 732, 738}, dpi), kCard, kBorder, Scale(18, dpi));
+            DrawRoundedPanel(dc, ScaleRect(RECT{28, 109, 732, 305}, dpi), kCard, kBorder, Scale(18, dpi));
+            DrawRoundedPanel(dc, ScaleRect(RECT{28, 320, 732, 758}, dpi), kCard, kBorder, Scale(18, dpi));
             if (state) {
                 const auto statusRect = ScaleRect(kStatusRect, state->dpi);
                 FillRect(dc, &statusRect, state->backgroundBrush);
@@ -658,7 +683,7 @@ int RunGui(HINSTANCE instance) {
     if (!RegisterClassExW(&windowClass)) throw std::runtime_error("Unable to register the GUI window");
     const DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
     const auto dpi = GetDpiForSystem();
-    RECT bounds{0, 0, Scale(760, dpi), Scale(875, dpi)};
+    RECT bounds{0, 0, Scale(760, dpi), Scale(895, dpi)};
     AdjustWindowRectExForDpi(&bounds, style, FALSE, WS_EX_CONTROLPARENT, dpi);
     const auto window = CreateWindowExW(
         WS_EX_CONTROLPARENT, kClassName, L"lw.Web2Android · 网页转 Android APK",

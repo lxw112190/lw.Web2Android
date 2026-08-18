@@ -216,7 +216,7 @@ BuildResult BuildPipeline::Build(const ProjectConfig& config, const BuildOptions
     const auto manifest = workspace / "AndroidManifest.xml";
 
     LogStep(options, 4, "Copy web assets and generate Runtime config");
-    WebAssetManager::Prepare(config, assets);
+    WebAssetManager::Prepare(config, assets, lock.runtimeVersion);
 
     LogStep(options, 5, "Generate Android manifest");
     WriteTextFile(manifest, ManifestGenerator::Generate(config));

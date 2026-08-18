@@ -18,7 +18,7 @@
 - Packer 与 Android Runtime 轮转日志；
 - GitHub Actions 自动构建 Runtime、Packer、GUI 和真实 React/Vite Demo。
 
-当前版本：`v0.2.1`<br>
+当前版本：`v0.2.2`<br>
 Android：`minSdk 23`，`targetSdk 35`
 
 ## 下载与首次使用
@@ -32,14 +32,14 @@ bin/lw.Web2Android.GUI.exe
 公开发行包包含：
 
 ```text
-lw-Web2Android-v0.2.1-windows-x64/
+lw-Web2Android-v0.2.2-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
 ├── toolchain/
 │   ├── jre/
 │   ├── runtime/
-│   └── runtime-v1.zip
+│   └── runtime-v2.zip
 ├── tools/
 ├── samples/wechat-article-formatter/
 ├── docs/
@@ -129,6 +129,27 @@ npm run build -- --base=./
 
 完整 CLI 参数见 [packer/README.md](packer/README.md)。
 
+## 企业内网与 HTTP
+
+GUI 提供“允许 HTTP（仅建议可信内网）”选项。在线网址以 `http://` 开头时会自动勾选；本地 Vue/React 项目请求 HTTP API 时需要手动勾选。该选项会为 APK 启用明文流量 [Network Security Config](https://developer.android.com/privacy-and-security/security-config) 和 [WebView mixed-content](https://developer.android.com/reference/android/webkit/WebSettings) 允许模式。HTTP 流量可被同网络中的人监听或篡改，生产环境优先使用 HTTPS。
+
+前端已部署在内网服务器时，选择“在线网址”，填入实际地址：
+
+```text
+http://intranet.example.test:9000/
+```
+
+`intranet.example.test` 仅为文档示例，请替换为手机通过公司 Wi-Fi、专网或 VPN 能访问的内网主机。同时确认服务器监听可访问网卡，防火墙已放行对应端口。
+
+本地 Vue `dist` 打入 APK、Spring Boot 在内网服务器时：
+
+1. 构建 Vue 前设置 API Base URL，例如 `http://api.intranet.example.test:9001`；
+2. GUI 选择“本地静态目录”并勾选“允许 HTTP”；
+3. Spring Boot CORS 允许 Origin `https://appassets.androidplatform.net`；
+4. 使用 Cookie/Session 时显式允许该 Origin 和 credentials，不要使用通配符 `*`。
+
+`WebViewAssetLoader` 使本地页面保持标准 Web Origin/CORS 行为，lw.Web2Android 不使用 Native Bridge 绕过同源策略。如果能把前端和 API 部署在同一个 HTTPS Origin，优先采用同源方案。
+
 ## 输出、签名与日志
 
 每次成功构建会生成：
@@ -164,9 +185,10 @@ Android Runtime 日志：
 
 ```text
 /sdcard/Android/data/<Package Name>/files/logs/runtime.log
+/sdcard/Android/data/<Package Name>/files/logs/device-info.log
 ```
 
-Packer 和工具链初始化器会在发布包当前目录自动创建 `logs` 文件夹。初始化日志记录下载地址、SHA-256 校验、JRE 选择、`sdkmanager` 输出、工具链组装、临时目录清理和完整失败原因。三类日志均按单文件 2 MiB 轮转，最多保留 5 个归档。Runtime 日志同时记录页面加载、HTTP/SSL、WebView renderer、JavaScript Console 和未捕获异常。
+Packer 和工具链初始化器会在发布包当前目录自动创建 `logs` 文件夹。初始化日志记录下载地址、SHA-256 校验、JRE 选择、`sdkmanager` 输出、工具链组装、临时目录清理和完整失败原因。所有日志文件均按单文件 2 MiB 轮转，最多保留 5 个归档。`runtime.log` 记录页面加载、HTTP/SSL、WebView renderer、JavaScript Console 和未捕获异常；`device-info.log` 每次启动记录应用、设备、WebView、网络传输类型和 Runtime 配置摘要。它不采集 IMEI、Android ID、MAC、SSID、手机本机 IP、Cookie、Token 或请求头；为了排查连接问题，会记录移除 query 和 fragment 后的配置启动地址。
 
 ## 真实 Web Demo 与 CI
 
@@ -186,8 +208,8 @@ Packer 和工具链初始化器会在发布包当前目录自动创建 `logs` �
 推送 `v*` 标签时，完整 CI 成功后会自动创建 GitHub Release：
 
 ```bash
-git tag -a v0.2.1 -m "lw.Web2Android v0.2.1"
-git push origin v0.2.1
+git tag -a v0.2.2 -m "lw.Web2Android v0.2.2"
+git push origin v0.2.2
 ```
 
 ## 架构

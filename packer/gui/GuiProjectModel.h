@@ -27,6 +27,7 @@ struct GuiProjectInput {
     int versionCode = 1;
     std::string orientation = "auto";
     bool fullscreen = false;
+    bool allowHttp = false;
     std::filesystem::path outputDirectory;
 };
 
