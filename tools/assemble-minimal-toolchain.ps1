@@ -16,6 +16,7 @@ $runtime = (Resolve-Path -LiteralPath $RuntimeDirectory).Path
 $destinationPath = [System.IO.Path]::GetFullPath($Destination)
 $buildTools = Join-Path $sdk "build-tools/$($lock.buildToolsVersion)"
 $platform = Join-Path $sdk "platforms/android-$($lock.platformApi)"
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 
 $required = @(
     (Join-Path $buildTools 'aapt2.exe'),
@@ -66,7 +67,8 @@ try {
         assembledAtUtc = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
         distribution = 'private-local-use'
     }
-    $metadata | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $staging 'metadata.json') -Encoding utf8NoBOM
+    $metadataJson = ($metadata | ConvertTo-Json) + [Environment]::NewLine
+    [System.IO.File]::WriteAllText((Join-Path $staging 'metadata.json'), $metadataJson, $utf8NoBom)
     $backup = $null
     if ($replaceExisting) {
         $backup = Join-Path $parent ('.toolchain-backup-' + [guid]::NewGuid().ToString('N'))

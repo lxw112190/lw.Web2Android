@@ -71,21 +71,36 @@ function Invoke-LoggedExternal {
         [string[]]$InputLines
     )
 
-    Write-ToolchainLog 'INFO' "Starting ${Label}: $FilePath $($ArgumentList -join ' ')"
-    if ($null -ne $InputLines) {
-        $InputLines | & $FilePath @ArgumentList 2>&1 | ForEach-Object {
-            $line = $_.ToString()
-            Write-Host $line
-            Write-ToolchainLog 'INFO' "[$Label] $line"
-        }
-    } else {
-        & $FilePath @ArgumentList 2>&1 | ForEach-Object {
-            $line = $_.ToString()
-            Write-Host $line
-            Write-ToolchainLog 'INFO' "[$Label] $line"
-        }
+    if (-not (Get-Command $FilePath -ErrorAction SilentlyContinue)) {
+        throw "$Label executable was not found: $FilePath"
     }
-    $exitCode = $LASTEXITCODE
+
+    Write-ToolchainLog 'INFO' "Starting ${Label}: $FilePath $($ArgumentList -join ' ')"
+    $previousErrorActionPreference = $ErrorActionPreference
+    $exitCode = $null
+    try {
+        # Windows PowerShell 5.1 wraps native stderr as ErrorRecord objects. Keep
+        # those records in the log and decide success from the native exit code;
+        # otherwise curl's normal progress output becomes a terminating error.
+        $ErrorActionPreference = 'Continue'
+        if ($null -ne $InputLines) {
+            $InputLines | & $FilePath @ArgumentList 2>&1 | ForEach-Object {
+                $line = $_.ToString()
+                Write-Host $line
+                Write-ToolchainLog 'INFO' "[$Label] $line"
+            }
+        } else {
+            & $FilePath @ArgumentList 2>&1 | ForEach-Object {
+                $line = $_.ToString()
+                Write-Host $line
+                Write-ToolchainLog 'INFO' "[$Label] $line"
+            }
+        }
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($null -eq $exitCode) { $exitCode = -1 }
     Write-ToolchainLog 'INFO' "$Label exited with code $exitCode"
     if ($exitCode -ne 0) { throw "$Label failed with exit code $exitCode" }
 }
@@ -95,7 +110,7 @@ function Get-VerifiedArchive([string]$Url, [string]$Sha256, [string]$Name) {
     Write-LoggedHost 'INFO' "Downloading $Name from $Url"
     Invoke-LoggedExternal `
         -FilePath 'curl.exe' `
-        -ArgumentList @('-L', '--fail', '--retry', '3', '--output', $file, $Url) `
+        -ArgumentList @('-L', '--fail', '--retry', '3', '--silent', '--show-error', '--output', $file, $Url) `
         -Label "download $Name"
     $actual = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
     Write-ToolchainLog 'INFO' "Downloaded $Name; SHA-256=$actual"

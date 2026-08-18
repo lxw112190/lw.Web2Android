@@ -16,6 +16,7 @@ $package = (Resolve-Path -LiteralPath $PackageDirectory).Path
 $repository = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $lock = Get-Content -Raw -LiteralPath (Join-Path $repository 'toolchain.lock.json') | ConvertFrom-Json
 $builtAt = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 
 $metadata = [ordered]@{
     schemaVersion    = 1
@@ -30,7 +31,8 @@ $metadata = [ordered]@{
     androidSdkIncluded = [bool]$IncludesPrivateToolchain
     javaRuntimeIncluded = $true
 }
-$metadata | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $package 'release.json') -Encoding utf8NoBOM
+$metadataJson = ($metadata | ConvertTo-Json) + [Environment]::NewLine
+[System.IO.File]::WriteAllText((Join-Path $package 'release.json'), $metadataJson, $utf8NoBom)
 
 $toolchainNotice = if ($IncludesPrivateToolchain) {
     'This private local package contains Android SDK components installed after the local user accepted the Android SDK License. Do not publish or redistribute it without confirming that you have the required rights.'
@@ -62,4 +64,4 @@ Verify every distributed file against ``SHA256SUMS.txt`` before use. Each sample
 
 $toolchainNotice
 "@
-$markdown | Set-Content -LiteralPath (Join-Path $package 'RELEASE.md') -Encoding utf8NoBOM
+[System.IO.File]::WriteAllText((Join-Path $package 'RELEASE.md'), $markdown + [Environment]::NewLine, $utf8NoBom)

@@ -14,6 +14,7 @@ $packageName = "lw-Web2Android-v$version-windows-x64-complete-private"
 $releaseRoot = Join-Path $repoRoot 'build/releases'
 $package = Join-Path $releaseRoot $packageName
 $archive = Join-Path $releaseRoot "$packageName.zip"
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 
 if (-not (Test-Path -LiteralPath (Join-Path $toolchain 'metadata.json'))) {
     throw "Minimal toolchain is incomplete: $toolchain"
@@ -47,7 +48,7 @@ components unless you have independently confirmed that the applicable licenses 
 Android SDK License: https://developer.android.com/studio/terms
 Eclipse Temurin notices and licenses are preserved inside toolchain/jre/.
 '@
-$notice | Set-Content -LiteralPath "$package/PRIVATE-TOOLCHAIN-NOTICE.md" -Encoding utf8NoBOM
+[System.IO.File]::WriteAllText("$package/PRIVATE-TOOLCHAIN-NOTICE.md", $notice + [Environment]::NewLine, $utf8NoBom)
 
 & (Join-Path $repoRoot 'tools/write-distribution-metadata.ps1') -PackageDirectory $package -Version $version -Commit 'local' -IncludesPrivateToolchain
 $root = (Resolve-Path $package).Path
@@ -56,7 +57,7 @@ $checksums = Get-ChildItem -LiteralPath $root -Recurse -File | Sort-Object FullN
     $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
     "$hash  $relative"
 }
-$checksums | Set-Content -LiteralPath "$package/SHA256SUMS.txt" -Encoding utf8NoBOM
+[System.IO.File]::WriteAllLines("$package/SHA256SUMS.txt", [string[]]$checksums, $utf8NoBom)
 Compress-Archive -LiteralPath $package -DestinationPath $archive -CompressionLevel Optimal
 $archiveHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
 "$archiveHash  $packageName.zip" | Set-Content -LiteralPath "$archive.sha256" -Encoding ascii
