@@ -95,12 +95,21 @@ void TestProjectAndGenerators(const std::filesystem::path& root) {
 void TestZipAssembler(const std::filesystem::path& root) {
     const auto resourceApk = root / "resources.apk";
     const auto dex = root / "classes.dex";
+    const auto webEntry = root / "web" / "index.html";
+    const auto canonicalApk = root / "canonical.apk";
     const auto output = root / "assembled.apk";
     WriteBinary(resourceApk, EmptyZip());
     WriteBinary(dex, {'d', 'e', 'x', '\n', '0', '3', '9', 0, 1, 2, 3, 4});
-    lw::web2android::ApkAssembler::InjectFiles(resourceApk, {dex}, output);
+    lw::web2android::WriteTextFile(webEntry, "<!doctype html>");
+    lw::web2android::ApkAssembler::InjectEntries(
+        resourceApk, {{webEntry, "assets/www/index.html"}}, canonicalApk);
+    lw::web2android::ApkAssembler::InjectFiles(canonicalApk, {dex}, output);
     const auto names = lw::web2android::ApkAssembler::ListEntries(output);
-    Require(names.size() == 1U && names.front() == "classes.dex", "DEX must be present in assembled ZIP");
+    Require(names.size() == 2U, "canonical asset and DEX entry count");
+    Require(std::find(names.begin(), names.end(), "assets/www/index.html") != names.end(),
+            "canonical web asset must be present in assembled ZIP");
+    Require(std::find(names.begin(), names.end(), "classes.dex") != names.end(),
+            "DEX must be present in assembled ZIP");
 
     bool duplicateRejected = false;
     try {

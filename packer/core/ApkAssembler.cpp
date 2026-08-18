@@ -12,6 +12,7 @@ namespace {
 constexpr std::uint32_t kLocalHeaderSignature = 0x04034b50U;
 constexpr std::uint32_t kCentralHeaderSignature = 0x02014b50U;
 constexpr std::uint32_t kEndSignature = 0x06054b50U;
+constexpr std::uint16_t kUtf8NameFlag = 0x0800U;
 
 std::vector<std::uint8_t> ReadBytes(const std::filesystem::path& file) {
     std::ifstream input(file, std::ios::binary | std::ios::ate);
@@ -137,6 +138,15 @@ struct NewEntry {
     std::uint32_t localOffset = 0;
 };
 
+void ValidateArchiveName(const std::string& name) {
+    if (name.empty() || name.front() == '/' || name.find('\\') != std::string::npos ||
+        name.find('\0') != std::string::npos || name == ".." || name.rfind("../", 0) == 0 ||
+        name.find("/../") != std::string::npos ||
+        (name.size() >= 3U && name.compare(name.size() - 3U, 3U, "/..") == 0)) {
+        throw std::runtime_error("Invalid canonical APK entry name: " + name);
+    }
+}
+
 void AppendLocalEntry(std::vector<std::uint8_t>& output, NewEntry& entry) {
     if (entry.name.size() > std::numeric_limits<std::uint16_t>::max() ||
         entry.content.size() > std::numeric_limits<std::uint32_t>::max() ||
@@ -147,7 +157,7 @@ void AppendLocalEntry(std::vector<std::uint8_t>& output, NewEntry& entry) {
     entry.localOffset = static_cast<std::uint32_t>(output.size());
     Append32(output, kLocalHeaderSignature);
     Append16(output, 20U);
-    Append16(output, 0U);
+    Append16(output, kUtf8NameFlag);
     Append16(output, 0U);
     Append16(output, 0U);
     Append16(output, 0U);
@@ -164,7 +174,7 @@ void AppendCentralEntry(std::vector<std::uint8_t>& output, const NewEntry& entry
     Append32(output, kCentralHeaderSignature);
     Append16(output, 20U);
     Append16(output, 20U);
-    Append16(output, 0U);
+    Append16(output, kUtf8NameFlag);
     Append16(output, 0U);
     Append16(output, 0U);
     Append16(output, 0U);
@@ -186,23 +196,33 @@ void AppendCentralEntry(std::vector<std::uint8_t>& output, const NewEntry& entry
 void ApkAssembler::InjectFiles(const std::filesystem::path& resourceApk,
                                const std::vector<std::filesystem::path>& files,
                                const std::filesystem::path& outputApk) {
-    if (files.empty()) throw std::runtime_error("No Runtime DEX files were supplied");
-    const auto source = ReadBytes(resourceApk);
+    std::vector<ArchiveEntrySource> entries;
+    entries.reserve(files.size());
+    for (const auto& file : files) entries.push_back({file, file.filename().u8string()});
+    InjectEntries(resourceApk, entries, outputApk);
+}
+
+void ApkAssembler::InjectEntries(const std::filesystem::path& sourceApk,
+                                 const std::vector<ArchiveEntrySource>& entries,
+                                 const std::filesystem::path& outputApk) {
+    if (entries.empty()) throw std::runtime_error("No APK entries were supplied");
+    const auto source = ReadBytes(sourceApk);
     const auto directory = ParseDirectory(source);
-    if (static_cast<std::size_t>(directory.entryCount) + files.size() > std::numeric_limits<std::uint16_t>::max()) {
+    if (static_cast<std::size_t>(directory.entryCount) + entries.size() > std::numeric_limits<std::uint16_t>::max()) {
         throw std::runtime_error("APK would exceed classic ZIP entry limits");
     }
 
     std::vector<NewEntry> additions;
-    for (const auto& file : files) {
-        const auto name = file.filename().u8string();
+    for (const auto& entry : entries) {
+        const auto& name = entry.archiveName;
+        ValidateArchiveName(name);
         if (std::find(directory.names.begin(), directory.names.end(), name) != directory.names.end()) {
-            throw std::runtime_error("APK already contains Runtime entry: " + name);
+            throw std::runtime_error("APK already contains entry: " + name);
         }
         if (std::any_of(additions.begin(), additions.end(), [&](const NewEntry& item) { return item.name == name; })) {
-            throw std::runtime_error("Duplicate Runtime entry: " + name);
+            throw std::runtime_error("Duplicate APK entry: " + name);
         }
-        additions.push_back(NewEntry{name, ReadBytes(file)});
+        additions.push_back(NewEntry{name, ReadBytes(entry.sourceFile)});
     }
 
     std::vector<std::uint8_t> output;

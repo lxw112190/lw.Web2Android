@@ -18,6 +18,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Read locked toolchain versions
+        id: toolchain
+        shell: pwsh
+        run: |
+          $lock = Get-Content -Raw toolchain.lock.json | ConvertFrom-Json
+          "platform_api=$($lock.platformApi)" >> $env:GITHUB_OUTPUT
+          "build_tools=$($lock.buildToolsVersion)" >> $env:GITHUB_OUTPUT
+
       - name: Set up Java 17
         uses: actions/setup-java@v5
         with:
@@ -30,7 +38,17 @@ jobs:
           cmdline-tools-version: '14742923'
           packages: ''
 
+      - name: Restore locked Android Platform and Build Tools
+        id: android-sdk-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.ANDROID_SDK_ROOT }}/platforms/android-${{ steps.toolchain.outputs.platform_api }}
+            ${{ env.ANDROID_SDK_ROOT }}/build-tools/${{ steps.toolchain.outputs.build_tools }}
+          key: android-sdk-${{ runner.os }}-${{ steps.toolchain.outputs.platform_api }}-${{ steps.toolchain.outputs.build_tools }}
+
       - name: Install locked Android toolchain
+        if: steps.android-sdk-cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           $lock = Get-Content -Raw toolchain.lock.json | ConvertFrom-Json

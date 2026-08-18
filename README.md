@@ -41,6 +41,8 @@ lw-Web2Android-m3/
 
 下载一次即可取得本轮 CI 的全部产物。M0 APK 安装后应显示 `Hello lw.Web2Android`，M3 样例则用于验证正式 Packer 的 local/remote、签名与升级身份路线。
 
+统一 CI 会缓存 `toolchain.lock.json` 指定的 Android Platform、Build Tools、Gradle 依赖与 Gradle Build Cache。签名身份、APK、Runtime 最终产物及完整构建目录不会进入缓存。
+
 ## 本地构建
 
 本机需要 JDK 17，以及由 `toolchain.lock.json` 锁定的 Android Platform 和 Build Tools。设置 `ANDROID_SDK_ROOT` 后运行：

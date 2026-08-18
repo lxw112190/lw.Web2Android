@@ -15,6 +15,7 @@
 #include <regex>
 #include <sstream>
 #include <stdexcept>
+#include <unordered_set>
 #include <vector>
 
 #ifdef _WIN32
@@ -118,6 +119,29 @@ std::vector<std::filesystem::path> FindRuntimeDexFiles(const std::filesystem::pa
     return result;
 }
 
+std::filesystem::path EnsureCanonicalAssetEntries(const std::filesystem::path& resourceApk,
+                                                  const std::filesystem::path& assetsDirectory,
+                                                  const std::filesystem::path& workspace) {
+    const auto existingEntries = ApkAssembler::ListEntries(resourceApk);
+    const std::unordered_set<std::string> existing(existingEntries.begin(), existingEntries.end());
+    std::vector<ArchiveEntrySource> missing;
+    for (const auto& item : std::filesystem::recursive_directory_iterator(assetsDirectory)) {
+        if (!item.is_regular_file()) continue;
+        const auto relative = std::filesystem::relative(item.path(), assetsDirectory).generic_u8string();
+        const auto archiveName = "assets/" + relative;
+        if (existing.find(archiveName) == existing.end()) {
+            missing.push_back({item.path(), archiveName});
+        }
+    }
+    if (missing.empty()) return resourceApk;
+
+    const auto canonicalApk = workspace / "resources-canonical.apk";
+    ApkAssembler::InjectEntries(resourceApk, missing, canonicalApk);
+    std::cout << "Added " << missing.size() << " canonical asset entr"
+              << (missing.size() == 1U ? "y" : "ies") << std::endl;
+    return canonicalApk;
+}
+
 std::filesystem::path CreateWorkspace() {
     const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
     const auto path = std::filesystem::temp_directory_path() /
@@ -194,9 +218,10 @@ BuildResult BuildPipeline::Build(const ProjectConfig& config, const BuildOptions
     Aapt2Runner::Link(toolchain.aapt2, toolchain.androidJar, manifest, assets, compiledResources, resourceApk,
                       23, lock.platformApi, config.versionCode, config.versionName);
 
-    LogStep(9, "Inject precompiled Runtime DEX");
+    LogStep(9, "Normalize assets and inject precompiled Runtime DEX");
+    const auto canonicalResourceApk = EnsureCanonicalAssetEntries(resourceApk, assets, workspace);
     const auto unalignedApk = workspace / "app-unaligned.apk";
-    ApkAssembler::InjectFiles(resourceApk, dexFiles, unalignedApk);
+    ApkAssembler::InjectFiles(canonicalResourceApk, dexFiles, unalignedApk);
 
     LogStep(10, "Align unsigned APK");
     const auto alignedApk = workspace / "app-aligned.apk";
