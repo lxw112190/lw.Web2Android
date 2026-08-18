@@ -70,7 +70,7 @@ foreach ($directory in @($classDir, $dexDir, $assetsDir, $compiledDir, $outputDi
 New-Item -ItemType Directory -Path (Join-Path $assetsDir 'www') | Out-Null
 Copy-Item -LiteralPath (Join-Path $repoRoot 'samples/hello/index.html') -Destination (Join-Path $assetsDir 'www/index.html')
 
-$javaSource = Join-Path $repoRoot 'runtime/src/com/lw/web2android/runtime/MainActivity.java'
+$javaSource = Join-Path $repoRoot 'm0/runtime/com/lw/web2android/runtime/MainActivity.java'
 $javaSourceText = Get-Content -Raw -LiteralPath $javaSource
 if ($javaSourceText -notmatch '(?m)^package\s+com\.lw\.web2android\.runtime\s*;') {
     throw 'Runtime namespace must remain com.lw.web2android.runtime.'

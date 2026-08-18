@@ -1,9 +1,12 @@
 {
   "schemaVersion": 1,
-  "toolchainVersion": "m0-1",
+  "toolchainVersion": "m1-1",
   "platformApi": 35,
   "buildToolsVersion": "35.0.0",
   "commandLineToolsVersion": "14742923",
-  "runtimeVersion": "m0-1",
-  "javaVersion": 17
+  "runtimeVersion": "1",
+  "javaVersion": 17,
+  "gradleVersion": "8.9",
+  "androidGradlePluginVersion": "8.7.3",
+  "androidXWebKitVersion": "1.15.0"
 }

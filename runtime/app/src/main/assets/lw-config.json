@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "mode": "local",
+  "entry": "hello/index.html",
+  "url": "",
+  "fullscreen": false,
+  "orientation": "auto",
+  "allowHttp": false
+}
+

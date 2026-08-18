@@ -4,7 +4,9 @@
 
 ## 当前进度
 
-项目当前处于 **M0：架构验证**。仓库中的最小流水线会：
+M0 架构验证已经由 GitHub Actions 成功产出并验收可安装 APK。项目当前进入 **M1：Android Runtime**。
+
+M0 最小流水线会：
 
 1. 用 `javac` 和 D8 将固定命名空间的 Java Runtime 编译成 `classes.dex`；
 2. 用 AAPT2 动态编译 Manifest、资源和 Web assets；
@@ -44,5 +46,4 @@ pwsh ./tools/m0-build.ps1
 - 本地 Web 正式实现将使用 `WebViewAssetLoader`；
 - 不提供 JavaScript ↔ Native Bridge。
 
-在 M0 的安装验证完成前，不开始 GUI 开发。
-
+M1 Runtime 已实现首版 `WebViewAssetLoader`、配置读取及 local/remote 加载，并建立独立 CI。GUI 仍需等待 CLI Core 稳定后再开发。

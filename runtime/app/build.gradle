@@ -1,0 +1,45 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.lw.web2android.runtime'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.lw.web2android.runtime.build'
+        minSdk 23
+        targetSdk 35
+        versionCode 1
+        versionName '1.0.0'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    sourceSets {
+        main {
+            assets.srcDirs = ['src/main/assets', '../../samples']
+        }
+    }
+
+    lint {
+        abortOnError true
+        warningsAsErrors false
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.15.0'
+}
+

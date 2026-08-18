@@ -11,7 +11,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 /**
- * Minimal M0 runtime.
+ * Minimal M0 runtime retained as a stable proof-of-concept fixture.
  *
  * This class deliberately creates its UI in code and never references an app R class,
  * so the resulting DEX can be reused with independently generated resource tables.
