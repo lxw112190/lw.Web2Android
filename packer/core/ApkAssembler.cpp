@@ -145,6 +145,32 @@ void ValidateArchiveName(const std::string& name) {
         (name.size() >= 3U && name.compare(name.size() - 3U, 3U, "/..") == 0)) {
         throw std::runtime_error("Invalid canonical APK entry name: " + name);
     }
+
+    for (std::size_t index = 0; index < name.size();) {
+        const auto first = static_cast<unsigned char>(name[index]);
+        if (first <= 0x7fU) {
+            ++index;
+            continue;
+        }
+        std::size_t continuationCount = 0;
+        if (first >= 0xc2U && first <= 0xdfU) continuationCount = 1U;
+        else if (first >= 0xe0U && first <= 0xefU) continuationCount = 2U;
+        else if (first >= 0xf0U && first <= 0xf4U) continuationCount = 3U;
+        else throw std::runtime_error("APK entry name is not valid UTF-8");
+        if (index + continuationCount >= name.size()) {
+            throw std::runtime_error("APK entry name is not valid UTF-8");
+        }
+        for (std::size_t offset = 1; offset <= continuationCount; ++offset) {
+            const auto next = static_cast<unsigned char>(name[index + offset]);
+            if ((next & 0xc0U) != 0x80U) throw std::runtime_error("APK entry name is not valid UTF-8");
+        }
+        const auto second = static_cast<unsigned char>(name[index + 1U]);
+        if ((first == 0xe0U && second < 0xa0U) || (first == 0xedU && second >= 0xa0U) ||
+            (first == 0xf0U && second < 0x90U) || (first == 0xf4U && second >= 0x90U)) {
+            throw std::runtime_error("APK entry name is not valid UTF-8");
+        }
+        index += continuationCount + 1U;
+    }
 }
 
 void AppendLocalEntry(std::vector<std::uint8_t>& output, NewEntry& entry) {

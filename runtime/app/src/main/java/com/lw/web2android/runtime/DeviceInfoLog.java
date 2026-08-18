@@ -13,7 +13,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 import java.util.TimeZone;
@@ -49,9 +48,11 @@ final class DeviceInfoLog {
 
     private static String createSnapshot(Context context, RuntimeConfig config) {
         StringBuilder output = new StringBuilder(2048);
+        Date now = new Date();
         output.append("==================================================\n");
         output.append("lw.Web2Android Device Diagnostics\n");
-        output.append("Time (UTC)     : ").append(utcNow()).append('\n');
+        output.append("Time (Local)   : ").append(RuntimeLog.formatLocal(now)).append('\n');
+        output.append("Time (UTC)     : ").append(RuntimeLog.formatUtc(now)).append('\n');
         output.append("\nApp\n");
         output.append("  Package      : ").append(clean(context.getPackageName())).append('\n');
         output.append("  Version      : ").append(applicationVersion(context)).append('\n');
@@ -74,6 +75,9 @@ final class DeviceInfoLog {
         output.append("  Mode         : ").append(config.mode).append('\n');
         output.append("  Start        : ").append(RuntimeLog.safeUrl(config.startUrl())).append('\n');
         output.append("  Allow HTTP   : ").append(config.allowHttp).append('\n');
+        output.append("  Mixed Content: ")
+                .append(config.allowHttp ? "ALWAYS_ALLOW" : "NEVER")
+                .append('\n');
         output.append("  Fullscreen   : ").append(config.fullscreen).append('\n');
         output.append("  Orientation  : ").append(config.orientation).append('\n');
         output.append("==================================================\n\n");
@@ -155,12 +159,6 @@ final class DeviceInfoLog {
         if (value == null || value.isEmpty()) return "unknown";
         String cleaned = value.replace('\r', ' ').replace('\n', ' ').trim();
         return cleaned.length() <= 256 ? cleaned : cleaned.substring(0, 256) + "...";
-    }
-
-    private static String utcNow() {
-        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
-        format.setTimeZone(TimeZone.getTimeZone("UTC"));
-        return format.format(new Date());
     }
 
     private static void rotate(File directory, File current) throws IOException {

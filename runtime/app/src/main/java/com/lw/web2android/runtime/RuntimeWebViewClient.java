@@ -61,10 +61,13 @@ final class RuntimeWebViewClient extends WebViewClientCompat {
 
     @Override
     public void onReceivedError(WebView view, WebResourceRequest request, WebResourceErrorCompat error) {
+        String diagnostic = RuntimeLog.safeUrl(request.getUrl().toString())
+                + "; code=" + error.getErrorCode() + "; " + error.getDescription();
         if (request.isForMainFrame()) {
-            RuntimeLog.error("Main page load failed: " + RuntimeLog.safeUrl(request.getUrl().toString())
-                    + "; code=" + error.getErrorCode() + "; " + error.getDescription());
+            RuntimeLog.error("Main page load failed: " + diagnostic);
             errorHandler.onMainFrameError("Unable to load page: " + error.getDescription());
+        } else {
+            RuntimeLog.warn("Web resource load failed: " + diagnostic);
         }
     }
 

@@ -17,6 +17,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 import java.util.TimeZone;
+import java.util.regex.Pattern;
 
 /** Synchronous Runtime diagnostics with bounded, app-private external storage. */
 final class RuntimeLog {
@@ -25,20 +26,24 @@ final class RuntimeLog {
     private static final int MAX_ARCHIVES = 5;
     private static final int MAX_MESSAGE_LENGTH = 64 * 1024;
     private static final Object INSTANCE_LOCK = new Object();
+    private static final Pattern SENSITIVE_HEADER = Pattern.compile(
+            "(?im)\\b(authorization|cookie|set-cookie)\\b\\s*[:=]\\s*[^\\r\\n]+");
+    private static final Pattern SENSITIVE_VALUE = Pattern.compile(
+            "(?i)\\b(password|passwd|token|access[_-]?token|refresh[_-]?token)\\b"
+                    + "(\\s*[:=]\\s*)(?:\"[^\"]*\"|'[^']*'|[^\\s,;&]+)");
+    private static final Pattern BEARER_CREDENTIAL = Pattern.compile(
+            "(?i)\\bbearer\\s+[a-z0-9._~+\\-/]+=*");
 
     private static RuntimeLog instance;
     private static boolean crashHandlerInstalled;
 
     private final File directory;
     private final File currentFile;
-    private final SimpleDateFormat timestamp;
     private BufferedWriter writer;
 
     private RuntimeLog(Context context) throws IOException {
         directory = resolveLogDirectory(context);
         currentFile = new File(directory, "runtime.log");
-        timestamp = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
-        timestamp.setTimeZone(TimeZone.getTimeZone("UTC"));
         openWriter();
     }
 
@@ -145,6 +150,20 @@ final class RuntimeLog {
         }
     }
 
+    static String formatLocal(Date date) {
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS Z", Locale.US);
+        format.setTimeZone(TimeZone.getDefault());
+        String value = format.format(date);
+        int length = value.length();
+        return length >= 5 ? value.substring(0, length - 2) + ":" + value.substring(length - 2) : value;
+    }
+
+    static String formatUtc(Date date) {
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
+        format.setTimeZone(TimeZone.getTimeZone("UTC"));
+        return format.format(date);
+    }
+
     private static void write(String level, String message, Throwable error) {
         RuntimeLog logger = instance;
         if (logger == null) return;
@@ -159,10 +178,11 @@ final class RuntimeLog {
                 error.printStackTrace(new PrintWriter(stack));
                 payload += "\n" + stack;
             }
+            payload = redactSensitive(payload);
             if (payload.length() > MAX_MESSAGE_LENGTH) {
                 payload = payload.substring(0, MAX_MESSAGE_LENGTH) + "\n<truncated>";
             }
-            String line = timestamp.format(new Date()) + " [" + level + "] [pid "
+            String line = formatLocal(new Date()) + " [" + level + "] [pid "
                     + Process.myPid() + "] [thread " + Thread.currentThread().getName() + "] "
                     + payload + System.lineSeparator();
             byte[] encoded = line.getBytes(StandardCharsets.UTF_8);
@@ -175,6 +195,12 @@ final class RuntimeLog {
         } catch (IOException | RuntimeException loggingError) {
             Log.e(TAG, "Unable to write Runtime log", loggingError);
         }
+    }
+
+    private static String redactSensitive(String value) {
+        String redacted = SENSITIVE_HEADER.matcher(value).replaceAll("$1: <redacted>");
+        redacted = SENSITIVE_VALUE.matcher(redacted).replaceAll("$1$2<redacted>");
+        return BEARER_CREDENTIAL.matcher(redacted).replaceAll("Bearer <redacted>");
     }
 
     private void rotate() throws IOException {

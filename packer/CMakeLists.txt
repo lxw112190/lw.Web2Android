@@ -1,6 +1,22 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(lw_Web2Android VERSION 0.2.2 LANGUAGES CXX)
+project(lw_Web2Android VERSION 0.2.3 LANGUAGES CXX)
+
+if(WIN32)
+    function(lw_add_version_resource target file_description internal_name original_filename)
+        set(LW_VERSION_FILE_DESCRIPTION "${file_description}")
+        set(LW_VERSION_INTERNAL_NAME "${internal_name}")
+        set(LW_VERSION_ORIGINAL_FILENAME "${original_filename}")
+        set(LW_VERSION_RESOURCE
+            "${CMAKE_CURRENT_BINARY_DIR}/${target}.version.rc")
+        configure_file(
+            "${CMAKE_CURRENT_SOURCE_DIR}/windows/version.rc.in"
+            "${LW_VERSION_RESOURCE}"
+            @ONLY
+        )
+        target_sources(${target} PRIVATE "${LW_VERSION_RESOURCE}")
+    endfunction()
+endif()
 
 include(FetchContent)
 
@@ -59,6 +75,14 @@ target_compile_definitions(lw.Web2Android PRIVATE
     NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE
     LW_WEB2ANDROID_VERSION="${PROJECT_VERSION}"
 )
+if(WIN32)
+    lw_add_version_resource(
+        lw.Web2Android
+        "lw.Web2Android 命令行打包工具"
+        "lw.Web2Android"
+        "lw.Web2Android.exe"
+    )
+endif()
 
 add_library(lw_packer_gui_model gui/GuiProjectModel.cpp)
 target_link_libraries(lw_packer_gui_model PUBLIC lw_packer_core)
@@ -71,6 +95,12 @@ if(WIN32)
     target_compile_definitions(lw.Web2Android.GUI PRIVATE
         NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE
         LW_WEB2ANDROID_VERSION="${PROJECT_VERSION}"
+    )
+    lw_add_version_resource(
+        lw.Web2Android.GUI
+        "lw.Web2Android 图形化打包工具"
+        "lw.Web2Android.GUI"
+        "lw.Web2Android.GUI.exe"
     )
 endif()
 

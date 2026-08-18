@@ -293,7 +293,7 @@ std::wstring ProgressText(int step, int total, const std::string& name) {
     else if (name == "Generate Android resources") action = L"正在生成 Android 资源";
     else if (name == "Compile resources with AAPT2") action = L"正在使用 AAPT2 编译资源";
     else if (name == "Link resource APK with AAPT2") action = L"正在链接资源 APK";
-    else if (name == "Normalize assets and inject precompiled Runtime DEX") action = L"正在注入 Runtime DEX";
+    else if (name == "Inject Web assets and precompiled Runtime DEX") action = L"正在注入网页资源与 Runtime DEX";
     else if (name == "Align unsigned APK") action = L"正在执行 APK 对齐";
     else if (name == "Resolve package signing identity") action = L"正在加载 Package 独立签名";
     else if (name == "Sign APK") action = L"正在签名 APK";

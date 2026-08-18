@@ -4,6 +4,7 @@
 #include "core/Logging.h"
 #include "core/ProjectConfig.h"
 #include "core/ProjectValidator.h"
+#include "core/ProcessRunner.h"
 #include "core/ReleaseMetadata.h"
 #include "core/SigningKeyManager.h"
 #include "core/Toolchain.h"
@@ -122,6 +123,13 @@ void TestProjectAndGenerators(const std::filesystem::path& root) {
             "prepared Runtime config must match the copied web entry");
     Require(!std::filesystem::exists(assets / "www" / "project.json"), "project config must not become a web asset");
 
+    auto guiConfig = config;
+    guiConfig.configFile = source / "gui-project.json";
+    const auto guiAssets = root / "generated-gui-assets";
+    lw::web2android::WebAssetManager::Prepare(guiConfig, guiAssets, "1");
+    Require(std::filesystem::is_regular_file(guiAssets / "www" / "index.html"),
+            "a nonexistent GUI project file must not break Web asset copying");
+
     auto httpConfig = config;
     httpConfig.allowHttp = true;
     const auto httpManifest = lw::web2android::ManifestGenerator::Generate(httpConfig);
@@ -139,20 +147,40 @@ void TestZipAssembler(const std::filesystem::path& root) {
     const auto resourceApk = root / "resources.apk";
     const auto dex = root / "classes.dex";
     const auto webEntry = root / "web" / "index.html";
-    const auto canonicalApk = root / "canonical.apk";
+    const auto chineseEntry = root / std::filesystem::u8path(u8"web/测试页/index.html");
+    const auto documentEntry = root / std::filesystem::u8path(u8"web/文件/用户说明.txt");
+    const auto japaneseEntry = root / std::filesystem::u8path(u8"web/日本語 空格/案内-✓.txt");
     const auto output = root / "assembled.apk";
     WriteBinary(resourceApk, EmptyZip());
     WriteBinary(dex, {'d', 'e', 'x', '\n', '0', '3', '9', 0, 1, 2, 3, 4});
     lw::web2android::WriteTextFile(webEntry, "<!doctype html>");
+    lw::web2android::WriteTextFile(chineseEntry, u8"<title>测试页</title>");
+    lw::web2android::WriteTextFile(documentEntry, u8"车辆检测系统");
+    lw::web2android::WriteTextFile(japaneseEntry, u8"日本語 Unicode fixture");
     lw::web2android::ApkAssembler::InjectEntries(
-        resourceApk, {{webEntry, "assets/www/index.html"}}, canonicalApk);
-    lw::web2android::ApkAssembler::InjectFiles(canonicalApk, {dex}, output);
+        resourceApk,
+        {{webEntry, "assets/www/index.html"},
+         {chineseEntry, u8"assets/www/测试页/index.html"},
+         {documentEntry, u8"assets/www/文件/用户说明.txt"},
+         {japaneseEntry, u8"assets/www/日本語 空格/案内-✓.txt"},
+         {dex, "classes.dex"}},
+        output);
     const auto names = lw::web2android::ApkAssembler::ListEntries(output);
-    Require(names.size() == 2U, "canonical asset and DEX entry count");
+    Require(names.size() == 5U, "Unicode assets and DEX entry count");
     Require(std::find(names.begin(), names.end(), "assets/www/index.html") != names.end(),
             "canonical web asset must be present in assembled ZIP");
     Require(std::find(names.begin(), names.end(), "classes.dex") != names.end(),
             "DEX must be present in assembled ZIP");
+    Require(std::find(names.begin(), names.end(), u8"assets/www/测试页/index.html") != names.end(),
+            "Chinese directory must be preserved in assembled ZIP");
+    Require(std::find(names.begin(), names.end(), u8"assets/www/文件/用户说明.txt") != names.end(),
+            "Chinese filename must be preserved in assembled ZIP");
+    Require(std::find(names.begin(), names.end(), u8"assets/www/日本語 空格/案内-✓.txt") != names.end(),
+            "Japanese, spaces, and special Unicode must be preserved in assembled ZIP");
+    Require(std::none_of(names.begin(), names.end(), [](const auto& name) {
+                return name.find('\\') != std::string::npos;
+            }),
+            "all APK entry names must use canonical forward slashes");
 
     bool duplicateRejected = false;
     try {
@@ -292,9 +320,22 @@ void TestRotatingLog(const std::filesystem::path& root) {
             "standalone log must be stored beside the executable");
 
     const auto logFile = root / "logs" / "rotation.log";
+    lw::web2android::WriteTextFile(logFile, u8"legacy log: 测试应用\n");
     {
         auto logger = lw::web2android::Logger::Rotating(
             "lw.Web2Android.Test", logFile, lw::web2android::LogRotation{512U, 2U});
+        logger.Info(u8"Application: 我的网页应用-3 / 车辆检测系统 / 测试应用");
+        logger.Flush();
+        const auto initialLog = ReadBinary(logFile);
+        Require(initialLog.size() >= 3U && initialLog[0] == 0xefU && initialLog[1] == 0xbbU &&
+                    initialLog[2] == 0xbfU,
+                "new log files must carry a UTF-8 BOM for Windows viewers");
+        const std::string initialText(initialLog.begin() + 3, initialLog.end());
+        Require(initialText.find(u8"我的网页应用-3") != std::string::npos &&
+                    initialText.find(u8"车辆检测系统") != std::string::npos &&
+                    initialText.find(u8"测试应用") != std::string::npos &&
+                    initialText.find(u8"legacy log: 测试应用") != std::string::npos,
+                "existing and new Chinese Packer log text must remain UTF-8");
         for (int index = 0; index < 80; ++index) {
             logger.Info("rotation-test-message-" + std::to_string(index) +
                         "-0123456789012345678901234567890123456789");
@@ -306,6 +347,16 @@ void TestRotatingLog(const std::filesystem::path& root) {
             "rotating logger creates the first archive");
     Require(!std::filesystem::exists(logFile.parent_path() / "rotation.3.log"),
             "rotating logger honors the archive retention limit");
+    for (const auto& rotated : {logFile, logFile.parent_path() / "rotation.1.log"}) {
+        const auto bytes = ReadBinary(rotated);
+        Require(bytes.size() >= 3U && bytes[0] == 0xefU && bytes[1] == 0xbbU && bytes[2] == 0xbfU,
+                "current and rotated log files must start with a UTF-8 BOM");
+    }
+
+    Require(lw::web2android::WideToUtf8(L"我的网页应用-3") == u8"我的网页应用-3",
+            "Win32 UTF-16 GUI text must convert directly to UTF-8");
+    Require(lw::web2android::Utf8ToWide(u8"车辆检测系统") == L"车辆检测系统",
+            "UTF-8 Core text must convert directly to Win32 UTF-16");
 }
 
 void TestReleaseMetadata() {
@@ -326,10 +377,10 @@ void TestReleaseMetadata() {
                                                     std::string(64, 'a'),
                                                     std::string(64, 'b'),
                                                     "1",
-                                                    "0.2.2-1",
+                                                    "0.2.3-1",
                                                     "2026-08-18T01:02:03Z"};
     const auto json = metadata.ToJson();
-    Require(json.find("\"toolchainVersion\": \"0.2.2-1\"") != std::string::npos,
+    Require(json.find("\"toolchainVersion\": \"0.2.3-1\"") != std::string::npos,
             "release JSON must record the toolchain version");
     Require(json.find("\"apkSha256\": \"" + std::string(64, 'a') + "\"") != std::string::npos,
             "release JSON must record the APK digest");

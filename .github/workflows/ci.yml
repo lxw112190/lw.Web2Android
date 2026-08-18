@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 env:
-  PRODUCT_VERSION: '0.2.2'
-  PACKAGE_NAME: lw-Web2Android-v0.2.2-windows-x64
+  PRODUCT_VERSION: '0.2.3'
+  PACKAGE_NAME: lw-Web2Android-v0.2.3-windows-x64
   WECHAT_DEMO_REPOSITORY: lxw112190/wechat-article-formatter
   WECHAT_DEMO_REF: ad1afc5a2c31d7cb7dc458a69944d6cb7ee0cd88
 
@@ -129,7 +129,7 @@ jobs:
           ./tools/package-runtime.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           New-Item -ItemType Directory -Force -Path build/ci-runtime | Out-Null
-          Expand-Archive -LiteralPath build/runtime-dist/runtime-v2.zip -DestinationPath build/ci-runtime -Force
+          Expand-Archive -LiteralPath build/runtime-dist/runtime-v3.zip -DestinationPath build/ci-runtime -Force
 
       - name: Assemble and validate minimal end-user toolchain
         shell: pwsh
@@ -152,7 +152,10 @@ jobs:
           $runtimeMetadata = Get-Content -Raw build/ci-minimal-toolchain/runtime/metadata.json | ConvertFrom-Json
           if ($runtimeMetadata.logging.maxFileSizeBytes -ne 2097152 -or
               $runtimeMetadata.logging.maxArchives -ne 5 -or
-              $runtimeMetadata.logging.relativeExternalPath -ne 'logs/runtime.log') {
+              $runtimeMetadata.logging.relativeExternalPath -ne 'logs/runtime.log' -or
+              $runtimeMetadata.logging.runtimeTimestamp -ne 'device-local-with-utc-offset' -or
+              -not $runtimeMetadata.logging.deviceInfoIncludesUtc -or
+              -not $runtimeMetadata.logging.sensitiveValuesRedacted) {
             throw 'Runtime rotating-log metadata is missing or invalid'
           }
 
@@ -247,6 +250,21 @@ jobs:
             throw 'Different packages unexpectedly share a certificate'
           }
 
+          & $packer build samples/unicode-assets/project.json @common
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $packerLog = 'build/packer/Release/logs/packer.log'
+          $logBytes = [System.IO.File]::ReadAllBytes($packerLog)
+          if ($logBytes.Length -lt 3 -or $logBytes[0] -ne 0xEF -or
+              $logBytes[1] -ne 0xBB -or $logBytes[2] -ne 0xBF) {
+            throw 'Packer log is missing its UTF-8 BOM'
+          }
+          $strictUtf8 = [System.Text.UTF8Encoding]::new($false, $true)
+          $packerLogText = $strictUtf8.GetString($logBytes, 3, $logBytes.Length - 3)
+          if (-not $packerLogText.Contains('Application: 车辆检测系统')) {
+            throw 'Packer log did not preserve the Chinese application name as UTF-8'
+          }
+
           $identityInfo = & $packer signing info com.lw.samples.wechatformatter --keys-dir build/test-keys
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $identityInfoText = $identityInfo -join "`n"
@@ -276,12 +294,27 @@ jobs:
             [pscustomobject]@{
               apk = 'build/samples/wechat-article-formatter/wechat-article-formatter-android.apk'
               required = @('classes.dex', 'assets/lw-config.json', 'assets/www/index.html')
+              forbidden = @()
               expectHttp = $false
             },
             [pscustomobject]@{
               apk = 'build/samples/remote/lw-Web2Android-Remote-1.0.0-android.apk'
               required = @('classes.dex', 'assets/lw-config.json', 'res/xml/network_security_config.xml')
+              forbidden = @('assets/www/index.html')
               expectHttp = $true
+            },
+            [pscustomobject]@{
+              apk = 'build/samples/unicode-assets/unicode-assets-1.0.0-android.apk'
+              required = @(
+                'classes.dex',
+                'assets/lw-config.json',
+                'assets/www/index.html',
+                'assets/www/测试页/index.html',
+                'assets/www/文件/用户说明.txt',
+                'assets/www/assets/中文图片.png'
+              )
+              forbidden = @('assets/www/project.json')
+              expectHttp = $false
             }
           )
 
@@ -297,6 +330,17 @@ jobs:
               $names = @($zip.Entries.FullName)
               foreach ($required in $expectation.required) {
                 if ($required -notin $names) { throw "$apk is missing $required" }
+              }
+              foreach ($forbidden in $expectation.forbidden) {
+                if ($forbidden -in $names) { throw "$apk unexpectedly contains $forbidden" }
+              }
+              $nonCanonical = @($names | Where-Object { $_.Contains('\') })
+              if ($nonCanonical.Count -ne 0) {
+                throw "$apk contains non-canonical backslash ZIP entries: $($nonCanonical -join ', ')"
+              }
+              $duplicates = @($names | Group-Object | Where-Object Count -gt 1)
+              if ($duplicates.Count -ne 0) {
+                throw "$apk contains duplicate ZIP entries: $(($duplicates.Name) -join ', ')"
               }
               $configEntry = $zip.GetEntry('assets/lw-config.json')
               $reader = [System.IO.StreamReader]::new($configEntry.Open())
@@ -375,7 +419,7 @@ jobs:
 
           Copy-Item build/packer/Release/lw.Web2Android.exe "$package/bin/"
           Copy-Item build/packer/Release/lw.Web2Android.GUI.exe "$package/bin/"
-          Copy-Item build/runtime-dist/runtime-v2.zip "$package/toolchain/"
+          Copy-Item build/runtime-dist/runtime-v3.zip "$package/toolchain/"
           Copy-Item build/ci-runtime/* "$package/toolchain/runtime/" -Recurse
           Copy-Item build/ci-jre/* "$package/toolchain/jre/" -Recurse
           Copy-Item toolchain.lock.json "$package/"

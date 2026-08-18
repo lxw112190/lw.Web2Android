@@ -24,7 +24,6 @@ public:
     static void Link(const std::filesystem::path& aapt2,
                      const std::filesystem::path& androidJar,
                      const std::filesystem::path& manifest,
-                     const std::filesystem::path& assets,
                      const std::filesystem::path& compiledResources,
                      const std::filesystem::path& outputApk,
                      int minSdk,

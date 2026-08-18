@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "mode": "local",
+  "name": "车辆检测系统",
+  "packageName": "com.lw.samples.unicodeassets",
+  "versionName": "1.0.0",
+  "versionCode": 1,
+  "source": ".",
+  "entry": "index.html",
+  "fullscreen": false,
+  "orientation": "auto",
+  "allowHttp": false,
+  "output": "../../build/samples/unicode-assets",
+  "outputFile": "unicode-assets-1.0.0-android.apk",
+  "runtime": "../../build/runtime-dist/runtime-v3",
+  "toolchainLock": "../../toolchain.lock.json"
+}

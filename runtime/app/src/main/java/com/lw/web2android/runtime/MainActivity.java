@@ -79,6 +79,8 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
         settings.setMixedContentMode(config.allowHttp
                 ? WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 : WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        RuntimeLog.info("Mixed Content Mode: "
+                + (config.allowHttp ? "ALWAYS_ALLOW" : "NEVER"));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             settings.setSafeBrowsingEnabled(true);
         }

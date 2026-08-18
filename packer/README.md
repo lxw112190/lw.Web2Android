@@ -1,6 +1,6 @@
-# Packer CLI 与 GUI（v0.2.2）
+# Packer CLI 与 GUI（v0.2.3）
 
-Packer 是 Windows C++17 程序。它读取 `project.json`，动态生成 Manifest、资源和 Runtime 配置，通过锁定版本的 AAPT2 生成资源 APK，在内部注入预编译 Runtime DEX，执行 `zipalign` 后使用 Package 独立身份签名并验证 APK。
+Packer 是 Windows C++17 程序。它读取 `project.json`，动态生成 Manifest、资源和 Runtime 配置，通过锁定版本的 AAPT2 生成不含 Web Assets 的资源 APK，再由 ApkAssembler 以 UTF-8 规范 ZIP Entry 一次性注入 Web Assets 与预编译 Runtime DEX，执行 `zipalign` 后使用 Package 独立身份签名并验证 APK。
 
 ## 构建
 
@@ -60,7 +60,7 @@ CLI 与 GUI 使用 spdlog 的同步 rotating sink 记录 15 个构建阶段、AA
 <发布包目录>\logs\packer.log
 ```
 
-Packer 会在发布包当前目录自动创建 `logs` 文件夹；如果单独复制并运行 EXE，则在 EXE 所在目录创建。单文件最大 2 MiB，保留当前文件和 5 个轮转文件。日志初始化或写入失败不会阻断 APK 构建。GUI 构建失败时会在错误弹窗中显示日志路径；签名私钥与 PKCS#12 备份密码不会写入日志。
+Packer 会在发布包当前目录自动创建 `logs` 文件夹；如果单独复制并运行 EXE，则在 EXE 所在目录创建。单文件最大 2 MiB，保留当前文件和 5 个轮转文件。当前文件与每个新轮转文件都带 UTF-8 BOM，中文 GUI 输入不会经过 ANSI code page。日志初始化或写入失败不会阻断 APK 构建。GUI 构建失败时会在错误弹窗中显示日志路径；签名私钥与 PKCS#12 备份密码不会写入日志。
 
 工具链初始化过程单独记录到 `<发布包目录>\logs\toolchain-init.log`，同样采用 2 MiB、5 个归档的轮转策略。GUI 初始化失败时会直接显示该日志路径。
 
@@ -70,7 +70,7 @@ Packer 会在发布包当前目录自动创建 `logs` 文件夹；如果单独�
 
 `signing info` 只读取已有身份，不会自动创建新密钥。`signing export` 会在控制台关闭回显后要求输入并确认至少 8 个字符的密码，生成包含证书和私钥的标准 PKCS#12 备份；密码不会进入命令行或日志。目标文件已存在时命令会拒绝覆盖。请把备份和密码分开保管，丢失签名身份后将无法发布可覆盖安装的更新。
 
-GitHub Actions 使用统一的 `lw.Web2Android CI` workflow。CI 会从已安装 SDK 组装扁平最小工具链，检出固定版本的 `wechat-article-formatter`，构建真实 React/Vite `dist` 并生成 Demo APK；Remote 模式仍作为内部集成测试。CLI、GUI、Runtime、初始化脚本、MIT License、Demo APK、发行元数据和总校验文件会合并到单个 `lw-Web2Android-v0.2.2-windows-x64` Artifact。公开发行包不重新分发 Android SDK。
+GitHub Actions 使用统一的 `lw.Web2Android CI` workflow。CI 会从已安装 SDK 组装扁平最小工具链，检出固定版本的 `wechat-article-formatter`，构建真实 React/Vite `dist` 并生成 Demo APK；Remote 与 Unicode Assets 模式作为独立集成测试。CI 会拒绝反斜杠、重复条目、意外打入的 `project.json` 或缺失的中文文件。CLI、GUI、Runtime、初始化脚本、MIT License、Demo APK、发行元数据和总校验文件会合并到单个 `lw-Web2Android-v0.2.3-windows-x64` Artifact。公开发行包不重新分发 Android SDK。
 
 ## project.json
 

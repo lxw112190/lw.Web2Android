@@ -18,7 +18,7 @@
 - Packer 与 Android Runtime 轮转日志；
 - GitHub Actions 自动构建 Runtime、Packer、GUI 和真实 React/Vite Demo。
 
-当前版本：`v0.2.2`<br>
+当前版本：`v0.2.3`<br>
 Android：`minSdk 23`，`targetSdk 35`
 
 ## 下载与首次使用
@@ -32,14 +32,14 @@ bin/lw.Web2Android.GUI.exe
 公开发行包包含：
 
 ```text
-lw-Web2Android-v0.2.2-windows-x64/
+lw-Web2Android-v0.2.3-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
 ├── toolchain/
 │   ├── jre/
 │   ├── runtime/
-│   └── runtime-v2.zip
+│   └── runtime-v3.zip
 ├── tools/
 ├── samples/wechat-article-formatter/
 ├── docs/
@@ -188,7 +188,9 @@ Android Runtime 日志：
 /sdcard/Android/data/<Package Name>/files/logs/device-info.log
 ```
 
-Packer 和工具链初始化器会在发布包当前目录自动创建 `logs` 文件夹。初始化日志记录下载地址、SHA-256 校验、JRE 选择、`sdkmanager` 输出、工具链组装、临时目录清理和完整失败原因。所有日志文件均按单文件 2 MiB 轮转，最多保留 5 个归档。`runtime.log` 记录页面加载、HTTP/SSL、WebView renderer、JavaScript Console 和未捕获异常；`device-info.log` 每次启动记录应用、设备、WebView、网络传输类型和 Runtime 配置摘要。它不采集 IMEI、Android ID、MAC、SSID、手机本机 IP、Cookie、Token 或请求头；为了排查连接问题，会记录移除 query 和 fragment 后的配置启动地址。
+Packer 和工具链初始化器会在发布包当前目录自动创建 `logs` 文件夹。初始化日志记录下载地址、SHA-256 校验、JRE 选择、`sdkmanager` 输出、工具链组装、临时目录清理和完整失败原因。所有日志文件均按单文件 2 MiB 轮转，最多保留 5 个归档。Packer 日志使用带 BOM 的 UTF-8，确保中文应用名可由 Windows 日志查看器正确识别。
+
+`runtime.log` 使用手机本地时间并带 UTC 偏移，例如 `2026-08-18 17:16:49.955 +08:00`，记录 Activity 生命周期、页面加载、HTTP/SSL、WebView renderer、WebResourceError、JavaScript Console 和未捕获异常。`device-info.log` 每次启动同时记录本地时间、UTC、时区，以及应用、设备、WebView Provider、网络传输类型、Allow HTTP、Mixed Content 模式和 Runtime 配置摘要。日志会对常见 Password、Token、Authorization、Cookie 内容脱敏，也不采集 IMEI、Android ID、MAC、SSID或手机本机 IP；启动 URL 会移除 query 和 fragment。发行元数据中的构建时间继续使用 UTC。
 
 ## 真实 Web Demo 与 CI
 
@@ -200,39 +202,30 @@ Packer 和工具链初始化器会在发布包当前目录自动创建 `logs` �
 4. 检出 [wechat-article-formatter](https://github.com/lxw112190/wechat-article-formatter) 的固定提交；
 5. 执行 `npm ci` 和 `npm run build -- --base=./`；
 6. 将真实 React/Vite `dist` 打包为签名 APK；
-7. 验证 APK 对齐、签名、内部资源、Runtime 入口、发行元数据和签名身份复用；
-8. 上传一个统一的 Windows x64 Artifact。
+7. 构建中文目录/文件名样例，并验证所有 Web Assets 都是 UTF-8、正斜杠且无重复的 APK 条目；
+8. 验证 APK 对齐、签名、内部资源、Runtime 入口、发行元数据和签名身份复用；
+9. 上传一个统一的 Windows x64 Artifact。
 
 该 Demo 已在 Android 真机验证通过。固定源码提交记录在 [.github/workflows/ci.yml](.github/workflows/ci.yml)，发行包中的 `samples/wechat-article-formatter/SOURCE.md` 记录来源、版本和构建命令。
 
 推送 `v*` 标签时，完整 CI 成功后会自动创建 GitHub Release：
 
 ```bash
-git tag -a v0.2.2 -m "lw.Web2Android v0.2.2"
-git push origin v0.2.2
+git tag -a v0.2.3 -m "lw.Web2Android v0.2.3"
+git push origin v0.2.3
 ```
 
 ## 架构
 
 ```text
-Web dist / Remote URL
-        │
-        ├── Manifest + Resources ── AAPT2
-        ├── assets/lw-config.json
-        └── assets/www/* (local only)
-                         │
-Precompiled Runtime DEX ─┤
-                         ▼
-                  Resource APK
-                         │
-                 ZIP assembly
-                         │
-                    zipalign
-                         │
-                    apksigner
-                         ▼
-                    Signed APK
+Manifest + res/ ── AAPT2 ── resources.apk ─┐
+                                           │
+assets/lw-config.json ─────────────────────┤
+assets/www/**/* (local only, UTF-8) ───────┼─ ApkAssembler ─ zipalign ─ apksigner ─ Signed APK
+Precompiled classes*.dex ──────────────────┘
 ```
+
+AAPT2 只处理 Android Manifest、`res/`、`android.jar` 和资源表，不再通过 `-A` 接触 Web 项目。ApkAssembler 使用 Windows Unicode 路径读取网页文件，并以 UTF-8、正斜杠的规范 ZIP Entry 原样注入 APK，因此中文、日文、空格及其他 Unicode 文件名不会交给 Android Resource 工具解释。
 
 Android Runtime 使用 `WebViewAssetLoader` 通过 HTTPS 风格的应用内 URL 加载本地资源，不使用 `file://`，也不提供 `addJavascriptInterface` Native Bridge。
 
@@ -254,7 +247,7 @@ ctest --test-dir build/packer -C Release --output-on-failure
 ```text
 packer/       C++17 Packer、Win32 GUI 与测试
 runtime/      Android Java Runtime
-samples/      Remote 模式测试配置
+samples/      Remote 与 Unicode Assets 回归配置
 tools/        Runtime、工具链与发行打包脚本
 .github/      统一 CI 与 Release 流程
 ```

@@ -30,7 +30,7 @@ Runtime 优先写入无需额外存储权限的应用专属外部目录：
 /sdcard/Android/data/<Package Name>/files/logs/device-info.log
 ```
 
-`runtime.log` 与 `device-info.log` 分别达到 2 MiB 后依次轮转为 `.1` 至 `.5`。Runtime 日志包含 UTC 时间、级别、PID 与线程；URL 查询参数及 fragment 不会写入。设备日志不采集 IMEI、Android ID、MAC、SSID、手机本机 IP、Cookie、Token 或请求头；配置启动地址会在移除 query 和 fragment 后记录。通过 USB 调试复制：
+`runtime.log` 与 `device-info.log` 分别达到 2 MiB 后依次轮转为 `.1` 至 `.5`。Runtime 日志使用手机本地时间与 UTC 偏移，并包含级别、PID 与线程；设备日志同时保存本地时间、UTC 与时区。URL 查询参数及 fragment 不会写入，常见 Password、Token、Authorization、Cookie 值会被脱敏。设备日志不采集 IMEI、Android ID、MAC、SSID 或手机本机 IP。通过 USB 调试复制：
 
 ```bash
 adb pull /sdcard/Android/data/<Package Name>/files/logs ./android-runtime-logs
@@ -51,5 +51,5 @@ pwsh ./tools/package-runtime.ps1
 最终输出：
 
 ```text
-build/runtime-dist/runtime-v2.zip
+build/runtime-dist/runtime-v3.zip
 ```

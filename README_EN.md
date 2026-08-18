@@ -18,7 +18,7 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 - rotating logs for both the Windows Packer and Android Runtime;
 - GitHub Actions builds the Runtime, Packer, GUI, and a real React/Vite demo.
 
-Current version: `v0.2.2`<br>
+Current version: `v0.2.3`<br>
 Android: `minSdk 23`, `targetSdk 35`
 
 ## Download and first run
@@ -32,14 +32,14 @@ bin/lw.Web2Android.GUI.exe
 The public distribution contains:
 
 ```text
-lw-Web2Android-v0.2.2-windows-x64/
+lw-Web2Android-v0.2.3-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
 ├── toolchain/
 │   ├── jre/
 │   ├── runtime/
-│   └── runtime-v2.zip
+│   └── runtime-v3.zip
 ├── tools/
 ├── samples/wechat-article-formatter/
 ├── docs/
@@ -188,7 +188,9 @@ Android Runtime log:
 /sdcard/Android/data/<Package Name>/files/logs/device-info.log
 ```
 
-The Packer and toolchain initializer create `logs` under the current distribution directory. Initialization logging includes download URLs, SHA-256 verification, JRE selection, `sdkmanager` output, toolchain assembly, temporary-directory cleanup, and complete failure details. Every log file rotates at 2 MiB and retains up to five archives. `runtime.log` includes navigation, HTTP/SSL failures, WebView renderer exits, JavaScript Console output, and uncaught exceptions. `device-info.log` records an app, device, WebView, network-transport, and Runtime-configuration snapshot at each start. It never collects IMEI, Android ID, MAC address, SSID, the phone's own IP address, cookies, tokens, or request headers. To diagnose connectivity, it records the configured start URL after removing its query and fragment.
+The Packer and toolchain initializer create `logs` under the current distribution directory. Initialization logging includes download URLs, SHA-256 verification, JRE selection, `sdkmanager` output, toolchain assembly, temporary-directory cleanup, and complete failure details. Every log file rotates at 2 MiB and retains up to five archives. Packer logs are UTF-8 with a BOM so Windows log viewers recognize Chinese application names correctly.
+
+`runtime.log` uses device-local time with a UTC offset, such as `2026-08-18 17:16:49.955 +08:00`, and records Activity lifecycle, navigation, HTTP/SSL failures, WebView renderer exits, WebResourceError, JavaScript Console output, and uncaught exceptions. At each start, `device-info.log` records local time, UTC, time zone, app, device, WebView provider, network transport, Allow HTTP, Mixed Content mode, and Runtime configuration. Common password, token, Authorization, and Cookie values are redacted. The logs do not collect IMEI, Android ID, MAC address, SSID, or the phone's own IP address; start URLs are recorded without query strings or fragments. Release build timestamps remain UTC.
 
 ## Real Web demo and CI
 
@@ -200,39 +202,30 @@ The single `lw.Web2Android CI` workflow:
 4. checks out a pinned revision of [wechat-article-formatter](https://github.com/lxw112190/wechat-article-formatter);
 5. runs `npm ci` and `npm run build -- --base=./`;
 6. packages the real React/Vite `dist` as a signed APK;
-7. verifies alignment, signatures, internal assets, the Runtime entry, release metadata, and signing identity reuse;
-8. uploads one unified Windows x64 artifact.
+7. builds a Unicode filename fixture and verifies canonical, duplicate-free UTF-8 Web Asset entries;
+8. verifies alignment, signatures, internal assets, the Runtime entry, release metadata, and signing identity reuse;
+9. uploads one unified Windows x64 artifact.
 
 The demo APK has passed validation on a physical Android device. The pinned source revision is recorded in [.github/workflows/ci.yml](.github/workflows/ci.yml), while `samples/wechat-article-formatter/SOURCE.md` in the distribution records its source, version, and build command.
 
 Pushing a `v*` tag creates a GitHub Release only after the full workflow passes:
 
 ```bash
-git tag -a v0.2.2 -m "lw.Web2Android v0.2.2"
-git push origin v0.2.2
+git tag -a v0.2.3 -m "lw.Web2Android v0.2.3"
+git push origin v0.2.3
 ```
 
 ## Architecture
 
 ```text
-Web dist / Remote URL
-        │
-        ├── Manifest + Resources ── AAPT2
-        ├── assets/lw-config.json
-        └── assets/www/* (local only)
-                         │
-Precompiled Runtime DEX ─┤
-                         ▼
-                  Resource APK
-                         │
-                 ZIP assembly
-                         │
-                    zipalign
-                         │
-                    apksigner
-                         ▼
-                    Signed APK
+Manifest + res/ ── AAPT2 ── resources.apk ─┐
+                                           │
+assets/lw-config.json ─────────────────────┤
+assets/www/**/* (local only, UTF-8) ───────┼─ ApkAssembler ─ zipalign ─ apksigner ─ Signed APK
+Precompiled classes*.dex ──────────────────┘
 ```
+
+AAPT2 now handles only the Android Manifest, `res/`, `android.jar`, and the resource table; Web projects are no longer passed through `-A`. ApkAssembler reads Web files through Windows Unicode paths and injects canonical UTF-8, forward-slash ZIP entries directly, preserving Chinese, Japanese, spaces, and other Unicode filenames without asking Android resource tools to interpret them.
 
 The Android Runtime uses `WebViewAssetLoader` and an HTTPS-style application URL for local assets. It does not use `file://` and does not expose an `addJavascriptInterface` native bridge.
 
@@ -254,7 +247,7 @@ Precompiled Runtime files and APKs are not committed; CI generates them from sou
 ```text
 packer/       C++17 Packer, Win32 GUI, and tests
 runtime/      Android Java Runtime
-samples/      Remote-mode test configuration
+samples/      Remote-mode and Unicode Assets regression configurations
 tools/        Runtime, toolchain, and release scripts
 .github/      Unified CI and Release workflow
 ```

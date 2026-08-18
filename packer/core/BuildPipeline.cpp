@@ -17,7 +17,6 @@
 #include <regex>
 #include <sstream>
 #include <stdexcept>
-#include <unordered_set>
 #include <vector>
 
 #ifdef _WIN32
@@ -121,28 +120,22 @@ std::vector<std::filesystem::path> FindRuntimeDexFiles(const std::filesystem::pa
     return result;
 }
 
-std::filesystem::path EnsureCanonicalAssetEntries(const std::filesystem::path& resourceApk,
-                                                  const std::filesystem::path& assetsDirectory,
-                                                  const std::filesystem::path& workspace) {
-    const auto existingEntries = ApkAssembler::ListEntries(resourceApk);
-    const std::unordered_set<std::string> existing(existingEntries.begin(), existingEntries.end());
-    std::vector<ArchiveEntrySource> missing;
+std::vector<ArchiveEntrySource> CollectApplicationEntries(
+    const std::filesystem::path& assetsDirectory,
+    const std::vector<std::filesystem::path>& dexFiles) {
+    std::vector<ArchiveEntrySource> entries;
     for (const auto& item : std::filesystem::recursive_directory_iterator(assetsDirectory)) {
         if (!item.is_regular_file()) continue;
         const auto relative = std::filesystem::relative(item.path(), assetsDirectory).generic_u8string();
-        const auto archiveName = "assets/" + relative;
-        if (existing.find(archiveName) == existing.end()) {
-            missing.push_back({item.path(), archiveName});
-        }
+        entries.push_back({item.path(), "assets/" + relative});
     }
-    if (missing.empty()) return resourceApk;
-
-    const auto canonicalApk = workspace / "resources-canonical.apk";
-    ApkAssembler::InjectEntries(resourceApk, missing, canonicalApk);
-    std::cout << "Added " << missing.size() << " canonical asset entr"
-              << (missing.size() == 1U ? "y" : "ies") << std::endl;
-    PackerLogger().Info("Added " + std::to_string(missing.size()) + " canonical asset entries");
-    return canonicalApk;
+    for (const auto& dex : dexFiles) {
+        entries.push_back({dex, dex.filename().u8string()});
+    }
+    std::sort(entries.begin(), entries.end(), [](const auto& left, const auto& right) {
+        return left.archiveName < right.archiveName;
+    });
+    return entries;
 }
 
 std::filesystem::path CreateWorkspace() {
@@ -230,13 +223,15 @@ BuildResult BuildPipeline::Build(const ProjectConfig& config, const BuildOptions
 
     LogStep(options, 8, "Link resource APK with AAPT2");
     const auto resourceApk = workspace / "resources.apk";
-    Aapt2Runner::Link(toolchain.aapt2, toolchain.androidJar, manifest, assets, compiledResources, resourceApk,
+    Aapt2Runner::Link(toolchain.aapt2, toolchain.androidJar, manifest, compiledResources, resourceApk,
                       23, lock.platformApi, config.versionCode, config.versionName);
 
-    LogStep(options, 9, "Normalize assets and inject precompiled Runtime DEX");
-    const auto canonicalResourceApk = EnsureCanonicalAssetEntries(resourceApk, assets, workspace);
+    LogStep(options, 9, "Inject Web assets and precompiled Runtime DEX");
     const auto unalignedApk = workspace / "app-unaligned.apk";
-    ApkAssembler::InjectFiles(canonicalResourceApk, dexFiles, unalignedApk);
+    const auto applicationEntries = CollectApplicationEntries(assets, dexFiles);
+    ApkAssembler::InjectEntries(resourceApk, applicationEntries, unalignedApk);
+    log.Info("Injected " + std::to_string(applicationEntries.size()) +
+             " UTF-8 canonical Web asset and Runtime entries");
 
     LogStep(options, 10, "Align unsigned APK");
     const auto alignedApk = workspace / "app-aligned.apk";
