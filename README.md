@@ -18,7 +18,7 @@
 - Packer 与 Android Runtime 轮转日志；
 - GitHub Actions 自动构建 Runtime、Packer、GUI 和真实 React/Vite Demo。
 
-当前版本：`v0.2.0`<br>
+当前版本：`v0.2.1`<br>
 Android：`minSdk 23`，`targetSdk 35`
 
 ## 下载与首次使用
@@ -32,7 +32,7 @@ bin/lw.Web2Android.GUI.exe
 公开发行包包含：
 
 ```text
-lw-Web2Android-v0.2.0-windows-x64/
+lw-Web2Android-v0.2.1-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
@@ -186,8 +186,8 @@ Packer 和工具链初始化器会在发布包当前目录自动创建 `logs` �
 推送 `v*` 标签时，完整 CI 成功后会自动创建 GitHub Release：
 
 ```bash
-git tag -a v0.2.0 -m "lw.Web2Android v0.2.0"
-git push origin v0.2.0
+git tag -a v0.2.1 -m "lw.Web2Android v0.2.1"
+git push origin v0.2.1
 ```
 
 ## 架构

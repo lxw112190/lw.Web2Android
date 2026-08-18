@@ -355,7 +355,7 @@ void UpdateToolchainDisplay(State& state) {
     const bool ready = IsMinimalToolchainDirectory(state.environment.toolchainDirectory);
     SetWindowTextW(GetDlgItem(state.window, kToolchainStatus),
                    ready ? L"工具链：最小工具链已就绪，可直接生成 APK"
-                         : L"工具链：尚未初始化（也可使用系统开发环境）");
+                         : L"工具链：尚未初始化");
     SetWindowTextW(GetDlgItem(state.window, kInstallToolchain), ready ? L"已初始化" : L"初始化工具链");
     EnableWindow(GetDlgItem(state.window, kInstallToolchain), !ready && !state.busy);
 }

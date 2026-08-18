@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(lw_Web2Android VERSION 0.2.0 LANGUAGES CXX)
+project(lw_Web2Android VERSION 0.2.1 LANGUAGES CXX)
 
 include(FetchContent)
 
