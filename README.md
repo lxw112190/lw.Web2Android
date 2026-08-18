@@ -6,6 +6,12 @@
 
 `lw.Web2Android` 面向 Windows 10/11 x64，提供原生 GUI 和 CLI。最终用户不需要安装 Android Studio、Gradle、完整 Android SDK 或完整 JDK；首次使用时确认 Android SDK License，程序会从官方源下载锁定版本的最小组件，并保存在应用程序目录中供后续复用。
 
+## 界面预览
+
+<p align="center">
+  <img src="assets/lw-Web2Android-GUI.png" alt="lw.Web2Android GUI" width="680">
+</p>
+
 ## 主要能力
 
 - 本地静态网站和在线 URL 两种模式；

@@ -6,6 +6,12 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 
 `lw.Web2Android` targets Windows 10/11 x64 and provides both a native GUI and a CLI. End users do not need Android Studio, Gradle, a full Android SDK, or a full JDK. After the user accepts the Android SDK License, the first-run initializer downloads a locked minimal toolchain from official sources and keeps it beside the application for reuse.
 
+## GUI preview
+
+<p align="center">
+  <img src="assets/lw-Web2Android-GUI.png" alt="lw.Web2Android GUI" width="680">
+</p>
+
 ## Features
 
 - Local static website and remote URL modes;
