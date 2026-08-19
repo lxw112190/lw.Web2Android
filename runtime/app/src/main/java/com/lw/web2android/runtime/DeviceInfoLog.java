@@ -7,6 +7,7 @@ import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.os.Build;
+import android.util.DisplayMetrics;
 import android.webkit.WebView;
 
 import java.io.File;
@@ -69,6 +70,14 @@ final class DeviceInfoLog {
         output.append("  Time zone    : ").append(clean(TimeZone.getDefault().getID())).append('\n');
         output.append("\nWebView\n");
         output.append("  Provider     : ").append(webViewProvider()).append('\n');
+        output.append("  Wide ViewPort: true\n");
+        output.append("  Overview Mode: true\n");
+        DisplayMetrics metrics = context.getResources().getDisplayMetrics();
+        output.append("\nDisplay\n");
+        output.append("  Width px     : ").append(metrics.widthPixels).append('\n');
+        output.append("  Height px    : ").append(metrics.heightPixels).append('\n');
+        output.append("  Density      : ").append(metrics.density).append('\n');
+        output.append("  Density DPI  : ").append(metrics.densityDpi).append('\n');
         output.append("\nNetwork\n");
         output.append(networkSummary(context));
         output.append("\nApplication\n");

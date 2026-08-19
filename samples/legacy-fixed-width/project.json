@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "mode": "local",
-  "name": "车辆检测系统",
-  "packageName": "com.lw.samples.unicodeassets",
+  "name": "Legacy Fixed Width",
+  "packageName": "com.lw.samples.legacyfixedwidth",
   "versionName": "1.0.0",
   "versionCode": 1,
   "source": ".",
@@ -10,8 +10,8 @@
   "fullscreen": false,
   "orientation": "auto",
   "allowHttp": false,
-  "output": "../../build/samples/unicode-assets",
-  "outputFile": "unicode-assets-1.0.0-android.apk",
+  "output": "../../build/samples/legacy-fixed-width",
+  "outputFile": "legacy-fixed-width-1.0.0-android.apk",
   "runtime": "../../build/runtime-dist/runtime-v5",
   "toolchainLock": "../../toolchain.lock.json"
 }

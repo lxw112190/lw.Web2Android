@@ -21,7 +21,10 @@ Release 构建同时启用 R8 代码收缩与优化资源收缩。仅固定动�
 - 标准 `<input type="file">` 调用 Android 系统文件选择器，仅接受 `content://` 结果；
 - HTTP/HTTPS 下载交给 Android `DownloadManager`，保存在应用专属 `files/Download`；
 - HTML5 视频通过 `WebChromeClient` 进入全屏，支持返回键退出和方向恢复；
+- 对没有移动端 viewport 的固定宽度网页启用 Wide Viewport 与 Overview Mode，按设备宽度整体缩放而不重新排版；
 - Custom Scheme 无可用处理程序时只记录 WARN 和 Toast，不销毁当前 WebView。
+
+Runtime 启动日志会记录最终生效的 `WebView viewport: wide=true, overview=true`、屏幕像素/密度和 WebView Provider；每次页面完成后以 DEBUG 记录 `innerWidth`、`innerHeight`、`scrollWidth`、`scrollHeight`、`screenWidth`、`screenHeight` 与 `devicePixelRatio`，用于区分 fit-to-width 缩放和真正的响应式重排。
 
 Runtime 不调用 `addJavascriptInterface`，不提供 Native Bridge，也不引用应用动态生成的 `R` 类。
 
@@ -55,5 +58,5 @@ pwsh ./tools/package-runtime.ps1
 最终输出：
 
 ```text
-build/runtime-dist/runtime-v4.zip
+build/runtime-dist/runtime-v5.zip
 ```

@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 env:
-  PRODUCT_VERSION: '0.2.4'
-  PACKAGE_NAME: lw-Web2Android-v0.2.4-windows-x64
+  PRODUCT_VERSION: '0.2.5'
+  PACKAGE_NAME: lw-Web2Android-v0.2.5-windows-x64
   WECHAT_DEMO_REPOSITORY: lxw112190/wechat-article-formatter
   WECHAT_DEMO_REF: ad1afc5a2c31d7cb7dc458a69944d6cb7ee0cd88
 
@@ -129,7 +129,7 @@ jobs:
           ./tools/package-runtime.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           New-Item -ItemType Directory -Force -Path build/ci-runtime | Out-Null
-          Expand-Archive -LiteralPath build/runtime-dist/runtime-v4.zip -DestinationPath build/ci-runtime -Force
+          Expand-Archive -LiteralPath build/runtime-dist/runtime-v5.zip -DestinationPath build/ci-runtime -Force
 
       - name: Assemble and validate minimal end-user toolchain
         shell: pwsh
@@ -162,6 +162,7 @@ jobs:
               $runtimeMetadata.capabilities.fileChooser -ne 'system-content-uri-only' -or
               $runtimeMetadata.capabilities.downloadManager -ne 'http-https-app-external-files' -or
               -not $runtimeMetadata.capabilities.html5VideoFullscreen -or
+              -not $runtimeMetadata.capabilities.legacyFixedWidthFitToWidth -or
               $runtimeMetadata.capabilities.nativeBridge) {
             throw 'Runtime Web compatibility metadata is missing or invalid'
           }
@@ -260,6 +261,9 @@ jobs:
           & $packer build samples/unicode-assets/project.json @common
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+          & $packer build samples/legacy-fixed-width/project.json @common
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
           $packerLog = 'build/packer/Release/logs/packer.log'
           $logBytes = [System.IO.File]::ReadAllBytes($packerLog)
           if ($logBytes.Length -lt 3 -or $logBytes[0] -ne 0xEF -or
@@ -321,6 +325,12 @@ jobs:
                 'assets/www/assets/中文图片.png'
               )
               forbidden = @('assets/www/project.json')
+              expectHttp = $false
+            },
+            [pscustomobject]@{
+              apk = 'build/samples/legacy-fixed-width/legacy-fixed-width-1.0.0-android.apk'
+              required = @('classes.dex', 'assets/lw-config.json', 'assets/www/index.html')
+              forbidden = @()
               expectHttp = $false
             }
           )
@@ -426,7 +436,7 @@ jobs:
 
           Copy-Item build/packer/Release/lw.Web2Android.exe "$package/bin/"
           Copy-Item build/packer/Release/lw.Web2Android.GUI.exe "$package/bin/"
-          Copy-Item build/runtime-dist/runtime-v4.zip "$package/toolchain/"
+          Copy-Item build/runtime-dist/runtime-v5.zip "$package/toolchain/"
           Copy-Item build/ci-runtime/* "$package/toolchain/runtime/" -Recurse
           Copy-Item build/ci-jre/* "$package/toolchain/jre/" -Recurse
           Copy-Item toolchain.lock.json "$package/"

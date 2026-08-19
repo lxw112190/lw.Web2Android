@@ -10,6 +10,6 @@
   "orientation": "auto",
   "allowHttp": true,
   "output": "../../build/samples/remote",
-  "runtime": "../../build/runtime-dist/runtime-v4",
+  "runtime": "../../build/runtime-dist/runtime-v5",
   "toolchainLock": "../../toolchain.lock.json"
 }

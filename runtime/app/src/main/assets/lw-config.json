@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "runtimeVersion": "4",
+  "runtimeVersion": "5",
   "mode": "remote",
   "entry": "index.html",
   "url": "https://example.com",

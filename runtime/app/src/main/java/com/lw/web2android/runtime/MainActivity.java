@@ -6,6 +6,7 @@ import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.DisplayMetrics;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -76,6 +77,11 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
+        // Keep fixed-width legacy pages visible on mobile without reflowing their layout.
+        settings.setUseWideViewPort(true);
+        settings.setLoadWithOverviewMode(true);
+        RuntimeLog.info("WebView viewport: wide=" + settings.getUseWideViewPort()
+                + ", overview=" + settings.getLoadWithOverviewMode());
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setMixedContentMode(config.allowHttp
@@ -104,6 +110,41 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
                 RuntimeLog.info("WebView provider: " + provider.packageName + " " + provider.versionName);
             }
         }
+        DisplayMetrics metrics = getResources().getDisplayMetrics();
+        RuntimeLog.info("Display metrics: widthPx=" + metrics.widthPixels
+                + ", heightPx=" + metrics.heightPixels
+                + ", density=" + metrics.density
+                + ", densityDpi=" + metrics.densityDpi);
+    }
+
+    void logWebViewport(WebView view) {
+        if (view == null) return;
+        try {
+            view.evaluateJavascript(
+                    "(function(){return 'innerWidth=' + window.innerWidth"
+                            + " + ', innerHeight=' + window.innerHeight"
+                            + " + ', screenWidth=' + screen.width"
+                            + " + ', screenHeight=' + screen.height"
+                            + " + ', scrollWidth=' + (document.documentElement"
+                            + " ? document.documentElement.scrollWidth : 0)"
+                            + " + ', scrollHeight=' + (document.documentElement"
+                            + " ? document.documentElement.scrollHeight : 0)"
+                            + " + ', dpr=' + window.devicePixelRatio;})()",
+                    value -> RuntimeLog.debug("Web viewport: " + javascriptString(value)));
+        } catch (RuntimeException error) {
+            RuntimeLog.debug("Web viewport unavailable; exception="
+                    + error.getClass().getSimpleName());
+        }
+    }
+
+    private static String javascriptString(String value) {
+        if (value == null || value.length() < 2) return value == null ? "unknown" : value;
+        if (value.charAt(0) == '"' && value.charAt(value.length() - 1) == '"') {
+            value = value.substring(1, value.length() - 1)
+                    .replace("\\\"", "\"")
+                    .replace("\\\\", "\\");
+        }
+        return value.length() <= 512 ? value : value.substring(0, 512) + "...";
     }
 
     private void applyRuntimeWindowConfig() {

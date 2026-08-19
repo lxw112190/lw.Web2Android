@@ -81,6 +81,7 @@ final class RuntimeWebViewClient extends WebViewClientCompat {
     @Override
     public void onPageFinished(WebView view, String url) {
         RuntimeLog.info("Page finished: " + RuntimeLog.safeUrl(url));
+        activity.logWebViewport(view);
         super.onPageFinished(view, url);
     }
 

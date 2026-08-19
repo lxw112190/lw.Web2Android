@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(lw_Web2Android VERSION 0.2.4 LANGUAGES CXX)
+project(lw_Web2Android VERSION 0.2.5 LANGUAGES CXX)
 
 if(WIN32)
     function(lw_add_version_resource target file_description internal_name original_filename)

@@ -24,10 +24,11 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 - rotating logs for both the Windows Packer and Android Runtime;
 - standard `<input type="file">` system picker and Android `DownloadManager` support;
 - HTML5 video fullscreen with Back-button exit and orientation changes;
+- legacy fixed-width pages without a mobile viewport use Wide Viewport and Overview Mode for fit-to-width scaling, without layout reflow;
 - non-fatal external custom-scheme handling that preserves the current WebView;
 - GitHub Actions builds the Runtime, Packer, GUI, and a real React/Vite demo.
 
-Current version: `v0.2.4`<br>
+Current version: `v0.2.5`<br>
 Android: `minSdk 23`, `targetSdk 35`
 
 ## Download and first run
@@ -41,14 +42,14 @@ bin/lw.Web2Android.GUI.exe
 The public distribution contains:
 
 ```text
-lw-Web2Android-v0.2.4-windows-x64/
+lw-Web2Android-v0.2.5-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
 ├── toolchain/
 │   ├── jre/
 │   ├── runtime/
-│   └── runtime-v4.zip
+│   └── runtime-v5.zip
 ├── tools/
 ├── samples/wechat-article-formatter/
 ├── docs/
@@ -209,6 +210,8 @@ The Packer and toolchain initializer create `logs` under the current distributio
 
 `runtime.log` uses device-local time with a UTC offset, such as `2026-08-18 17:16:49.955 +08:00`, and records Activity lifecycle, navigation, HTTP/SSL failures, WebView renderer exits, WebResourceError, JavaScript Console output, and uncaught exceptions. At each start, `device-info.log` records local time, UTC, time zone, app, device, WebView provider, network transport, Allow HTTP, Mixed Content mode, and Runtime configuration. Common password, token, Authorization, and Cookie values are redacted. The logs do not collect IMEI, Android ID, MAC address, SSID, or the phone's own IP address; start URLs are recorded without query strings or fragments. Release build timestamps remain UTC.
 
+The Runtime also records the effective WebView viewport policy, display pixels/density, and post-load Web viewport metrics (inner/scroll dimensions and DPR), making it possible to distinguish fit-to-width scaling for fixed-width pages from responsive reflow.
+
 ## Real Web demo and CI
 
 The single `lw.Web2Android CI` workflow:
@@ -228,8 +231,8 @@ The demo APK has passed validation on a physical Android device. The pinned sour
 Pushing a `v*` tag creates a GitHub Release only after the full workflow passes:
 
 ```bash
-git tag -a v0.2.4 -m "lw.Web2Android v0.2.4"
-git push origin v0.2.4
+git tag -a v0.2.5 -m "lw.Web2Android v0.2.5"
+git push origin v0.2.5
 ```
 
 ## Architecture

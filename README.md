@@ -24,10 +24,11 @@
 - Packer 与 Android Runtime 轮转日志；
 - 标准 `<input type="file">` 系统文件选择器和 Android `DownloadManager`；
 - HTML5 视频全屏播放，支持返回键退出与横竖屏切换；
+- 对没有移动端 viewport 的固定宽度老式网页启用 Wide Viewport 与 Overview Mode，采用 fit-to-width 整体缩放，不重新排版；
 - Custom Scheme 外部应用跳转失败时保留当前 WebView；
 - GitHub Actions 自动构建 Runtime、Packer、GUI 和真实 React/Vite Demo。
 
-当前版本：`v0.2.4`<br>
+当前版本：`v0.2.5`<br>
 Android：`minSdk 23`，`targetSdk 35`
 
 ## 下载与首次使用
@@ -41,14 +42,14 @@ bin/lw.Web2Android.GUI.exe
 公开发行包包含：
 
 ```text
-lw-Web2Android-v0.2.4-windows-x64/
+lw-Web2Android-v0.2.5-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
 ├── toolchain/
 │   ├── jre/
 │   ├── runtime/
-│   └── runtime-v4.zip
+│   └── runtime-v5.zip
 ├── tools/
 ├── samples/wechat-article-formatter/
 ├── docs/
@@ -209,6 +210,8 @@ Packer 和工具链初始化器会在发布包当前目录自动创建 `logs` �
 
 `runtime.log` 使用手机本地时间并带 UTC 偏移，例如 `2026-08-18 17:16:49.955 +08:00`，记录 Activity 生命周期、页面加载、HTTP/SSL、WebView renderer、WebResourceError、JavaScript Console 和未捕获异常。`device-info.log` 每次启动同时记录本地时间、UTC、时区，以及应用、设备、WebView Provider、网络传输类型、Allow HTTP、Mixed Content 模式和 Runtime 配置摘要。日志会对常见 Password、Token、Authorization、Cookie 内容脱敏，也不采集 IMEI、Android ID、MAC、SSID或手机本机 IP；启动 URL 会移除 query 和 fragment。发行元数据中的构建时间继续使用 UTC。
 
+Runtime 还会记录最终生效的 WebView 视口策略、屏幕像素/密度，以及页面完成后的实际 Web viewport 指标（inner/scroll 尺寸与 DPR），帮助区分固定宽度页面的 fit-to-width 缩放和响应式重排。
+
 ## 真实 Web Demo 与 CI
 
 统一的 `lw.Web2Android CI` 会：
@@ -228,8 +231,8 @@ Packer 和工具链初始化器会在发布包当前目录自动创建 `logs` �
 推送 `v*` 标签时，完整 CI 成功后会自动创建 GitHub Release：
 
 ```bash
-git tag -a v0.2.4 -m "lw.Web2Android v0.2.4"
-git push origin v0.2.4
+git tag -a v0.2.5 -m "lw.Web2Android v0.2.5"
+git push origin v0.2.5
 ```
 
 ## 架构
