@@ -22,9 +22,12 @@
 - Windows DPAPI 加密私钥，以及密码保护的 PFX/P12 备份；
 - APK、证书和工具链版本的机器可读发行元数据；
 - Packer 与 Android Runtime 轮转日志；
+- 标准 `<input type="file">` 系统文件选择器和 Android `DownloadManager`；
+- HTML5 视频全屏播放，支持返回键退出与横竖屏切换；
+- Custom Scheme 外部应用跳转失败时保留当前 WebView；
 - GitHub Actions 自动构建 Runtime、Packer、GUI 和真实 React/Vite Demo。
 
-当前版本：`v0.2.3`<br>
+当前版本：`v0.2.4`<br>
 Android：`minSdk 23`，`targetSdk 35`
 
 ## 下载与首次使用
@@ -38,14 +41,14 @@ bin/lw.Web2Android.GUI.exe
 公开发行包包含：
 
 ```text
-lw-Web2Android-v0.2.3-windows-x64/
+lw-Web2Android-v0.2.4-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
 ├── toolchain/
 │   ├── jre/
 │   ├── runtime/
-│   └── runtime-v3.zip
+│   └── runtime-v4.zip
 ├── tools/
 ├── samples/wechat-article-formatter/
 ├── docs/
@@ -194,6 +197,14 @@ Android Runtime 日志：
 /sdcard/Android/data/<Package Name>/files/logs/device-info.log
 ```
 
+网页通过标准 `<input type="file">` 选择文件时，Runtime 会调用 Android 系统文件选择器，只把用户明确选择的 `content://` URI 返回给 WebView，不开启文件系统访问。HTTP/HTTPS 下载由系统 `DownloadManager` 在后台执行，保存到：
+
+```text
+/sdcard/Android/data/<Package Name>/files/Download/
+```
+
+下载会沿用当前 WebView 会话所需的 Cookie 和 User-Agent，但这些内容不会写入日志。`blob:`、`data:` 和 `file:` 下载不通过 Native Bridge 或 JavaScript 注入实现，Runtime 会记录 WARN 并显示轻量提示。
+
 Packer 和工具链初始化器会在发布包当前目录自动创建 `logs` 文件夹。初始化日志记录下载地址、SHA-256 校验、JRE 选择、`sdkmanager` 输出、工具链组装、临时目录清理和完整失败原因。所有日志文件均按单文件 2 MiB 轮转，最多保留 5 个归档。Packer 日志使用带 BOM 的 UTF-8，确保中文应用名可由 Windows 日志查看器正确识别。
 
 `runtime.log` 使用手机本地时间并带 UTC 偏移，例如 `2026-08-18 17:16:49.955 +08:00`，记录 Activity 生命周期、页面加载、HTTP/SSL、WebView renderer、WebResourceError、JavaScript Console 和未捕获异常。`device-info.log` 每次启动同时记录本地时间、UTC、时区，以及应用、设备、WebView Provider、网络传输类型、Allow HTTP、Mixed Content 模式和 Runtime 配置摘要。日志会对常见 Password、Token、Authorization、Cookie 内容脱敏，也不采集 IMEI、Android ID、MAC、SSID或手机本机 IP；启动 URL 会移除 query 和 fragment。发行元数据中的构建时间继续使用 UTC。
@@ -217,8 +228,8 @@ Packer 和工具链初始化器会在发布包当前目录自动创建 `logs` �
 推送 `v*` 标签时，完整 CI 成功后会自动创建 GitHub Release：
 
 ```bash
-git tag -a v0.2.3 -m "lw.Web2Android v0.2.3"
-git push origin v0.2.3
+git tag -a v0.2.4 -m "lw.Web2Android v0.2.4"
+git push origin v0.2.4
 ```
 
 ## 架构
@@ -263,7 +274,7 @@ tools/        Runtime、工具链与发行打包脚本
 - 仅支持 Windows 10/11 x64 主机；
 - 当前输出 APK，不输出 AAB；
 - GUI 暂不支持自定义应用图标；
-- Runtime 暂未实现网页文件选择和下载管理；
+- 下载仅支持 HTTP/HTTPS；`blob:`/`data:` 下载暂不支持；
 - 不提供 Native Bridge。
 
 ## License

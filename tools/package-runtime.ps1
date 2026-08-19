@@ -12,7 +12,7 @@ if ([string]::IsNullOrWhiteSpace($RuntimeApk)) {
     $RuntimeApk = Join-Path $repoRoot 'runtime/app/build/outputs/apk/release/app-release-unsigned.apk'
 }
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
-    $OutputDirectory = Join-Path $repoRoot 'build/runtime-dist/runtime-v3'
+    $OutputDirectory = Join-Path $repoRoot 'build/runtime-dist/runtime-v4'
 }
 if (-not (Test-Path -LiteralPath $RuntimeApk -PathType Leaf)) {
     throw "Runtime APK was not found: $RuntimeApk"
@@ -101,7 +101,14 @@ foreach ($requiredLoggingMarker in @(
     'Time (UTC)',
     'Mixed Content Mode',
     'ALWAYS_ALLOW',
-    '<redacted>'
+    '<redacted>',
+    'External navigation requested',
+    'No installed application can handle external scheme',
+    'File chooser opened',
+    'Download queued',
+    'HTML5 video fullscreen entered',
+    'HTML5 video fullscreen exited',
+    'without a Native Bridge'
 )) {
     if (-not $runtimeDexText.Contains($requiredLoggingMarker)) {
         throw "Runtime DEX is missing required rotating-log marker: $requiredLoggingMarker"
@@ -116,6 +123,13 @@ $metadata = [ordered]@{
     minSdk = 23
     targetSdk = [int]$lock.platformApi
     androidXWebKitVersion = [string]$lock.androidXWebKitVersion
+    capabilities = [ordered]@{
+        externalNavigationFailureIsNonFatal = $true
+        fileChooser = 'system-content-uri-only'
+        downloadManager = 'http-https-app-external-files'
+        html5VideoFullscreen = $true
+        nativeBridge = $false
+    }
     logging = [ordered]@{
         maxFileSizeBytes = 2097152
         maxArchives = 5
@@ -129,7 +143,7 @@ $metadata = [ordered]@{
 }
 $metadata | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $outputPath 'metadata.json') -Encoding utf8
 
-$bundleZip = Join-Path $allowedOutputRoot 'runtime-v3.zip'
+$bundleZip = Join-Path $allowedOutputRoot 'runtime-v4.zip'
 if (Test-Path -LiteralPath $bundleZip) {
     Remove-Item -LiteralPath $bundleZip -Force
 }

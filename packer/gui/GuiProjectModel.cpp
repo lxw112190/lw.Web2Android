@@ -15,7 +15,7 @@ std::filesystem::path Normalize(const std::filesystem::path& path) {
 
 bool IsEnvironmentRoot(const std::filesystem::path& root) {
     if (!std::filesystem::is_regular_file(root / "toolchain.lock.json")) return false;
-    return std::filesystem::is_directory(root / "build" / "runtime-dist" / "runtime-v3") ||
+    return std::filesystem::is_directory(root / "build" / "runtime-dist" / "runtime-v4") ||
            std::filesystem::is_directory(root / "toolchain" / "runtime");
 }
 
@@ -36,7 +36,7 @@ GuiEnvironment GuiEnvironment::Discover(const std::filesystem::path& executable,
         environment.toolchainLock = candidate / "toolchain.lock.json";
         const auto packagedToolchain = candidate / "toolchain";
         if (IsMinimalToolchainDirectory(packagedToolchain)) environment.toolchainDirectory = packagedToolchain;
-        const auto developmentRuntime = candidate / "build" / "runtime-dist" / "runtime-v3";
+        const auto developmentRuntime = candidate / "build" / "runtime-dist" / "runtime-v4";
         const auto toolchainRuntime = candidate / "toolchain" / "runtime";
         if (std::filesystem::is_directory(developmentRuntime)) environment.runtimeDirectory = developmentRuntime;
         else environment.runtimeDirectory = toolchainRuntime;

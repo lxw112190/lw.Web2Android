@@ -12,6 +12,6 @@
   "allowHttp": false,
   "output": "../../build/samples/unicode-assets",
   "outputFile": "unicode-assets-1.0.0-android.apk",
-  "runtime": "../../build/runtime-dist/runtime-v3",
+  "runtime": "../../build/runtime-dist/runtime-v4",
   "toolchainLock": "../../toolchain.lock.json"
 }

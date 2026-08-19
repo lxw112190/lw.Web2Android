@@ -1,6 +1,7 @@
 package com.lw.web2android.runtime;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.os.Build;
@@ -20,6 +21,7 @@ import androidx.webkit.WebViewAssetLoader;
 public final class MainActivity extends Activity implements RuntimeWebViewClient.ErrorHandler {
     private WebView webView;
     private RuntimeConfig config;
+    private RuntimeWebChromeClient webChromeClient;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -92,7 +94,9 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
                 .build();
 
         webView.setWebViewClient(new RuntimeWebViewClient(this, config, assetLoader, this));
-        webView.setWebChromeClient(new RuntimeWebChromeClient());
+        webChromeClient = new RuntimeWebChromeClient(this);
+        webView.setWebChromeClient(webChromeClient);
+        webView.setDownloadListener(new RuntimeDownloadListener(this, config));
         setContentView(webView);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             android.content.pm.PackageInfo provider = WebView.getCurrentWebViewPackage();
@@ -124,7 +128,7 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
         }
     }
 
-    private void applyImmersiveFlags() {
+    void applyImmersiveFlags() {
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                         | View.SYSTEM_UI_FLAG_FULLSCREEN
@@ -137,9 +141,20 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        if (hasFocus && config != null && config.fullscreen) {
+        if (webChromeClient != null && webChromeClient.isCustomViewShowing()) {
+            webChromeClient.onWindowFocusChanged(hasFocus);
+        } else if (hasFocus && config != null && config.fullscreen) {
             applyImmersiveFlags();
         }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (webChromeClient != null &&
+                webChromeClient.handleActivityResult(requestCode, resultCode, data)) {
+            return;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     @Override
@@ -170,11 +185,26 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK && webView != null && webView.canGoBack()) {
+        if (keyCode == KeyEvent.KEYCODE_BACK && handleBackNavigation()) return true;
+        return super.onKeyDown(keyCode, event);
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onBackPressed() {
+        if (!handleBackNavigation()) super.onBackPressed();
+    }
+
+    private boolean handleBackNavigation() {
+        if (webChromeClient != null && webChromeClient.isCustomViewShowing()) {
+            webChromeClient.hideCustomView();
+            return true;
+        }
+        if (webView != null && webView.canGoBack()) {
             webView.goBack();
             return true;
         }
-        return super.onKeyDown(keyCode, event);
+        return false;
     }
 
     @Override
@@ -204,11 +234,14 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
     private void destroyWebView() {
         if (webView != null) {
             RuntimeLog.debug("Destroying Android WebView");
+            if (webChromeClient != null) webChromeClient.destroy();
+            webView.setDownloadListener(null);
             webView.stopLoading();
             webView.setWebChromeClient(null);
             webView.setWebViewClient(null);
             webView.destroy();
             webView = null;
+            webChromeClient = null;
         }
     }
 

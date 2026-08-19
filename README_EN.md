@@ -22,9 +22,12 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 - DPAPI-encrypted private keys and password-protected PFX/P12 backups;
 - machine-readable APK, certificate, Runtime, and toolchain metadata;
 - rotating logs for both the Windows Packer and Android Runtime;
+- standard `<input type="file">` system picker and Android `DownloadManager` support;
+- HTML5 video fullscreen with Back-button exit and orientation changes;
+- non-fatal external custom-scheme handling that preserves the current WebView;
 - GitHub Actions builds the Runtime, Packer, GUI, and a real React/Vite demo.
 
-Current version: `v0.2.3`<br>
+Current version: `v0.2.4`<br>
 Android: `minSdk 23`, `targetSdk 35`
 
 ## Download and first run
@@ -38,14 +41,14 @@ bin/lw.Web2Android.GUI.exe
 The public distribution contains:
 
 ```text
-lw-Web2Android-v0.2.3-windows-x64/
+lw-Web2Android-v0.2.4-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
 ├── toolchain/
 │   ├── jre/
 │   ├── runtime/
-│   └── runtime-v3.zip
+│   └── runtime-v4.zip
 ├── tools/
 ├── samples/wechat-article-formatter/
 ├── docs/
@@ -194,6 +197,14 @@ Android Runtime log:
 /sdcard/Android/data/<Package Name>/files/logs/device-info.log
 ```
 
+For a standard `<input type="file">`, the Runtime opens the Android system picker and returns only user-selected `content://` URIs to WebView without enabling filesystem access. HTTP/HTTPS downloads run through the system `DownloadManager` and are stored under:
+
+```text
+/sdcard/Android/data/<Package Name>/files/Download/
+```
+
+Downloads may reuse the current WebView session Cookie and User-Agent, but those values are never logged. `blob:`, `data:`, and `file:` downloads are not implemented through a Native Bridge or JavaScript injection; the Runtime logs a warning and displays a lightweight message instead.
+
 The Packer and toolchain initializer create `logs` under the current distribution directory. Initialization logging includes download URLs, SHA-256 verification, JRE selection, `sdkmanager` output, toolchain assembly, temporary-directory cleanup, and complete failure details. Every log file rotates at 2 MiB and retains up to five archives. Packer logs are UTF-8 with a BOM so Windows log viewers recognize Chinese application names correctly.
 
 `runtime.log` uses device-local time with a UTC offset, such as `2026-08-18 17:16:49.955 +08:00`, and records Activity lifecycle, navigation, HTTP/SSL failures, WebView renderer exits, WebResourceError, JavaScript Console output, and uncaught exceptions. At each start, `device-info.log` records local time, UTC, time zone, app, device, WebView provider, network transport, Allow HTTP, Mixed Content mode, and Runtime configuration. Common password, token, Authorization, and Cookie values are redacted. The logs do not collect IMEI, Android ID, MAC address, SSID, or the phone's own IP address; start URLs are recorded without query strings or fragments. Release build timestamps remain UTC.
@@ -217,8 +228,8 @@ The demo APK has passed validation on a physical Android device. The pinned sour
 Pushing a `v*` tag creates a GitHub Release only after the full workflow passes:
 
 ```bash
-git tag -a v0.2.3 -m "lw.Web2Android v0.2.3"
-git push origin v0.2.3
+git tag -a v0.2.4 -m "lw.Web2Android v0.2.4"
+git push origin v0.2.4
 ```
 
 ## Architecture
@@ -263,7 +274,7 @@ tools/        Runtime, toolchain, and release scripts
 - Windows 10/11 x64 hosts only;
 - APK output only; AAB is not supported yet;
 - custom application icons are not exposed in the GUI yet;
-- Web file selection and download management are not implemented yet;
+- downloads support HTTP/HTTPS only; `blob:` and `data:` downloads are not supported yet;
 - no native bridge.
 
 ## License

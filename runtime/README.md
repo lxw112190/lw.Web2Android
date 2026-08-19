@@ -18,6 +18,10 @@ Release 构建同时启用 R8 代码收缩与优化资源收缩。仅固定动�
 - 2 MiB × 5 的 Runtime 与设备信息独立轮转日志，并同步输出 Logcat；
 - 页面加载、HTTP/SSL、WebView renderer、JS Console 与未捕获异常诊断。
 - 每次启动记录应用、设备、WebView、网络传输类型和 Runtime 配置摘要。
+- 标准 `<input type="file">` 调用 Android 系统文件选择器，仅接受 `content://` 结果；
+- HTTP/HTTPS 下载交给 Android `DownloadManager`，保存在应用专属 `files/Download`；
+- HTML5 视频通过 `WebChromeClient` 进入全屏，支持返回键退出和方向恢复；
+- Custom Scheme 无可用处理程序时只记录 WARN 和 Toast，不销毁当前 WebView。
 
 Runtime 不调用 `addJavascriptInterface`，不提供 Native Bridge，也不引用应用动态生成的 `R` 类。
 
@@ -51,5 +55,5 @@ pwsh ./tools/package-runtime.ps1
 最终输出：
 
 ```text
-build/runtime-dist/runtime-v3.zip
+build/runtime-dist/runtime-v4.zip
 ```

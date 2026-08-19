@@ -17,10 +17,8 @@ void WriteTextFile(const std::filesystem::path& file, const std::string& content
 
 std::string ManifestGenerator::Generate(const ProjectConfig& config) {
     std::string permissions =
-        "    <uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\"/>\n";
-    if (config.mode == "remote" || config.allowHttp) {
-        permissions += "    <uses-permission android:name=\"android.permission.INTERNET\"/>\n";
-    }
+        "    <uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\"/>\n"
+        "    <uses-permission android:name=\"android.permission.INTERNET\"/>\n";
     permissions += "\n";
     std::string orientation;
     if (config.orientation != "auto") {
@@ -35,6 +33,7 @@ std::string ManifestGenerator::Generate(const ProjectConfig& config) {
            permissions +
            "    <application\n"
            "        android:allowBackup=\"false\"\n"
+           "        android:hardwareAccelerated=\"true\"\n"
            "        android:icon=\"@drawable/ic_launcher\"\n"
            "        android:label=\"@string/app_name\"\n"
            "        android:supportsRtl=\"true\"\n"
@@ -43,6 +42,7 @@ std::string ManifestGenerator::Generate(const ProjectConfig& config) {
            networkSecurityConfig + ">\n"
            "        <activity\n"
            "            android:name=\"com.lw.web2android.runtime.MainActivity\"\n"
+           "            android:configChanges=\"keyboardHidden|orientation|screenSize\"\n"
            "            android:exported=\"true\"" + orientation + ">\n"
            "            <intent-filter>\n"
            "                <action android:name=\"android.intent.action.MAIN\"/>\n"

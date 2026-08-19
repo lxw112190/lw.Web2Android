@@ -101,9 +101,15 @@ void TestProjectAndGenerators(const std::filesystem::path& root) {
     const auto manifest = lw::web2android::ManifestGenerator::Generate(config);
     Require(manifest.find("com.example.demo") != std::string::npos, "manifest package");
     Require(manifest.find("screenOrientation=\"portrait\"") != std::string::npos, "manifest orientation");
-    Require(manifest.find("INTERNET") == std::string::npos, "local manifest must not request INTERNET");
+    Require(manifest.find("INTERNET") != std::string::npos,
+            "local manifest must allow HTTPS downloads and Web requests");
     Require(manifest.find("ACCESS_NETWORK_STATE") != std::string::npos,
             "manifest must allow non-sensitive network diagnostics");
+    Require(manifest.find("hardwareAccelerated=\"true\"") != std::string::npos,
+            "manifest must enable hardware acceleration for HTML5 video");
+    Require(manifest.find("configChanges=\"keyboardHidden|orientation|screenSize\"") !=
+                    std::string::npos,
+            "manifest must keep the WebView alive across fullscreen video rotation");
     const auto runtime = lw::web2android::RuntimeConfigGenerator::Generate(config, "1");
     Require(runtime.find("\"fullscreen\": true") != std::string::npos, "runtime fullscreen config");
     Require(runtime.find("\"runtimeVersion\": \"1\"") != std::string::npos,
@@ -377,10 +383,10 @@ void TestReleaseMetadata() {
                                                     std::string(64, 'a'),
                                                     std::string(64, 'b'),
                                                     "1",
-                                                    "0.2.3-1",
+                                                    "0.2.4-1",
                                                     "2026-08-18T01:02:03Z"};
     const auto json = metadata.ToJson();
-    Require(json.find("\"toolchainVersion\": \"0.2.3-1\"") != std::string::npos,
+    Require(json.find("\"toolchainVersion\": \"0.2.4-1\"") != std::string::npos,
             "release JSON must record the toolchain version");
     Require(json.find("\"apkSha256\": \"" + std::string(64, 'a') + "\"") != std::string::npos,
             "release JSON must record the APK digest");

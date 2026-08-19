@@ -11,6 +11,7 @@ import android.webkit.SslErrorHandler;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
+import android.widget.Toast;
 
 import androidx.webkit.WebResourceErrorCompat;
 import androidx.webkit.WebViewAssetLoader;
@@ -109,9 +110,10 @@ final class RuntimeWebViewClient extends WebViewClientCompat {
     }
 
     private boolean handleNavigation(Uri uri) {
-        RuntimeLog.debug("Navigation requested: " + RuntimeLog.safeUrl(uri.toString()));
+        if (uri == null || uri.getScheme() == null || uri.getScheme().isEmpty()) return false;
         String scheme = uri.getScheme();
-        if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) {
+        if (NavigationPolicy.isWebScheme(scheme)) {
+            RuntimeLog.debug("Web navigation requested: " + RuntimeLog.safeUrl(uri.toString()));
             if (!config.allowsNavigation(uri)) {
                 RuntimeLog.warn("Blocked cleartext navigation: " + RuntimeLog.safeUrl(uri.toString()));
                 errorHandler.onMainFrameError("Blocked cleartext HTTP navigation. Enable allowHttp to continue.");
@@ -120,13 +122,35 @@ final class RuntimeWebViewClient extends WebViewClientCompat {
             return false;
         }
 
+        String summary = NavigationPolicy.externalLogSummary(
+                scheme, uri.getHost(), uri.getEncodedPath());
+        RuntimeLog.debug("External navigation requested: " + summary);
+        return openExternalUrl(uri, summary);
+    }
+
+    private boolean openExternalUrl(Uri uri, String summary) {
         try {
-            RuntimeLog.info("Opening external URL: " + RuntimeLog.safeUrl(uri.toString()));
             activity.startActivity(new Intent(Intent.ACTION_VIEW, uri));
-        } catch (ActivityNotFoundException | SecurityException error) {
-            RuntimeLog.error("Unable to open external URL", error);
-            errorHandler.onMainFrameError("No installed application can open this link.");
+            RuntimeLog.info("External URL opened: " + summary);
+        } catch (ActivityNotFoundException error) {
+            RuntimeLog.warn("No installed application can handle external scheme: " + summary);
+            showExternalLinkUnavailableMessage();
+        } catch (SecurityException error) {
+            RuntimeLog.warn("External URL was blocked by Android: " + summary
+                    + "; exception=" + error.getClass().getSimpleName());
+            showExternalLinkUnavailableMessage();
+        } catch (RuntimeException error) {
+            RuntimeLog.warn("Failed to open external URL: " + summary
+                    + "; exception=" + error.getClass().getSimpleName());
+            showExternalLinkUnavailableMessage();
         }
         return true;
+    }
+
+    private void showExternalLinkUnavailableMessage() {
+        activity.runOnUiThread(() -> Toast.makeText(
+                activity,
+                "未安装可打开此链接的应用",
+                Toast.LENGTH_SHORT).show());
     }
 }
