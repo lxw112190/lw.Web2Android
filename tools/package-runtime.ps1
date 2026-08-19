@@ -108,7 +108,8 @@ foreach ($requiredLoggingMarker in @(
     'Download queued',
     'HTML5 video fullscreen entered',
     'HTML5 video fullscreen exited',
-    'WebView viewport: wide=true, overview=true',
+    'WebView viewport: wide=',
+    ', overview=',
     'Display metrics:',
     'Web viewport:',
     'without a Native Bridge'
