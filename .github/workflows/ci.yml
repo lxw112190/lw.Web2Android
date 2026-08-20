@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 env:
-  PRODUCT_VERSION: '0.2.5'
-  PACKAGE_NAME: lw-Web2Android-v0.2.5-windows-x64
+  PRODUCT_VERSION: '0.2.6'
+  PACKAGE_NAME: lw-Web2Android-v0.2.6-windows-x64
   WECHAT_DEMO_REPOSITORY: lxw112190/wechat-article-formatter
   WECHAT_DEMO_REF: ad1afc5a2c31d7cb7dc458a69944d6cb7ee0cd88
 
@@ -129,7 +129,7 @@ jobs:
           ./tools/package-runtime.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           New-Item -ItemType Directory -Force -Path build/ci-runtime | Out-Null
-          Expand-Archive -LiteralPath build/runtime-dist/runtime-v5.zip -DestinationPath build/ci-runtime -Force
+          Expand-Archive -LiteralPath build/runtime-dist/runtime-v6.zip -DestinationPath build/ci-runtime -Force
 
       - name: Assemble and validate minimal end-user toolchain
         shell: pwsh
@@ -163,6 +163,7 @@ jobs:
               $runtimeMetadata.capabilities.downloadManager -ne 'http-https-app-external-files' -or
               -not $runtimeMetadata.capabilities.html5VideoFullscreen -or
               -not $runtimeMetadata.capabilities.legacyFixedWidthFitToWidth -or
+              $runtimeMetadata.capabilities.html5FullscreenOrientationPolicy -ne 'preserve-landscape-otherwise-sensor' -or
               $runtimeMetadata.capabilities.nativeBridge) {
             throw 'Runtime Web compatibility metadata is missing or invalid'
           }
@@ -264,6 +265,9 @@ jobs:
           & $packer build samples/legacy-fixed-width/project.json @common
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+          & $packer build samples/custom-icon/project.json @common
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
           $packerLog = 'build/packer/Release/logs/packer.log'
           $logBytes = [System.IO.File]::ReadAllBytes($packerLog)
           if ($logBytes.Length -lt 3 -or $logBytes[0] -ne 0xEF -or
@@ -331,6 +335,17 @@ jobs:
               apk = 'build/samples/legacy-fixed-width/legacy-fixed-width-1.0.0-android.apk'
               required = @('classes.dex', 'assets/lw-config.json', 'assets/www/index.html')
               forbidden = @()
+              expectHttp = $false
+            },
+            [pscustomobject]@{
+              apk = 'build/samples/custom-icon/custom-icon-1.0.0-android.apk'
+              required = @(
+                'classes.dex', 'assets/lw-config.json', 'assets/www/index.html',
+                'res/mipmap-mdpi/ic_launcher.png', 'res/mipmap-hdpi/ic_launcher.png',
+                'res/mipmap-xhdpi/ic_launcher.png', 'res/mipmap-xxhdpi/ic_launcher.png',
+                'res/mipmap-xxxhdpi/ic_launcher.png'
+              )
+              forbidden = @('res/drawable/ic_launcher.xml')
               expectHttp = $false
             }
           )
@@ -427,6 +442,7 @@ jobs:
             "$package/bin",
             "$package/toolchain/runtime",
             "$package/toolchain/jre",
+            "$package/assets",
             "$package/tools",
             "$package/samples/wechat-article-formatter",
             "$package/docs/assets",
@@ -436,7 +452,7 @@ jobs:
 
           Copy-Item build/packer/Release/lw.Web2Android.exe "$package/bin/"
           Copy-Item build/packer/Release/lw.Web2Android.GUI.exe "$package/bin/"
-          Copy-Item build/runtime-dist/runtime-v5.zip "$package/toolchain/"
+          Copy-Item build/runtime-dist/runtime-v6.zip "$package/toolchain/"
           Copy-Item build/ci-runtime/* "$package/toolchain/runtime/" -Recurse
           Copy-Item build/ci-jre/* "$package/toolchain/jre/" -Recurse
           Copy-Item toolchain.lock.json "$package/"
@@ -446,6 +462,7 @@ jobs:
           Copy-Item README_EN.md "$package/docs/README_EN.md"
           Copy-Item packer/README.md "$package/docs/PACKER.md"
           Copy-Item assets/sponsor.jpg "$package/docs/assets/"
+          Copy-Item assets/default-app-icon.png "$package/assets/"
           Copy-Item LICENSE,THIRD-PARTY-NOTICES.md "$package/"
           Copy-Item third_party/licenses/spdlog-LICENSE.txt "$package/third_party/licenses/"
           ./tools/write-distribution-metadata.ps1 -PackageDirectory $package -Version $env:PRODUCT_VERSION -Commit $env:GITHUB_SHA

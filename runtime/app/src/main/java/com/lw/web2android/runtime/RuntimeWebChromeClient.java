@@ -34,7 +34,7 @@ final class RuntimeWebChromeClient extends WebChromeClient {
 
     @Override
     public void onShowCustomView(View view, CustomViewCallback callback) {
-        showCustomView(view, ActivityInfo.SCREEN_ORIENTATION_SENSOR, callback);
+        showCustomView(view, FullscreenOrientationPolicy.resolve(activity.getRequestedOrientation()), callback);
     }
 
     @Override
@@ -43,7 +43,9 @@ final class RuntimeWebChromeClient extends WebChromeClient {
             View view,
             int requestedOrientation,
             CustomViewCallback callback) {
-        showCustomView(view, requestedOrientation, callback);
+        RuntimeLog.debug("HTML5 fullscreen requested orientation hint="
+                + FullscreenOrientationPolicy.requestedOrientationName(requestedOrientation));
+        showCustomView(view, FullscreenOrientationPolicy.resolve(activity.getRequestedOrientation()), callback);
     }
 
     private void showCustomView(
@@ -82,12 +84,13 @@ final class RuntimeWebChromeClient extends WebChromeClient {
                     new ViewGroup.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT));
-            activity.setRequestedOrientation(
-                    requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-                            ? ActivityInfo.SCREEN_ORIENTATION_SENSOR
-                            : requestedOrientation);
+            activity.setRequestedOrientation(requestedOrientation);
             activity.applyImmersiveFlags();
-            RuntimeLog.info("HTML5 video fullscreen entered");
+            RuntimeLog.info("HTML5 fullscreen entered; originalOrientation="
+                    + FullscreenOrientationPolicy.requestedOrientationName(originalOrientation)
+                    + ", fullscreenOrientation="
+                    + FullscreenOrientationPolicy.requestedOrientationName(requestedOrientation)
+                    + ", displayOrientation=" + activity.currentDisplayOrientationName());
         } catch (RuntimeException error) {
             RuntimeLog.warn("Unable to enter HTML5 video fullscreen; exception="
                     + error.getClass().getSimpleName());
@@ -111,7 +114,8 @@ final class RuntimeWebChromeClient extends WebChromeClient {
         removeCustomViewFromParent();
         restoreCustomViewState();
         notifyCustomViewHidden();
-        RuntimeLog.info("HTML5 video fullscreen exited");
+        RuntimeLog.info("HTML5 fullscreen exited; restoredOrientation="
+                + FullscreenOrientationPolicy.requestedOrientationName(originalOrientation));
     }
 
     void onWindowFocusChanged(boolean hasFocus) {

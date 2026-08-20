@@ -26,6 +26,8 @@ Release 构建同时启用 R8 代码收缩与优化资源收缩。仅固定动�
 
 Runtime 启动日志会记录最终生效的 `WebView viewport: wide=true, overview=true`、屏幕像素/密度和 WebView Provider；每次页面完成后以 DEBUG 记录 `innerWidth`、`innerHeight`、`scrollWidth`、`scrollHeight`、`screenWidth`、`screenHeight` 与 `devicePixelRatio`，用于区分 fit-to-width 缩放和真正的响应式重排。
 
+HTML5 全屏方向策略为：Landscape 应用使用 `sensorLandscape`，Portrait/Auto 应用使用 `sensor`，退出全屏后恢复进入前的 requested orientation；方向变化会写入 DEBUG 日志。
+
 Runtime 不调用 `addJavascriptInterface`，不提供 Native Bridge，也不引用应用动态生成的 `R` 类。
 
 ## 真机日志
@@ -58,5 +60,5 @@ pwsh ./tools/package-runtime.ps1
 最终输出：
 
 ```text
-build/runtime-dist/runtime-v5.zip
+build/runtime-dist/runtime-v6.zip
 ```

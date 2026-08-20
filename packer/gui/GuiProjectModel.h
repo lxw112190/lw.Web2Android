@@ -12,6 +12,7 @@ struct GuiEnvironment {
     std::filesystem::path toolchainLock;
     std::filesystem::path toolchainDirectory;
     std::filesystem::path runtimeDirectory;
+    std::filesystem::path defaultIcon;
 
     static GuiEnvironment Discover(const std::filesystem::path& executable,
                                    const std::filesystem::path& currentDirectory);
@@ -23,6 +24,7 @@ struct GuiProjectInput {
     std::string remoteUrl;
     std::string name;
     std::string packageName;
+    std::filesystem::path icon;
     std::string versionName = "1.0.0";
     int versionCode = 1;
     std::string orientation = "auto";

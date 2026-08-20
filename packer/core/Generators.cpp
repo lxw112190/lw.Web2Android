@@ -1,5 +1,6 @@
 #include "core/Generators.h"
 
+#include "core/IconGenerator.h"
 #include "core/Json.h"
 
 #include <fstream>
@@ -34,7 +35,7 @@ std::string ManifestGenerator::Generate(const ProjectConfig& config) {
            "    <application\n"
            "        android:allowBackup=\"false\"\n"
            "        android:hardwareAccelerated=\"true\"\n"
-           "        android:icon=\"@drawable/ic_launcher\"\n"
+           "        android:icon=\"@mipmap/ic_launcher\"\n"
            "        android:label=\"@string/app_name\"\n"
            "        android:supportsRtl=\"true\"\n"
            "        android:theme=\"@android:style/Theme.Material.Light.NoActionBar\"\n"
@@ -70,22 +71,29 @@ std::string RuntimeConfigGenerator::Generate(const ProjectConfig& config, const 
            "}\n";
 }
 
-void ResourceGenerator::Generate(const ProjectConfig& config, const std::filesystem::path& resourceDirectory) {
+void ResourceGenerator::Generate(const ProjectConfig& config,
+                                 const std::filesystem::path& resourceDirectory,
+                                 const std::filesystem::path& defaultIcon) {
     WriteTextFile(resourceDirectory / "values" / "strings.xml",
                   "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
                   "<resources>\n"
                   "    <string name=\"app_name\">" + EscapeXml(config.name) + "</string>\n"
                   "</resources>\n");
-    WriteTextFile(resourceDirectory / "drawable" / "ic_launcher.xml",
-                  "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
-                  "<vector xmlns:android=\"http://schemas.android.com/apk/res/android\"\n"
-                  "    android:width=\"108dp\"\n"
-                  "    android:height=\"108dp\"\n"
-                  "    android:viewportWidth=\"108\"\n"
-                  "    android:viewportHeight=\"108\">\n"
-                  "    <path android:fillColor=\"#1565C0\" android:pathData=\"M0,0h108v108h-108z\"/>\n"
-                  "    <path android:fillColor=\"#FFFFFF\" android:pathData=\"M24,31h60v10h-60zM24,49h60v10h-60zM24,67h42v10h-42z\"/>\n"
-                  "</vector>\n");
+    const auto icon = config.icon.empty() ? defaultIcon : config.icon;
+    if (!icon.empty() && std::filesystem::is_regular_file(icon)) {
+        IconGenerator::Generate(icon, resourceDirectory);
+    } else {
+        WriteTextFile(resourceDirectory / "mipmap-anydpi" / "ic_launcher.xml",
+                      "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                      "<vector xmlns:android=\"http://schemas.android.com/apk/res/android\"\n"
+                      "    android:width=\"108dp\"\n"
+                      "    android:height=\"108dp\"\n"
+                      "    android:viewportWidth=\"108\"\n"
+                      "    android:viewportHeight=\"108\">\n"
+                      "    <path android:fillColor=\"#1565C0\" android:pathData=\"M0,0h108v108h-108z\"/>\n"
+                      "    <path android:fillColor=\"#FFFFFF\" android:pathData=\"M24,31h60v10h-60zM24,49h60v10h-60zM24,67h42v10h-42z\"/>\n"
+                      "</vector>\n");
+    }
     if (config.allowHttp) {
         WriteTextFile(resourceDirectory / "xml" / "network_security_config.xml",
                       "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"

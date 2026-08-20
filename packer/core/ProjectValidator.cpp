@@ -1,5 +1,7 @@
 #include "core/ProjectValidator.h"
 
+#include "core/IconGenerator.h"
+
 #include <algorithm>
 #include <cctype>
 #include <stdexcept>
@@ -60,6 +62,14 @@ void ProjectValidator::Validate(const ProjectConfig& config) {
             "orientation must be auto, portrait, or landscape");
     Require(std::filesystem::exists(config.toolchainLock) && std::filesystem::is_regular_file(config.toolchainLock),
             "toolchainLock does not exist: " + config.toolchainLock.u8string());
+    if (!config.icon.empty()) {
+        auto extension = config.icon.extension().u8string();
+        std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char value) {
+            return static_cast<char>(std::tolower(value));
+        });
+        Require(extension == ".png", "icon file must use the .png extension");
+        IconGenerator::Inspect(config.icon);
+    }
 
     if (!config.outputFile.empty()) {
         const auto outputName = std::filesystem::u8path(config.outputFile);

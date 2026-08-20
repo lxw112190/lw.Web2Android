@@ -195,7 +195,7 @@ try {
     }
 
     $packagedRuntime = Join-Path $repoRoot 'toolchain/runtime'
-    $developmentRuntime = Join-Path $repoRoot 'build/runtime-dist/runtime-v5'
+    $developmentRuntime = Join-Path $repoRoot 'build/runtime-dist/runtime-v6'
     if (Test-Path -LiteralPath (Join-Path $packagedRuntime 'classes.dex')) {
         $runtimeDirectory = Join-Path $working 'runtime'
         Copy-Item -LiteralPath $packagedRuntime -Destination $runtimeDirectory -Recurse

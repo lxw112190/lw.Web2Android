@@ -91,6 +91,17 @@ SecretText ReadPassword(const wchar_t* prompt) {
 #endif
 }
 
+std::filesystem::path FindDefaultIcon(const std::filesystem::path& executable) {
+    const auto directory = std::filesystem::absolute(executable).parent_path();
+    for (const auto& candidate : {directory / "assets/default-app-icon.png",
+                                  directory.parent_path() / "assets/default-app-icon.png",
+                                  directory.parent_path().parent_path() / "assets/default-app-icon.png",
+                                  std::filesystem::current_path() / "assets/default-app-icon.png"}) {
+        if (std::filesystem::is_regular_file(candidate)) return candidate;
+    }
+    return {};
+}
+
 int RunSigningCommand(int argc, wchar_t* argv[]) {
     if (argc < 4) {
         PrintUsage();
@@ -162,6 +173,7 @@ int wmain(int argc, wchar_t* argv[]) {
         }
 
         lw::web2android::BuildOptions options;
+        options.defaultIcon = FindDefaultIcon(std::filesystem::path(argv[0]));
         for (int index = 3; index < argc; ++index) {
             const std::wstring option = argv[index];
             if (option == L"--android-sdk" || option == L"--java-home" || option == L"--runtime" ||

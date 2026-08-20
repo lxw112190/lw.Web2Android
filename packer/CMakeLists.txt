@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(lw_Web2Android VERSION 0.2.5 LANGUAGES CXX)
+project(lw_Web2Android VERSION 0.2.6 LANGUAGES CXX)
 
 if(WIN32)
     function(lw_add_version_resource target file_description internal_name original_filename)
@@ -46,6 +46,7 @@ add_library(lw_packer_core
     core/BuildPipeline.cpp
     core/Generators.cpp
     core/Hash.cpp
+    core/IconGenerator.cpp
     core/Json.cpp
     core/Logging.cpp
     core/ProcessRunner.cpp
@@ -62,7 +63,7 @@ target_compile_definitions(lw_packer_core PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN U
 target_link_libraries(lw_packer_core PRIVATE spdlog::spdlog)
 
 if(WIN32)
-    target_link_libraries(lw_packer_core PRIVATE bcrypt crypt32 ncrypt)
+    target_link_libraries(lw_packer_core PRIVATE bcrypt crypt32 ncrypt ole32 windowscodecs)
 endif()
 
 if(MSVC)

@@ -19,7 +19,9 @@ public:
 
 class ResourceGenerator {
 public:
-    static void Generate(const ProjectConfig& config, const std::filesystem::path& resourceDirectory);
+    static void Generate(const ProjectConfig& config,
+                         const std::filesystem::path& resourceDirectory,
+                         const std::filesystem::path& defaultIcon = {});
 };
 
 class WebAssetManager {

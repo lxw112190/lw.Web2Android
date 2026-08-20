@@ -12,6 +12,7 @@ struct BuildOptions {
     std::filesystem::path androidSdk;
     std::filesystem::path javaHome;
     std::filesystem::path runtimeDirectory;
+    std::filesystem::path defaultIcon;
     std::filesystem::path keysDirectory;
     bool keepWorkingDirectory = false;
     std::function<void(int step, int total, const std::string& name)> progress;

@@ -42,6 +42,8 @@ enum ControlId {
     kBrowseSource,
     kName,
     kPackage,
+    kIcon,
+    kBrowseIcon,
     kVersionName,
     kVersionCode,
     kOrientation,
@@ -86,7 +88,7 @@ struct BuildCompletion {
     std::wstring error;
 };
 
-constexpr RECT kStatusRect{48, 848, 712, 876};
+constexpr RECT kStatusRect{48, 900, 712, 928};
 constexpr UINT kBuildProgressMessage = WM_APP + 1;
 constexpr UINT kBuildFinishedMessage = WM_APP + 2;
 constexpr UINT kToolchainFinishedMessage = WM_APP + 3;
@@ -191,6 +193,30 @@ std::filesystem::path PickFolder(HWND owner, const wchar_t* title) {
     dialog->GetOptions(&options);
     dialog->SetOptions(options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM);
     dialog->SetTitle(title);
+    std::filesystem::path result;
+    if (SUCCEEDED(dialog->Show(owner))) {
+        IShellItem* item = nullptr;
+        if (SUCCEEDED(dialog->GetResult(&item))) {
+            PWSTR path = nullptr;
+            if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &path))) {
+                result = path;
+                CoTaskMemFree(path);
+            }
+            item->Release();
+        }
+    }
+    dialog->Release();
+    return result;
+}
+
+std::filesystem::path PickPngFile(HWND owner) {
+    IFileOpenDialog* dialog = nullptr;
+    if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER,
+                                IID_PPV_ARGS(&dialog)))) return {};
+    dialog->SetOptions(FOS_FORCEFILESYSTEM);
+    COMDLG_FILTERSPEC filters[] = {{L"PNG 图像 (*.png)", L"*.png"}};
+    dialog->SetFileTypes(1, filters);
+    dialog->SetTitle(L"选择应用图标 PNG");
     std::filesystem::path result;
     if (SUCCEEDED(dialog->Show(owner))) {
         IShellItem* item = nullptr;
@@ -321,6 +347,8 @@ void StartBuild(HWND window) {
         else input.sourceDirectory = std::filesystem::path(Text(window, kSource));
         input.name = WideToUtf8(Text(window, kName));
         input.packageName = WideToUtf8(Text(window, kPackage));
+        const auto iconText = Text(window, kIcon);
+        if (!iconText.empty()) input.icon = std::filesystem::path(iconText);
         input.versionName = WideToUtf8(Text(window, kVersionName));
         const auto versionCodeText = Text(window, kVersionCode);
         std::size_t consumed = 0;
@@ -335,6 +363,7 @@ void StartBuild(HWND window) {
         PackerLogger().Info("GUI build requested for package " + config.packageName);
         BuildOptions options;
         options.runtimeDirectory = state->environment.runtimeDirectory;
+        options.defaultIcon = state->environment.defaultIcon;
         if (!state->environment.toolchainDirectory.empty()) {
             options.androidSdk = state->environment.toolchainDirectory;
         }
@@ -456,28 +485,32 @@ void BuildInterface(State& state) {
     AddLabel(state, L"Package Name", 48, 461, 160, 22, 0, FontRole::Small);
     AddEdit(state, L"com.example.myapp", 48, 485, 664, kPackage, L"例如：com.company.app");
 
-    AddLabel(state, L"Version Name", 48, 533, 150, 22, 0, FontRole::Small);
-    AddEdit(state, L"1.0.0", 48, 557, 170, kVersionName);
-    AddLabel(state, L"Version Code", 242, 533, 150, 22, 0, FontRole::Small);
-    AddEdit(state, L"1", 242, 557, 110, kVersionCode, nullptr, ES_NUMBER);
-    AddLabel(state, L"屏幕方向", 376, 533, 120, 22, 0, FontRole::Small);
-    const auto orientation = AddCombo(state, 376, 557, 170, kOrientation);
+    AddLabel(state, L"应用图标", 48, 533, 120, 22, 0, FontRole::Small);
+    AddEdit(state, L"", 48, 557, 548, kIcon, L"可选：正方形 PNG，建议 512×512");
+    AddButton(state, L"选择图标", 610, 557, 102, 34, kBrowseIcon);
+
+    AddLabel(state, L"Version Name", 48, 589, 150, 22, 0, FontRole::Small);
+    AddEdit(state, L"1.0.0", 48, 613, 170, kVersionName);
+    AddLabel(state, L"Version Code", 242, 589, 150, 22, 0, FontRole::Small);
+    AddEdit(state, L"1", 242, 613, 110, kVersionCode, nullptr, ES_NUMBER);
+    AddLabel(state, L"屏幕方向", 376, 589, 120, 22, 0, FontRole::Small);
+    const auto orientation = AddCombo(state, 376, 613, 170, kOrientation);
     SendMessageW(orientation, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"自动"));
     SendMessageW(orientation, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"竖屏"));
     SendMessageW(orientation, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"横屏"));
     SendMessageW(orientation, CB_SETCURSEL, 0, 0);
     AddControl(state, L"BUTTON", L"全屏显示", WS_TABSTOP | BS_AUTOCHECKBOX,
-               584, 561, 120, 26, kFullscreen);
+               584, 617, 120, 26, kFullscreen);
 
-    AddLabel(state, L"输出目录", 48, 617, 120, 22, 0, FontRole::Small);
-    AddEdit(state, L"", 48, 641, 548, kOutput, L"APK、校验和与发行元数据的输出目录");
-    AddButton(state, L"选择位置", 610, 641, 102, 34, kBrowseOutput);
+    AddLabel(state, L"输出目录", 48, 673, 120, 22, 0, FontRole::Small);
+    AddEdit(state, L"", 48, 697, 548, kOutput, L"APK、校验和与发行元数据的输出目录");
+    AddButton(state, L"选择位置", 610, 697, 102, 34, kBrowseOutput);
     AddLabel(state, L"签名：按 Package Name 自动创建或复用独立身份，可在 CLI 中导出 PFX 备份",
-             48, 694, 650, 24, 0, FontRole::Small);
-    AddLabel(state, L"", 48, 722, 470, 24, kToolchainStatus, FontRole::Small);
-    AddButton(state, L"初始化工具链", 560, 714, 152, 34, kInstallToolchain);
+             48, 750, 650, 24, 0, FontRole::Small);
+    AddLabel(state, L"", 48, 778, 470, 24, kToolchainStatus, FontRole::Small);
+    AddButton(state, L"初始化工具链", 560, 770, 152, 34, kInstallToolchain);
 
-    AddButton(state, L"生成 Android APK", 48, 775, 664, 48, kBuild);
+    AddButton(state, L"生成 Android APK", 48, 831, 664, 48, kBuild);
 
     const auto output = std::filesystem::current_path() / "output";
     SetWindowTextW(GetDlgItem(state.window, kOutput), output.c_str());
@@ -585,6 +618,11 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
                     if (!path.empty()) SetWindowTextW(GetDlgItem(window, kSource), path.c_str());
                     return 0;
                 }
+                case kBrowseIcon: {
+                    const auto path = PickPngFile(window);
+                    if (!path.empty()) SetWindowTextW(GetDlgItem(window, kIcon), path.c_str());
+                    return 0;
+                }
                 case kBrowseOutput: {
                     const auto path = PickFolder(window, L"选择 APK 输出目录");
                     if (!path.empty()) SetWindowTextW(GetDlgItem(window, kOutput), path.c_str());
@@ -635,7 +673,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
             DeleteObject(headerBrush);
             const auto dpi = state ? state->dpi : 96;
             DrawRoundedPanel(dc, ScaleRect(RECT{28, 109, 732, 305}, dpi), kCard, kBorder, Scale(18, dpi));
-            DrawRoundedPanel(dc, ScaleRect(RECT{28, 320, 732, 758}, dpi), kCard, kBorder, Scale(18, dpi));
+            DrawRoundedPanel(dc, ScaleRect(RECT{28, 320, 732, 814}, dpi), kCard, kBorder, Scale(18, dpi));
             if (state) {
                 const auto statusRect = ScaleRect(kStatusRect, state->dpi);
                 FillRect(dc, &statusRect, state->backgroundBrush);
@@ -683,7 +721,7 @@ int RunGui(HINSTANCE instance) {
     if (!RegisterClassExW(&windowClass)) throw std::runtime_error("Unable to register the GUI window");
     const DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
     const auto dpi = GetDpiForSystem();
-    RECT bounds{0, 0, Scale(760, dpi), Scale(895, dpi)};
+    RECT bounds{0, 0, Scale(760, dpi), Scale(950, dpi)};
     AdjustWindowRectExForDpi(&bounds, style, FALSE, WS_EX_CONTROLPARENT, dpi);
     const auto window = CreateWindowExW(
         WS_EX_CONTROLPARENT, kClassName, L"lw.Web2Android · 网页转 Android APK",

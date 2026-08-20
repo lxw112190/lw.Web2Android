@@ -18,6 +18,7 @@ struct ProjectConfig {
     bool fullscreen = false;
     std::string orientation = "auto";
     bool allowHttp = false;
+    std::filesystem::path icon;
     std::filesystem::path outputDirectory;
     std::string outputFile;
     std::filesystem::path toolchainLock;

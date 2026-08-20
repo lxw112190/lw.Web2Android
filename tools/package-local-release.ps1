@@ -9,7 +9,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $build = (Resolve-Path -LiteralPath (Join-Path $repoRoot $BuildDirectory)).Path
 if ([string]::IsNullOrWhiteSpace($ToolchainDirectory)) { $ToolchainDirectory = Join-Path $repoRoot 'toolchain' }
 $toolchain = (Resolve-Path -LiteralPath $ToolchainDirectory).Path
-$version = '0.2.5'
+$version = '0.2.6'
 $packageName = "lw-Web2Android-v$version-windows-x64-complete-private"
 $releaseRoot = Join-Path $repoRoot 'build/releases'
 $package = Join-Path $releaseRoot $packageName
@@ -35,6 +35,8 @@ Copy-Item -LiteralPath (Join-Path $repoRoot 'README.md') -Destination "$package/
 Copy-Item -LiteralPath (Join-Path $repoRoot 'README_EN.md') -Destination "$package/docs/README_EN.md"
 Copy-Item -LiteralPath (Join-Path $repoRoot 'packer/README.md') -Destination "$package/docs/PACKER.md"
 Copy-Item -LiteralPath (Join-Path $repoRoot 'assets/sponsor.jpg') -Destination "$package/docs/assets"
+New-Item -ItemType Directory -Force -Path "$package/assets" | Out-Null
+Copy-Item -LiteralPath (Join-Path $repoRoot 'assets/default-app-icon.png') -Destination "$package/assets"
 Copy-Item -LiteralPath (Join-Path $repoRoot 'LICENSE'),(Join-Path $repoRoot 'THIRD-PARTY-NOTICES.md'),(Join-Path $repoRoot 'toolchain.lock.json') -Destination $package
 Copy-Item -LiteralPath (Join-Path $repoRoot 'third_party/licenses/spdlog-LICENSE.txt') -Destination "$package/third_party/licenses"
 

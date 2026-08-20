@@ -15,7 +15,7 @@ std::filesystem::path Normalize(const std::filesystem::path& path) {
 
 bool IsEnvironmentRoot(const std::filesystem::path& root) {
     if (!std::filesystem::is_regular_file(root / "toolchain.lock.json")) return false;
-    return std::filesystem::is_directory(root / "build" / "runtime-dist" / "runtime-v5") ||
+    return std::filesystem::is_directory(root / "build" / "runtime-dist" / "runtime-v6") ||
            std::filesystem::is_directory(root / "toolchain" / "runtime");
 }
 
@@ -34,9 +34,10 @@ GuiEnvironment GuiEnvironment::Discover(const std::filesystem::path& executable,
         GuiEnvironment environment;
         environment.applicationRoot = candidate;
         environment.toolchainLock = candidate / "toolchain.lock.json";
+        environment.defaultIcon = candidate / "assets" / "default-app-icon.png";
         const auto packagedToolchain = candidate / "toolchain";
         if (IsMinimalToolchainDirectory(packagedToolchain)) environment.toolchainDirectory = packagedToolchain;
-        const auto developmentRuntime = candidate / "build" / "runtime-dist" / "runtime-v5";
+        const auto developmentRuntime = candidate / "build" / "runtime-dist" / "runtime-v6";
         const auto toolchainRuntime = candidate / "toolchain" / "runtime";
         if (std::filesystem::is_directory(developmentRuntime)) environment.runtimeDirectory = developmentRuntime;
         else environment.runtimeDirectory = toolchainRuntime;
@@ -56,6 +57,7 @@ ProjectConfig CreateProjectConfig(const GuiProjectInput& input, const GuiEnviron
     config.mode = input.remote ? "remote" : "local";
     config.name = input.name;
     config.packageName = input.packageName;
+    if (!input.icon.empty()) config.icon = Normalize(input.icon);
     config.versionName = input.versionName;
     config.versionCode = input.versionCode;
     config.entry = "index.html";

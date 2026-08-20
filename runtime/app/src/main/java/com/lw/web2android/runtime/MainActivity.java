@@ -3,6 +3,7 @@ package com.lw.web2android.runtime;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
@@ -78,8 +79,7 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
         // Keep fixed-width legacy pages visible on mobile without reflowing their layout.
-        settings.setUseWideViewPort(true);
-        settings.setLoadWithOverviewMode(true);
+        RuntimeWebViewPolicy.apply(settings);
         RuntimeLog.info("WebView viewport: wide=" + settings.getUseWideViewPort()
                 + ", overview=" + settings.getLoadWithOverviewMode());
         settings.setAllowFileAccess(false);
@@ -177,6 +177,23 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
                         | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                         | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                         | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+    }
+
+    String currentDisplayOrientationName() {
+        switch (getResources().getConfiguration().orientation) {
+            case Configuration.ORIENTATION_LANDSCAPE: return "landscape";
+            case Configuration.ORIENTATION_PORTRAIT: return "portrait";
+            default: return "undefined";
+        }
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        boolean html5Fullscreen = webChromeClient != null && webChromeClient.isCustomViewShowing();
+        RuntimeLog.debug("Configuration changed; orientation=" + currentDisplayOrientationName()
+                + ", html5Fullscreen=" + html5Fullscreen);
+        if (html5Fullscreen) applyImmersiveFlags();
     }
 
     @Override

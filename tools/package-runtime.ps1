@@ -12,7 +12,7 @@ if ([string]::IsNullOrWhiteSpace($RuntimeApk)) {
     $RuntimeApk = Join-Path $repoRoot 'runtime/app/build/outputs/apk/release/app-release-unsigned.apk'
 }
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
-    $OutputDirectory = Join-Path $repoRoot 'build/runtime-dist/runtime-v5'
+    $OutputDirectory = Join-Path $repoRoot 'build/runtime-dist/runtime-v6'
 }
 if (-not (Test-Path -LiteralPath $RuntimeApk -PathType Leaf)) {
     throw "Runtime APK was not found: $RuntimeApk"
@@ -106,8 +106,9 @@ foreach ($requiredLoggingMarker in @(
     'No installed application can handle external scheme',
     'File chooser opened',
     'Download queued',
-    'HTML5 video fullscreen entered',
-    'HTML5 video fullscreen exited',
+    'HTML5 fullscreen entered',
+    'HTML5 fullscreen exited',
+    'Configuration changed; orientation=',
     'WebView viewport: wide=',
     ', overview=',
     'Display metrics:',
@@ -133,6 +134,7 @@ $metadata = [ordered]@{
         downloadManager = 'http-https-app-external-files'
         html5VideoFullscreen = $true
         legacyFixedWidthFitToWidth = $true
+        html5FullscreenOrientationPolicy = 'preserve-landscape-otherwise-sensor'
         nativeBridge = $false
     }
     logging = [ordered]@{
@@ -148,7 +150,7 @@ $metadata = [ordered]@{
 }
 $metadata | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $outputPath 'metadata.json') -Encoding utf8
 
-$bundleZip = Join-Path $allowedOutputRoot 'runtime-v5.zip'
+$bundleZip = Join-Path $allowedOutputRoot 'runtime-v6.zip'
 if (Test-Path -LiteralPath $bundleZip) {
     Remove-Item -LiteralPath $bundleZip -Force
 }

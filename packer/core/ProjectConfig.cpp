@@ -58,6 +58,7 @@ ProjectConfig ProjectConfig::Load(const std::filesystem::path& file) {
     config.outputFile = json.OptionalString("outputFile", "");
 
     const auto base = absoluteFile.parent_path();
+    if (json.Contains("icon")) config.icon = Resolve(base, json.RequiredString("icon"));
     if (json.Contains("source")) config.source = Resolve(base, json.RequiredString("source"));
     config.outputDirectory = Resolve(base, json.OptionalString("output", "output"));
     config.toolchainLock = Resolve(base, json.OptionalString("toolchainLock", "toolchain.lock.json"));

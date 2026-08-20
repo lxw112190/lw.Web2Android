@@ -25,10 +25,11 @@
 - 标准 `<input type="file">` 系统文件选择器和 Android `DownloadManager`；
 - HTML5 视频全屏播放，支持返回键退出与横竖屏切换；
 - 对没有移动端 viewport 的固定宽度老式网页启用 Wide Viewport 与 Overview Mode，采用 fit-to-width 整体缩放，不重新排版；
+- CLI/project.json 支持正方形 PNG 应用图标，自动生成五档 Android Launcher mipmap 资源；GUI 未指定时使用内置默认图标；
 - Custom Scheme 外部应用跳转失败时保留当前 WebView；
 - GitHub Actions 自动构建 Runtime、Packer、GUI 和真实 React/Vite Demo。
 
-当前版本：`v0.2.5`<br>
+当前版本：`v0.2.6`<br>
 Android：`minSdk 23`，`targetSdk 35`
 
 ## 下载与首次使用
@@ -42,14 +43,15 @@ bin/lw.Web2Android.GUI.exe
 公开发行包包含：
 
 ```text
-lw-Web2Android-v0.2.5-windows-x64/
+lw-Web2Android-v0.2.6-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
 ├── toolchain/
 │   ├── jre/
 │   ├── runtime/
-│   └── runtime-v5.zip
+│   └── runtime-v6.zip
+├── assets/default-app-icon.png
 ├── tools/
 ├── samples/wechat-article-formatter/
 ├── docs/
@@ -84,8 +86,9 @@ toolchain/
 1. 选择“本地网页”或“在线网址”。
 2. 本地模式选择包含 `index.html` 的构建输出目录，例如 Vite 的 `dist`。
 3. 填写应用名称、Package Name、Version Name 和 Version Code。
-4. 选择屏幕方向、全屏选项和输出目录。
-5. 点击“生成 Android APK”。
+4. 可选：选择正方形 PNG 应用图标；不选择时使用内置默认图标。
+5. 选择屏幕方向、全屏选项和输出目录。
+6. 点击“生成 Android APK”。
 
 本地 Web 资源必须使用相对 URL。Vite 项目推荐配置：
 
@@ -119,6 +122,7 @@ npm run build -- --base=./
   "versionCode": 1,
   "source": "dist",
   "entry": "index.html",
+  "icon": "branding/icon.png",
   "fullscreen": false,
   "orientation": "auto",
   "allowHttp": false,
@@ -231,8 +235,8 @@ Runtime 还会记录最终生效的 WebView 视口策略、屏幕像素/密度�
 推送 `v*` 标签时，完整 CI 成功后会自动创建 GitHub Release：
 
 ```bash
-git tag -a v0.2.5 -m "lw.Web2Android v0.2.5"
-git push origin v0.2.5
+git tag -a v0.2.6 -m "lw.Web2Android v0.2.6"
+git push origin v0.2.6
 ```
 
 ## 架构
@@ -276,7 +280,7 @@ tools/        Runtime、工具链与发行打包脚本
 
 - 仅支持 Windows 10/11 x64 主机；
 - 当前输出 APK，不输出 AAB；
-- GUI 暂不支持自定义应用图标；
+- 自定义 Launcher Icon 当前只接受 192×192 至 4096×4096 的正方形 PNG，不提供 Adaptive Icon 前景/背景编辑；
 - 下载仅支持 HTTP/HTTPS；`blob:`/`data:` 下载暂不支持；
 - 不提供 Native Bridge。
 

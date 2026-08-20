@@ -70,8 +70,9 @@ final class DeviceInfoLog {
         output.append("  Time zone    : ").append(clean(TimeZone.getDefault().getID())).append('\n');
         output.append("\nWebView\n");
         output.append("  Provider     : ").append(webViewProvider()).append('\n');
-        output.append("  Wide ViewPort: true\n");
-        output.append("  Overview Mode: true\n");
+        output.append("\nViewport Policy\n");
+        output.append("  Wide ViewPort : ").append(RuntimeWebViewPolicy.USE_WIDE_VIEW_PORT).append('\n');
+        output.append("  Overview Mode : ").append(RuntimeWebViewPolicy.LOAD_WITH_OVERVIEW_MODE).append('\n');
         DisplayMetrics metrics = context.getResources().getDisplayMetrics();
         output.append("\nDisplay\n");
         output.append("  Width px     : ").append(metrics.widthPixels).append('\n');

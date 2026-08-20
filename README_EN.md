@@ -25,10 +25,11 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 - standard `<input type="file">` system picker and Android `DownloadManager` support;
 - HTML5 video fullscreen with Back-button exit and orientation changes;
 - legacy fixed-width pages without a mobile viewport use Wide Viewport and Overview Mode for fit-to-width scaling, without layout reflow;
+- CLI/project.json supports square PNG app icons and converts them to five Android Launcher mipmap densities; the bundled default icon is used when the GUI does not specify one;
 - non-fatal external custom-scheme handling that preserves the current WebView;
 - GitHub Actions builds the Runtime, Packer, GUI, and a real React/Vite demo.
 
-Current version: `v0.2.5`<br>
+Current version: `v0.2.6`<br>
 Android: `minSdk 23`, `targetSdk 35`
 
 ## Download and first run
@@ -42,14 +43,15 @@ bin/lw.Web2Android.GUI.exe
 The public distribution contains:
 
 ```text
-lw-Web2Android-v0.2.5-windows-x64/
+lw-Web2Android-v0.2.6-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
 ├── toolchain/
 │   ├── jre/
 │   ├── runtime/
-│   └── runtime-v5.zip
+│   └── runtime-v6.zip
+├── assets/default-app-icon.png
 ├── tools/
 ├── samples/wechat-article-formatter/
 ├── docs/
@@ -84,8 +86,9 @@ Downloads are checked with SHA-256 and temporary files are removed. Once initial
 1. Choose **Local website** or **Remote URL**.
 2. For local mode, select the build output that contains `index.html`, such as a Vite `dist` directory.
 3. Enter the app name, package name, version name, and version code.
-4. Select orientation, fullscreen behavior, and an output directory.
-5. Click **Build Android APK**.
+4. Optionally select a square PNG app icon; the bundled default icon is used otherwise.
+5. Select orientation, fullscreen behavior, and an output directory.
+6. Click **Build Android APK**.
 
 Local Web assets must use relative URLs. A Vite project should normally set:
 
@@ -119,6 +122,7 @@ Example `project.json`:
   "versionCode": 1,
   "source": "dist",
   "entry": "index.html",
+  "icon": "branding/icon.png",
   "fullscreen": false,
   "orientation": "auto",
   "allowHttp": false,
@@ -231,8 +235,8 @@ The demo APK has passed validation on a physical Android device. The pinned sour
 Pushing a `v*` tag creates a GitHub Release only after the full workflow passes:
 
 ```bash
-git tag -a v0.2.5 -m "lw.Web2Android v0.2.5"
-git push origin v0.2.5
+git tag -a v0.2.6 -m "lw.Web2Android v0.2.6"
+git push origin v0.2.6
 ```
 
 ## Architecture
@@ -276,7 +280,7 @@ tools/        Runtime, toolchain, and release scripts
 
 - Windows 10/11 x64 hosts only;
 - APK output only; AAB is not supported yet;
-- custom application icons are not exposed in the GUI yet;
+- custom Launcher Icons currently accept square PNG files from 192×192 through 4096×4096; Adaptive Icon layer editing is not included;
 - downloads support HTTP/HTTPS only; `blob:` and `data:` downloads are not supported yet;
 - no native bridge.
 

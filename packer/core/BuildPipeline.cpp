@@ -3,6 +3,7 @@
 #include "core/ApkAssembler.h"
 #include "core/Generators.h"
 #include "core/Hash.h"
+#include "core/IconGenerator.h"
 #include "core/Logging.h"
 #include "core/ProcessRunner.h"
 #include "core/ProjectValidator.h"
@@ -186,6 +187,15 @@ BuildResult BuildPipeline::Build(const ProjectConfig& config, const BuildOptions
     try {
     LogStep(options, 1, "Validate project");
     ProjectValidator::Validate(config);
+    if (!config.icon.empty()) {
+        const auto info = IconGenerator::Inspect(config.icon);
+        log.Info("Custom app icon: " + config.icon.filename().u8string() + "; source=" +
+                 std::to_string(info.width) + "x" + std::to_string(info.height));
+    } else if (!options.defaultIcon.empty() && std::filesystem::is_regular_file(options.defaultIcon)) {
+        log.Info("App icon: built-in default");
+    } else {
+        log.Info("App icon: legacy vector fallback");
+    }
 
     LogStep(options, 2, "Resolve locked Android toolchain");
     const auto lock = ToolchainLock::Load(config.toolchainLock);
@@ -215,7 +225,10 @@ BuildResult BuildPipeline::Build(const ProjectConfig& config, const BuildOptions
     WriteTextFile(manifest, ManifestGenerator::Generate(config));
 
     LogStep(options, 6, "Generate Android resources");
-    ResourceGenerator::Generate(config, resources);
+    ResourceGenerator::Generate(config, resources, options.defaultIcon);
+    if (!config.icon.empty() || (!options.defaultIcon.empty() && std::filesystem::is_regular_file(options.defaultIcon))) {
+        log.Info("Launcher icon resources generated: mdpi, hdpi, xhdpi, xxhdpi, xxxhdpi");
+    }
 
     LogStep(options, 7, "Compile resources with AAPT2");
     const auto compiledResources = workspace / "compiled-resources.zip";

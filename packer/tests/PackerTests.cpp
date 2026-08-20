@@ -1,6 +1,7 @@
 #include "core/ApkAssembler.h"
 #include "core/Generators.h"
 #include "core/Hash.h"
+#include "core/IconGenerator.h"
 #include "core/Logging.h"
 #include "core/ProjectConfig.h"
 #include "core/ProjectValidator.h"
@@ -121,7 +122,23 @@ void TestProjectAndGenerators(const std::filesystem::path& root) {
     const auto assets = root / "generated-assets";
     lw::web2android::ResourceGenerator::Generate(config, resources);
     lw::web2android::WebAssetManager::Prepare(config, assets, "1");
-    Require(std::filesystem::is_regular_file(resources / "drawable" / "ic_launcher.xml"), "generated icon");
+    Require(manifest.find("android:icon=\"@mipmap/ic_launcher\"") != std::string::npos,
+            "manifest must use mipmap launcher icon");
+    Require(std::filesystem::is_regular_file(resources / "mipmap-anydpi" / "ic_launcher.xml"),
+            "generated default icon");
+    const auto defaultIcon = std::filesystem::current_path() / "assets" / "default-app-icon.png";
+    if (std::filesystem::is_regular_file(defaultIcon)) {
+        const auto iconInfo = lw::web2android::IconGenerator::Inspect(defaultIcon);
+        Require(iconInfo.width == iconInfo.height && iconInfo.width >= 192U,
+                "bundled default icon must be a supported square PNG");
+        const auto customResources = root / "generated-custom-icon-res";
+        lw::web2android::IconGenerator::Generate(defaultIcon, customResources);
+        for (const auto& density : {"mipmap-mdpi", "mipmap-hdpi", "mipmap-xhdpi",
+                                    "mipmap-xxhdpi", "mipmap-xxxhdpi"}) {
+            Require(std::filesystem::is_regular_file(customResources / density / "ic_launcher.png"),
+                    "custom icon density resource missing");
+        }
+    }
     Require(std::filesystem::is_regular_file(assets / "www" / "index.html"), "copied web entry");
     const auto generatedRuntimeConfig = ReadBinary(assets / "lw-config.json");
     const std::string generatedRuntimeConfigText(generatedRuntimeConfig.begin(), generatedRuntimeConfig.end());
@@ -383,10 +400,10 @@ void TestReleaseMetadata() {
                                                     std::string(64, 'a'),
                                                     std::string(64, 'b'),
                                                     "1",
-                                                    "0.2.5-1",
+                                                    "0.2.6-1",
                                                     "2026-08-18T01:02:03Z"};
     const auto json = metadata.ToJson();
-    Require(json.find("\"toolchainVersion\": \"0.2.5-1\"") != std::string::npos,
+    Require(json.find("\"toolchainVersion\": \"0.2.6-1\"") != std::string::npos,
             "release JSON must record the toolchain version");
     Require(json.find("\"apkSha256\": \"" + std::string(64, 'a') + "\"") != std::string::npos,
             "release JSON must record the APK digest");
