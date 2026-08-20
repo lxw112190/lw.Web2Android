@@ -21,6 +21,14 @@
 
 Visual Studio 使用根目录的 `CMakePresets.json` 自动生成当前电脑专用的构建目录，不依赖原打包电脑的绝对路径。C++ 构建使用 `.deps/spdlog.tar.gz`，配置阶段不需要联网下载第三方库。
 
+构建入口会自动规整进程环境中可能重复的 `PATH` / `Path`，避免 MSBuild 因环境变量名称大小写重复而无法启动编译器。完整构建过程记录在：
+
+```text
+logs/vs2022-build.log
+```
+
+日志达到 2 MiB 后自动轮转，最多保留 5 份历史文件。若 Visual Studio 只显示 `MSB3073` 或“已退出，代码为 1”，请查看或发送该日志；真正的 CMake、编译器和链接器错误会保留在其中。
+
 建议解压到较短的路径，例如 `D:\src\lw.Web2Android`。避免在多层压缩包或过深的目录中直接编译，以免旧版 MSBuild 的中间文件路径超过 Windows 路径长度限制。
 
 Release 输出位于：

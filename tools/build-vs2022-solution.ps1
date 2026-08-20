@@ -9,9 +9,48 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $buildRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot 'build'))
 $buildDirectory = [System.IO.Path]::GetFullPath((Join-Path $buildRoot 'vs2022-x64'))
+$logDirectory = Join-Path $repoRoot 'logs'
+$logFile = Join-Path $logDirectory 'vs2022-build.log'
 if (-not $buildDirectory.StartsWith($buildRoot + [System.IO.Path]::DirectorySeparatorChar,
                                     [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "Unexpected VS2022 build directory: $buildDirectory"
+}
+
+function Rotate-BuildLog {
+    New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
+    if (-not (Test-Path -LiteralPath $logFile -PathType Leaf)) { return }
+    if ((Get-Item -LiteralPath $logFile).Length -lt 2MB) { return }
+
+    $oldest = "$logFile.5"
+    if (Test-Path -LiteralPath $oldest) { Remove-Item -LiteralPath $oldest -Force }
+    for ($index = 4; $index -ge 1; --$index) {
+        $source = "$logFile.$index"
+        if (Test-Path -LiteralPath $source) {
+            Move-Item -LiteralPath $source -Destination "$logFile.$($index + 1)" -Force
+        }
+    }
+    Move-Item -LiteralPath $logFile -Destination "$logFile.1" -Force
+}
+
+function Normalize-ProcessPath {
+    # Some launchers can inject both PATH and Path. MSBuild treats that as a
+    # duplicate environment key when it starts CL.exe, so keep one canonical
+    # variable while preserving and de-duplicating all path entries.
+    $environment = [Environment]::GetEnvironmentVariables('Process')
+    $pathKeys = @($environment.Keys | Where-Object { [string]$_ -ieq 'Path' })
+    $entries = [System.Collections.Generic.List[string]]::new()
+    $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($key in $pathKeys) {
+        foreach ($entry in ([string]$environment[$key] -split ';')) {
+            $trimmed = $entry.Trim()
+            if ($trimmed -and $seen.Add($trimmed)) { $entries.Add($trimmed) }
+        }
+    }
+    foreach ($key in $pathKeys) {
+        [Environment]::SetEnvironmentVariable([string]$key, $null, 'Process')
+    }
+    [Environment]::SetEnvironmentVariable('Path', ($entries -join ';'), 'Process')
+    Write-Host "Normalized process Path ($($pathKeys.Count) source variable(s), $($entries.Count) unique entries)."
 }
 
 function Find-CMake {
@@ -29,26 +68,57 @@ function Find-CMake {
     throw 'CMake was not found. Add the Visual Studio 2022 CMake component and reopen the solution.'
 }
 
-$cmake = Find-CMake
-if ($Clean -or $Rebuild) {
-    if (Test-Path -LiteralPath $buildDirectory) {
-        Remove-Item -LiteralPath $buildDirectory -Recurse -Force
-    }
-    if ($Clean -and -not $Rebuild) {
-        Write-Host "Cleaned: $buildDirectory"
-        exit 0
-    }
-}
-
-Push-Location $repoRoot
+$exitCode = 0
+$transcriptStarted = $false
+Rotate-BuildLog
 try {
-    & $cmake --preset vs2022-x64
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    $buildPreset = if ($Configuration -eq 'Debug') { 'vs2022-debug' } else { 'vs2022-release' }
-    & $cmake --build --preset $buildPreset
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    Start-Transcript -LiteralPath $logFile -Append | Out-Null
+    $transcriptStarted = $true
+    Write-Host "=== lw.Web2Android VS2022 build ==="
+    Write-Host "Time: $([DateTimeOffset]::Now.ToString('yyyy-MM-dd HH:mm:ss.fff zzz'))"
+    Write-Host "Source: $repoRoot"
+    Write-Host "Configuration: $Configuration"
+
+    Normalize-ProcessPath
+    $cmake = Find-CMake
+    Write-Host "CMake: $cmake"
+
+    if ($repoRoot.Length -gt 100) {
+        Write-Warning "The source path is long ($($repoRoot.Length) characters). If MSBuild reports MSB6003, extract the package to a shorter path such as D:\src\lw.Web2Android."
+    }
+
+    if ($Clean -or $Rebuild) {
+        if (Test-Path -LiteralPath $buildDirectory) {
+            Remove-Item -LiteralPath $buildDirectory -Recurse -Force
+        }
+        if ($Clean -and -not $Rebuild) {
+            Write-Host "Cleaned: $buildDirectory"
+        }
+    }
+
+    if (-not ($Clean -and -not $Rebuild)) {
+        Push-Location $repoRoot
+        try {
+            & $cmake --preset vs2022-x64
+            if ($LASTEXITCODE -ne 0) {
+                throw "CMake configuration failed with exit code $LASTEXITCODE."
+            }
+            $buildPreset = if ($Configuration -eq 'Debug') { 'vs2022-debug' } else { 'vs2022-release' }
+            & $cmake --build --preset $buildPreset
+            if ($LASTEXITCODE -ne 0) {
+                throw "CMake build failed with exit code $LASTEXITCODE."
+            }
+        } finally {
+            Pop-Location
+        }
+        Write-Host "VS2022 $Configuration build completed: $buildDirectory\packer\$Configuration"
+    }
+} catch {
+    $exitCode = 1
+    Write-Host "VS2022 build failed: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Complete build log: $logFile" -ForegroundColor Yellow
 } finally {
-    Pop-Location
+    if ($transcriptStarted) { Stop-Transcript | Out-Null }
 }
 
-Write-Host "VS2022 $Configuration build completed: $buildDirectory\packer\$Configuration"
+if ($exitCode -ne 0) { exit $exitCode }

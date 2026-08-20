@@ -103,7 +103,14 @@ Eclipse Temurin license and notices are preserved under toolchain/jre/.
 
 $packageRoot = (Resolve-Path -LiteralPath $package).Path
 $checksums = Get-ChildItem -LiteralPath $packageRoot -Recurse -File | Sort-Object FullName | ForEach-Object {
-    $relative = [System.IO.Path]::GetRelativePath($packageRoot, $_.FullName).Replace('\', '/')
+    # Windows PowerShell 5.1 runs on .NET Framework, where Path.GetRelativePath
+    # is unavailable. Every item is enumerated below $packageRoot, so a guarded
+    # prefix removal is both portable and unambiguous.
+    if (-not $_.FullName.StartsWith($packageRoot + [System.IO.Path]::DirectorySeparatorChar,
+                                    [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Unexpected package file outside the package root: $($_.FullName)"
+    }
+    $relative = $_.FullName.Substring($packageRoot.Length + 1).Replace('\', '/')
     $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
     "$hash  $relative"
 }
