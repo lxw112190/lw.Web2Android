@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 env:
-  PRODUCT_VERSION: '0.2.6'
-  PACKAGE_NAME: lw-Web2Android-v0.2.6-windows-x64
+  PRODUCT_VERSION: '0.2.7'
+  PACKAGE_NAME: lw-Web2Android-v0.2.7-windows-x64
   WECHAT_DEMO_REPOSITORY: lxw112190/wechat-article-formatter
   WECHAT_DEMO_REF: ad1afc5a2c31d7cb7dc458a69944d6cb7ee0cd88
 
@@ -23,6 +23,24 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Validate product version consistency
+        shell: pwsh
+        run: |
+          $expectedPackage = "lw-Web2Android-v$env:PRODUCT_VERSION-windows-x64"
+          if ($env:PACKAGE_NAME -ne $expectedPackage) {
+            throw "PACKAGE_NAME $env:PACKAGE_NAME does not match $expectedPackage"
+          }
+          foreach ($cmakeFile in @('CMakeLists.txt', 'packer/CMakeLists.txt')) {
+            $content = Get-Content -Raw -LiteralPath $cmakeFile
+            $match = [regex]::Match($content, 'project\([^\r\n]*\bVERSION\s+([0-9]+\.[0-9]+\.[0-9]+)')
+            if (-not $match.Success) {
+              throw "Unable to read project version from $cmakeFile"
+            }
+            if ($match.Groups[1].Value -ne $env:PRODUCT_VERSION) {
+              throw "$cmakeFile version $($match.Groups[1].Value) does not match PRODUCT_VERSION $env:PRODUCT_VERSION"
+            }
+          }
 
       - name: Checkout real Web demo
         uses: actions/checkout@v6
