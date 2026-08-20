@@ -59,7 +59,18 @@ foreach ($directory in $sourceDirectories) {
     Copy-Item -LiteralPath (Join-Path $repoRoot $directory) -Destination $package -Recurse
 }
 New-Item -ItemType Directory -Force -Path (Join-Path $package '.deps') | Out-Null
-Copy-Item -LiteralPath (Join-Path $repoRoot '.deps/spdlog.tar.gz') -Destination (Join-Path $package '.deps')
+$spdlogArchive = Join-Path $repoRoot '.deps/spdlog.tar.gz'
+$packageDependencies = Join-Path $package '.deps'
+Copy-Item -LiteralPath $spdlogArchive -Destination $packageDependencies
+$tar = Get-Command tar.exe -ErrorAction SilentlyContinue
+if (-not $tar) { throw 'Windows tar.exe was not found; unable to prepare the VS2022 IntelliSense headers.' }
+& $tar.Source -xzf $spdlogArchive -C $packageDependencies
+if ($LASTEXITCODE -ne 0) { throw "Unable to extract the offline spdlog archive; tar exit code: $LASTEXITCODE" }
+$extractedSpdlog = Join-Path $packageDependencies 'spdlog-1.17.0'
+if (-not (Test-Path -LiteralPath (Join-Path $extractedSpdlog 'include/spdlog/spdlog.h') -PathType Leaf)) {
+    throw 'The offline spdlog archive has an unexpected layout.'
+}
+Move-Item -LiteralPath $extractedSpdlog -Destination (Join-Path $packageDependencies 'spdlog-src')
 Copy-Item -LiteralPath $toolchain -Destination (Join-Path $package 'toolchain') -Recurse
 $obsoleteRuntimeArchive = Join-Path $package 'toolchain/runtime-v1.zip'
 if (Test-Path -LiteralPath $obsoleteRuntimeArchive) {

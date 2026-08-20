@@ -45,8 +45,26 @@
     <NMakeCleanCommandLine>&quot;%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;$(ProjectDir)..\tools\build-vs2022-solution.ps1&quot; -Configuration &quot;$(Configuration)&quot; -Clean</NMakeCleanCommandLine>
     <NMakeOutput>$(ProjectDir)..\build\vs2022-x64\packer\$(Configuration)\lw.Web2Android.GUI.exe</NMakeOutput>
     <NMakePreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;UNICODE;_UNICODE;LW_WEB2ANDROID_VERSION=&quot;0.2.6&quot;;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
-    <NMakeIncludeSearchPath>$(ProjectDir)..\packer;$(ProjectDir)..\build\vs2022-x64\_deps\spdlog-src\include;$(NMakeIncludeSearchPath)</NMakeIncludeSearchPath>
+    <NMakeIncludeSearchPath>$(ProjectDir)..\packer;$(ProjectDir)..\.deps\spdlog-src\include;$(NMakeIncludeSearchPath)</NMakeIncludeSearchPath>
   </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalOptions>/utf-8 /EHsc /permissive- %(AdditionalOptions)</AdditionalOptions>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;_DEBUG;NOMINMAX;WIN32_LEAN_AND_MEAN;UNICODE;_UNICODE;LW_WEB2ANDROID_VERSION=&quot;0.2.6&quot;;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\packer;$(ProjectDir)..\.deps\spdlog-src\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalOptions>/utf-8 /EHsc /permissive- %(AdditionalOptions)</AdditionalOptions>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;NDEBUG;NOMINMAX;WIN32_LEAN_AND_MEAN;UNICODE;_UNICODE;LW_WEB2ANDROID_VERSION=&quot;0.2.6&quot;;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\packer;$(ProjectDir)..\.deps\spdlog-src\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\packer\main.cpp" />
     <ClCompile Include="..\packer\core\ApkAssembler.cpp" />
