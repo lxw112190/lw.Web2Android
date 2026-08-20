@@ -9,7 +9,7 @@
 ## 界面预览
 
 <p align="center">
-  <img src="assets/lw-Web2Android-GUI.png" alt="lw.Web2Android GUI" width="680">
+  <img src="assets/lw-Web2Android-GUI.jpg" alt="lw.Web2Android v0.2.6 GUI" width="680">
 </p>
 
 ## 主要能力
@@ -255,15 +255,19 @@ Android Runtime 使用 `WebViewAssetLoader` 通过 HTTPS 风格的应用内 URL 
 
 ## 从源码构建
 
-开发环境需要 CMake、Visual Studio 2022 C++ 工具链、JDK 17、Gradle 8.9 和锁定版本的 Android SDK。普通用户不需要这些开发依赖。
+只修改 C++ Packer/GUI 时，安装 Visual Studio 2022 的“使用 C++ 的桌面开发”和 CMake 组件即可。可直接打开根目录的 [lw.Web2Android.sln](lw.Web2Android.sln)，选择 `Release | x64` 后生成解决方案；也可以使用“打开本地文件夹”和 `Visual Studio 2022 x64` 预设。详细步骤见 [DEVELOPMENT.md](DEVELOPMENT.md)。
+
+```powershell
+cmake --preset vs2022-x64
+cmake --build --preset vs2022-release
+ctest --preset vs2022-release-tests
+```
+
+重新编译 Android Java Runtime 才需要 JDK 17、Gradle 8.9 和锁定版本的 Android SDK。普通用户不需要这些开发依赖。
 
 ```powershell
 gradle -p runtime clean :app:lintRelease :app:assembleRelease
 ./tools/package-runtime.ps1
-
-cmake -S packer -B build/packer -A x64 -DBUILD_TESTING=ON
-cmake --build build/packer --config Release --parallel
-ctest --test-dir build/packer -C Release --output-on-failure
 ```
 
 仓库不提交预编译 Runtime 或 APK；这些文件由 CI 从源码生成。主要目录：
@@ -275,6 +279,8 @@ samples/      Remote 与 Unicode Assets 回归配置
 tools/        Runtime、工具链与发行打包脚本
 .github/      统一 CI 与 Release 流程
 ```
+
+`tools/package-vs2022-development.ps1` 可在本机生成包含源码、离线依赖、预编译程序、Runtime v6 和完整最小工具链的私有 VS2022 开发包。Android SDK 组件受其许可约束，该完整包不要上传为公开 Release。
 
 ## 当前限制
 

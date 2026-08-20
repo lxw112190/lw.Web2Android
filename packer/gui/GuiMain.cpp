@@ -1,6 +1,7 @@
 #include "gui/GuiProjectModel.h"
 
 #include "core/BuildPipeline.h"
+#include "core/IconGenerator.h"
 #include "core/Logging.h"
 #include "core/ProcessRunner.h"
 #include "core/Toolchain.h"
@@ -11,7 +12,12 @@
 #include <ShObjIdl.h>
 #include <Shellapi.h>
 #include <Uxtheme.h>
+#include <wincodec.h>
+#include <wrl/client.h>
 
+#include <algorithm>
+#include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <memory>
 #include <stdexcept>
@@ -44,6 +50,8 @@ enum ControlId {
     kPackage,
     kIcon,
     kBrowseIcon,
+    kRestoreDefaultIcon,
+    kIconHint,
     kVersionName,
     kVersionCode,
     kOrientation,
@@ -75,10 +83,12 @@ struct State {
     HFONT smallFont = nullptr;
     HBRUSH backgroundBrush = nullptr;
     HBRUSH cardBrush = nullptr;
+    HBITMAP iconPreview = nullptr;
     std::vector<ControlLayout> controls;
     GuiEnvironment environment;
     std::wstring status = L"准备就绪 · 请选择网页来源和 APK 输出目录";
     COLORREF statusColor = kSuccess;
+    COLORREF iconHintColor = kMuted;
     bool busy = false;
 };
 
@@ -88,10 +98,12 @@ struct BuildCompletion {
     std::wstring error;
 };
 
-constexpr RECT kStatusRect{48, 900, 712, 928};
+constexpr RECT kIconPreviewRect{48, 557, 112, 621};
+constexpr RECT kStatusRect{48, 950, 712, 978};
 constexpr UINT kBuildProgressMessage = WM_APP + 1;
 constexpr UINT kBuildFinishedMessage = WM_APP + 2;
 constexpr UINT kToolchainFinishedMessage = WM_APP + 3;
+constexpr UINT_PTR kIconValidationTimer = 1;
 
 int Scale(int value, UINT dpi) { return MulDiv(value, static_cast<int>(dpi), 96); }
 
@@ -137,6 +149,22 @@ void LayoutControls(const State& state) {
         const auto rect = ScaleRect(item.logical, state.dpi);
         MoveWindow(item.control, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, TRUE);
     }
+}
+
+void CenterWindowInWorkArea(HWND window) {
+    const auto monitor = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO monitorInfo{sizeof(monitorInfo)};
+    RECT windowRect{};
+    if (!monitor || !GetMonitorInfoW(monitor, &monitorInfo) || !GetWindowRect(window, &windowRect)) return;
+
+    const auto windowWidth = windowRect.right - windowRect.left;
+    const auto windowHeight = windowRect.bottom - windowRect.top;
+    const auto workWidth = monitorInfo.rcWork.right - monitorInfo.rcWork.left;
+    const auto workHeight = monitorInfo.rcWork.bottom - monitorInfo.rcWork.top;
+    const auto x = monitorInfo.rcWork.left + (workWidth - windowWidth) / 2;
+    const auto y = monitorInfo.rcWork.top + (workHeight - windowHeight) / 2;
+    SetWindowPos(window, nullptr, x, y, 0, 0,
+                 SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
 HWND AddControl(State& state, const wchar_t* kind, const wchar_t* text, DWORD style,
@@ -233,6 +261,61 @@ std::filesystem::path PickPngFile(HWND owner) {
     return result;
 }
 
+HBITMAP CreateIconPreviewBitmap(const std::filesystem::path& source, UINT pixelSize) {
+    using Microsoft::WRL::ComPtr;
+    ComPtr<IWICImagingFactory> factory;
+    if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
+                                IID_PPV_ARGS(&factory)))) {
+        throw std::runtime_error("Unable to create icon preview decoder");
+    }
+    ComPtr<IWICBitmapDecoder> decoder;
+    if (FAILED(factory->CreateDecoderFromFilename(source.c_str(), nullptr, GENERIC_READ,
+                                                  WICDecodeMetadataCacheOnLoad, &decoder))) {
+        throw std::runtime_error("Unable to decode icon preview");
+    }
+    ComPtr<IWICBitmapFrameDecode> frame;
+    ComPtr<IWICBitmapScaler> scaler;
+    ComPtr<IWICFormatConverter> converter;
+    if (FAILED(decoder->GetFrame(0, &frame)) ||
+        FAILED(factory->CreateBitmapScaler(&scaler)) ||
+        FAILED(scaler->Initialize(frame.Get(), pixelSize, pixelSize, WICBitmapInterpolationModeFant)) ||
+        FAILED(factory->CreateFormatConverter(&converter)) ||
+        FAILED(converter->Initialize(scaler.Get(), GUID_WICPixelFormat32bppBGRA,
+                                     WICBitmapDitherTypeNone, nullptr, 0.0,
+                                     WICBitmapPaletteTypeCustom))) {
+        throw std::runtime_error("Unable to prepare icon preview");
+    }
+
+    const UINT stride = pixelSize * 4U;
+    std::vector<std::uint8_t> pixels(static_cast<std::size_t>(stride) * pixelSize);
+    if (FAILED(converter->CopyPixels(nullptr, stride, static_cast<UINT>(pixels.size()), pixels.data()))) {
+        throw std::runtime_error("Unable to read icon preview pixels");
+    }
+    for (std::size_t index = 0; index < pixels.size(); index += 4U) {
+        const auto alpha = static_cast<unsigned int>(pixels[index + 3U]);
+        for (std::size_t channel = 0; channel < 3U; ++channel) {
+            const auto value = static_cast<unsigned int>(pixels[index + channel]);
+            pixels[index + channel] = static_cast<std::uint8_t>(
+                (value * alpha + 255U * (255U - alpha) + 127U) / 255U);
+        }
+        pixels[index + 3U] = 255U;
+    }
+
+    BITMAPINFO bitmapInfo{};
+    bitmapInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bitmapInfo.bmiHeader.biWidth = static_cast<LONG>(pixelSize);
+    bitmapInfo.bmiHeader.biHeight = -static_cast<LONG>(pixelSize);
+    bitmapInfo.bmiHeader.biPlanes = 1;
+    bitmapInfo.bmiHeader.biBitCount = 32;
+    bitmapInfo.bmiHeader.biCompression = BI_RGB;
+    void* bitmapPixels = nullptr;
+    const auto bitmap = CreateDIBSection(nullptr, &bitmapInfo, DIB_RGB_COLORS,
+                                         &bitmapPixels, nullptr, 0);
+    if (!bitmap || !bitmapPixels) throw std::runtime_error("Unable to create icon preview bitmap");
+    std::memcpy(bitmapPixels, pixels.data(), pixels.size());
+    return bitmap;
+}
+
 void DrawRoundedPanel(HDC dc, RECT rect, COLORREF fill, COLORREF border, int radius) {
     const auto fillBrush = CreateSolidBrush(fill);
     const auto borderPen = CreatePen(PS_SOLID, 1, border);
@@ -243,6 +326,29 @@ void DrawRoundedPanel(HDC dc, RECT rect, COLORREF fill, COLORREF border, int rad
     SelectObject(dc, oldBrush);
     DeleteObject(borderPen);
     DeleteObject(fillBrush);
+}
+
+void DrawIconPreview(HDC dc, const State& state) {
+    const auto rect = ScaleRect(kIconPreviewRect, state.dpi);
+    DrawRoundedPanel(dc, rect, kCard, kBorder, Scale(10, state.dpi));
+    if (!state.iconPreview) {
+        SetBkMode(dc, TRANSPARENT);
+        SetTextColor(dc, kMuted);
+        SelectObject(dc, state.smallFont);
+        auto textRect = rect;
+        DrawTextW(dc, L"无预览", -1, &textRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        return;
+    }
+    BITMAP bitmap{};
+    if (GetObjectW(state.iconPreview, sizeof(bitmap), &bitmap) == 0) return;
+    const auto memoryDc = CreateCompatibleDC(dc);
+    if (!memoryDc) return;
+    const auto oldBitmap = SelectObject(memoryDc, state.iconPreview);
+    const auto x = rect.left + (rect.right - rect.left - bitmap.bmWidth) / 2;
+    const auto y = rect.top + (rect.bottom - rect.top - bitmap.bmHeight) / 2;
+    BitBlt(dc, x, y, bitmap.bmWidth, bitmap.bmHeight, memoryDc, 0, 0, SRCCOPY);
+    SelectObject(memoryDc, oldBitmap);
+    DeleteDC(memoryDc);
 }
 
 void DrawOwnerButton(const DRAWITEMSTRUCT& item) {
@@ -256,6 +362,9 @@ void DrawOwnerButton(const DRAWITEMSTRUCT& item) {
         fill = disabled ? RGB(151, 176, 242) : (pressed ? kPrimaryPressed : kPrimary);
         border = fill;
         text = RGB(255, 255, 255);
+    } else if (disabled) {
+        fill = RGB(245, 247, 250);
+        text = kMuted;
     } else if (pressed) {
         fill = RGB(237, 242, 250);
     }
@@ -279,6 +388,47 @@ void SetStatus(HWND window, const std::wstring& text, COLORREF color = kSuccess)
     RedrawWindow(window, &rect, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW | RDW_NOCHILDREN);
 }
 
+void SetDynamicLabelText(HWND window, int id, const std::wstring& text) {
+    const auto label = GetDlgItem(window, id);
+    SetWindowTextW(label, text.c_str());
+    RedrawWindow(label, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW);
+}
+
+void RefreshIconPreview(State& state) {
+    const auto customPathText = Text(state.window, kIcon);
+    const bool usesDefault = customPathText.empty();
+    const auto source = usesDefault ? state.environment.defaultIcon
+                                    : std::filesystem::path(customPathText);
+    HBITMAP replacement = nullptr;
+    std::wstring hint;
+    COLORREF hintColor = kMuted;
+    try {
+        const auto info = IconGenerator::Inspect(source);
+        replacement = CreateIconPreviewBitmap(source, static_cast<UINT>(Scale(56, state.dpi)));
+        if (usesDefault) {
+            hint = L"使用内置默认图标 · 建议使用 512×512 或更高分辨率的正方形 PNG";
+        } else {
+            hint = L"已选择 " + std::to_wstring(info.width) + L"×" +
+                   std::to_wstring(info.height) + L" PNG";
+            hintColor = kSuccess;
+        }
+    } catch (const std::exception& error) {
+        PackerLogger().Warn(std::string("Unable to preview app icon: ") + error.what());
+        hint = usesDefault ? L"内置默认图标不可用，请重新下载完整发行包"
+                           : L"图标不可用：请选择 192–4096 像素的正方形 PNG";
+        hintColor = kFailure;
+    }
+
+    if (state.iconPreview) DeleteObject(state.iconPreview);
+    state.iconPreview = replacement;
+    state.iconHintColor = hintColor;
+    SetDynamicLabelText(state.window, kIconHint, hint);
+    EnableWindow(GetDlgItem(state.window, kRestoreDefaultIcon), !usesDefault);
+    const auto previewRect = ScaleRect(kIconPreviewRect, state.dpi);
+    RedrawWindow(state.window, &previewRect, nullptr,
+                 RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW | RDW_NOCHILDREN);
+}
+
 bool IsPlainHttpUrl(const std::wstring& value) {
     const auto first = value.find_first_not_of(L" \t\r\n");
     return first != std::wstring::npos && value.size() - first >= 7U &&
@@ -297,10 +447,10 @@ void EnableHttpForRemoteUrl(HWND window) {
 
 void UpdateMode(HWND window) {
     const bool local = IsDlgButtonChecked(window, kModeLocal) == BST_CHECKED;
-    SetWindowTextW(GetDlgItem(window, kSourceLabel), local ? L"网页目录" : L"在线网址");
-    SetWindowTextW(GetDlgItem(window, kModeHint),
-                   local ? L"选择普通 HTML、Vue、React 或 Vite 的构建产物目录（入口为 index.html）"
-                         : L"输入在线网址；HTTP 地址会自动开启可信内网选项");
+    SetDynamicLabelText(window, kSourceLabel, local ? L"网页目录" : L"在线网址");
+    SetDynamicLabelText(window, kModeHint,
+                        local ? L"选择普通 HTML、Vue、React 或 Vite 的构建产物目录（入口为 index.html）"
+                              : L"输入在线网址；HTTP 地址会自动开启可信内网选项");
     SendMessageW(GetDlgItem(window, kSource), EM_SETCUEBANNER, TRUE,
                  reinterpret_cast<LPARAM>(local ? L"例如：D:\\project\\dist"
                                                 : L"例如：https://example.com 或 http://intranet.example.test"));
@@ -402,9 +552,9 @@ void StartBuild(HWND window) {
 
 void UpdateToolchainDisplay(State& state) {
     const bool ready = IsMinimalToolchainDirectory(state.environment.toolchainDirectory);
-    SetWindowTextW(GetDlgItem(state.window, kToolchainStatus),
-                   ready ? L"工具链：最小工具链已就绪，可直接生成 APK"
-                         : L"工具链：尚未初始化");
+    SetDynamicLabelText(state.window, kToolchainStatus,
+                        ready ? L"工具链：最小工具链已就绪，可直接生成 APK"
+                              : L"工具链：尚未初始化");
     SetWindowTextW(GetDlgItem(state.window, kInstallToolchain), ready ? L"已初始化" : L"初始化工具链");
     EnableWindow(GetDlgItem(state.window, kInstallToolchain), !ready && !state.busy);
 }
@@ -486,35 +636,38 @@ void BuildInterface(State& state) {
     AddEdit(state, L"com.example.myapp", 48, 485, 664, kPackage, L"例如：com.company.app");
 
     AddLabel(state, L"应用图标", 48, 533, 120, 22, 0, FontRole::Small);
-    AddEdit(state, L"", 48, 557, 548, kIcon, L"可选：正方形 PNG，建议 512×512");
+    AddEdit(state, L"", 128, 557, 468, kIcon, L"可选：正方形 PNG");
     AddButton(state, L"选择图标", 610, 557, 102, 34, kBrowseIcon);
+    AddLabel(state, L"", 128, 599, 468, 22, kIconHint, FontRole::Small);
+    AddButton(state, L"恢复默认", 610, 598, 102, 28, kRestoreDefaultIcon);
 
-    AddLabel(state, L"Version Name", 48, 589, 150, 22, 0, FontRole::Small);
-    AddEdit(state, L"1.0.0", 48, 613, 170, kVersionName);
-    AddLabel(state, L"Version Code", 242, 589, 150, 22, 0, FontRole::Small);
-    AddEdit(state, L"1", 242, 613, 110, kVersionCode, nullptr, ES_NUMBER);
-    AddLabel(state, L"屏幕方向", 376, 589, 120, 22, 0, FontRole::Small);
-    const auto orientation = AddCombo(state, 376, 613, 170, kOrientation);
+    AddLabel(state, L"Version Name", 48, 639, 150, 22, 0, FontRole::Small);
+    AddEdit(state, L"1.0.0", 48, 663, 170, kVersionName);
+    AddLabel(state, L"Version Code", 242, 639, 150, 22, 0, FontRole::Small);
+    AddEdit(state, L"1", 242, 663, 110, kVersionCode, nullptr, ES_NUMBER);
+    AddLabel(state, L"屏幕方向", 376, 639, 120, 22, 0, FontRole::Small);
+    const auto orientation = AddCombo(state, 376, 663, 170, kOrientation);
     SendMessageW(orientation, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"自动"));
     SendMessageW(orientation, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"竖屏"));
     SendMessageW(orientation, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"横屏"));
     SendMessageW(orientation, CB_SETCURSEL, 0, 0);
     AddControl(state, L"BUTTON", L"全屏显示", WS_TABSTOP | BS_AUTOCHECKBOX,
-               584, 617, 120, 26, kFullscreen);
+               584, 667, 120, 26, kFullscreen);
 
-    AddLabel(state, L"输出目录", 48, 673, 120, 22, 0, FontRole::Small);
-    AddEdit(state, L"", 48, 697, 548, kOutput, L"APK、校验和与发行元数据的输出目录");
-    AddButton(state, L"选择位置", 610, 697, 102, 34, kBrowseOutput);
+    AddLabel(state, L"输出目录", 48, 723, 120, 22, 0, FontRole::Small);
+    AddEdit(state, L"", 48, 747, 548, kOutput, L"APK、校验和与发行元数据的输出目录");
+    AddButton(state, L"选择位置", 610, 747, 102, 34, kBrowseOutput);
     AddLabel(state, L"签名：按 Package Name 自动创建或复用独立身份，可在 CLI 中导出 PFX 备份",
-             48, 750, 650, 24, 0, FontRole::Small);
-    AddLabel(state, L"", 48, 778, 470, 24, kToolchainStatus, FontRole::Small);
-    AddButton(state, L"初始化工具链", 560, 770, 152, 34, kInstallToolchain);
+             48, 800, 650, 24, 0, FontRole::Small);
+    AddLabel(state, L"", 48, 828, 470, 24, kToolchainStatus, FontRole::Small);
+    AddButton(state, L"初始化工具链", 560, 820, 152, 34, kInstallToolchain);
 
-    AddButton(state, L"生成 Android APK", 48, 831, 664, 48, kBuild);
+    AddButton(state, L"生成 Android APK", 48, 881, 664, 48, kBuild);
 
     const auto output = std::filesystem::current_path() / "output";
     SetWindowTextW(GetDlgItem(state.window, kOutput), output.c_str());
     UpdateToolchainDisplay(state);
+    RefreshIconPreview(state);
 }
 
 LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
@@ -542,6 +695,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
                 SetWindowPos(window, nullptr, suggested->left, suggested->top,
                              suggested->right - suggested->left, suggested->bottom - suggested->top,
                              SWP_NOACTIVATE | SWP_NOZORDER);
+                RefreshIconPreview(*state);
                 RedrawWindow(window, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
             }
             return 0;
@@ -613,6 +767,13 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
                 case kSource:
                     if (HIWORD(wparam) == EN_CHANGE) EnableHttpForRemoteUrl(window);
                     return 0;
+                case kIcon:
+                    if (HIWORD(wparam) == EN_CHANGE) {
+                        KillTimer(window, kIconValidationTimer);
+                        EnableWindow(GetDlgItem(window, kRestoreDefaultIcon), !Text(window, kIcon).empty());
+                        SetTimer(window, kIconValidationTimer, 350, nullptr);
+                    }
+                    return 0;
                 case kBrowseSource: {
                     const auto path = PickFolder(window, L"选择网页构建产物目录");
                     if (!path.empty()) SetWindowTextW(GetDlgItem(window, kSource), path.c_str());
@@ -620,9 +781,18 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
                 }
                 case kBrowseIcon: {
                     const auto path = PickPngFile(window);
-                    if (!path.empty()) SetWindowTextW(GetDlgItem(window, kIcon), path.c_str());
+                    if (!path.empty()) {
+                        SetWindowTextW(GetDlgItem(window, kIcon), path.c_str());
+                        KillTimer(window, kIconValidationTimer);
+                        RefreshIconPreview(*state);
+                    }
                     return 0;
                 }
+                case kRestoreDefaultIcon:
+                    KillTimer(window, kIconValidationTimer);
+                    SetWindowTextW(GetDlgItem(window, kIcon), L"");
+                    RefreshIconPreview(*state);
+                    return 0;
                 case kBrowseOutput: {
                     const auto path = PickFolder(window, L"选择 APK 输出目录");
                     if (!path.empty()) SetWindowTextW(GetDlgItem(window, kOutput), path.c_str());
@@ -636,14 +806,30 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
                     return 0;
             }
             break;
+        case WM_TIMER:
+            if (state && wparam == kIconValidationTimer) {
+                KillTimer(window, kIconValidationTimer);
+                RefreshIconPreview(*state);
+                return 0;
+            }
+            break;
         case WM_DRAWITEM:
             DrawOwnerButton(*reinterpret_cast<DRAWITEMSTRUCT*>(lparam));
             return TRUE;
         case WM_CTLCOLORSTATIC: {
             const auto dc = reinterpret_cast<HDC>(wparam);
             const auto id = GetDlgCtrlID(reinterpret_cast<HWND>(lparam));
+            const bool dynamicCardLabel = id == kIconHint || id == kSourceLabel ||
+                                          id == kModeHint || id == kToolchainStatus;
+            if (state && dynamicCardLabel) {
+                SetBkMode(dc, OPAQUE);
+                SetBkColor(dc, kCard);
+                SetTextColor(dc, id == kIconHint ? state->iconHintColor
+                                                 : id == kModeHint ? kMuted : kText);
+                return reinterpret_cast<INT_PTR>(state->cardBrush);
+            }
             SetBkMode(dc, TRANSPARENT);
-            SetTextColor(dc, id == kModeHint ? kMuted : kText);
+            SetTextColor(dc, kText);
             return reinterpret_cast<INT_PTR>(GetStockObject(NULL_BRUSH));
         }
         case WM_CTLCOLORBTN: {
@@ -673,8 +859,9 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
             DeleteObject(headerBrush);
             const auto dpi = state ? state->dpi : 96;
             DrawRoundedPanel(dc, ScaleRect(RECT{28, 109, 732, 305}, dpi), kCard, kBorder, Scale(18, dpi));
-            DrawRoundedPanel(dc, ScaleRect(RECT{28, 320, 732, 814}, dpi), kCard, kBorder, Scale(18, dpi));
+            DrawRoundedPanel(dc, ScaleRect(RECT{28, 320, 732, 864}, dpi), kCard, kBorder, Scale(18, dpi));
             if (state) {
+                DrawIconPreview(dc, *state);
                 const auto statusRect = ScaleRect(kStatusRect, state->dpi);
                 FillRect(dc, &statusRect, state->backgroundBrush);
                 SetBkMode(dc, OPAQUE);
@@ -689,6 +876,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
             return 0;
         }
         case WM_DESTROY:
+            KillTimer(window, kIconValidationTimer);
             PackerLogger().Info("GUI closed");
             PackerLogger().Flush();
             if (state) {
@@ -698,6 +886,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
                 DeleteObject(state->smallFont);
                 DeleteObject(state->backgroundBrush);
                 DeleteObject(state->cardBrush);
+                if (state->iconPreview) DeleteObject(state->iconPreview);
                 delete state;
             }
             PostQuitMessage(0);
@@ -721,7 +910,7 @@ int RunGui(HINSTANCE instance) {
     if (!RegisterClassExW(&windowClass)) throw std::runtime_error("Unable to register the GUI window");
     const DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
     const auto dpi = GetDpiForSystem();
-    RECT bounds{0, 0, Scale(760, dpi), Scale(950, dpi)};
+    RECT bounds{0, 0, Scale(760, dpi), Scale(1000, dpi)};
     AdjustWindowRectExForDpi(&bounds, style, FALSE, WS_EX_CONTROLPARENT, dpi);
     const auto window = CreateWindowExW(
         WS_EX_CONTROLPARENT, kClassName, L"lw.Web2Android · 网页转 Android APK",
@@ -730,6 +919,7 @@ int RunGui(HINSTANCE instance) {
     if (!window) throw std::runtime_error("Unable to create the GUI window");
     const DWORD corner = 2;
     DwmSetWindowAttribute(window, 33, &corner, sizeof(corner));
+    CenterWindowInWorkArea(window);
     ShowWindow(window, SW_SHOW);
     UpdateWindow(window);
     MSG message{};

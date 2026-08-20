@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>MakeFileProj</Keyword>
+    <ProjectGuid>{A598EE1D-0588-4C88-A50A-765FE25BE456}</ProjectGuid>
+    <RootNamespace>lwWeb2Android</RootNamespace>
+    <ProjectName>lw.Web2Android</ProjectName>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Makefile</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Makefile</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <NMakeBuildCommandLine>&quot;%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;$(ProjectDir)..\tools\build-vs2022-solution.ps1&quot; -Configuration &quot;$(Configuration)&quot;</NMakeBuildCommandLine>
+    <NMakeReBuildCommandLine>&quot;%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;$(ProjectDir)..\tools\build-vs2022-solution.ps1&quot; -Configuration &quot;$(Configuration)&quot; -Rebuild</NMakeReBuildCommandLine>
+    <NMakeCleanCommandLine>&quot;%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;$(ProjectDir)..\tools\build-vs2022-solution.ps1&quot; -Configuration &quot;$(Configuration)&quot; -Clean</NMakeCleanCommandLine>
+    <NMakeOutput>$(ProjectDir)..\build\vs2022-x64\packer\$(Configuration)\lw.Web2Android.GUI.exe</NMakeOutput>
+    <NMakePreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;UNICODE;_UNICODE;LW_WEB2ANDROID_VERSION=&quot;0.2.6&quot;;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
+    <NMakeIncludeSearchPath>$(ProjectDir)..\packer;$(ProjectDir)..\build\vs2022-x64\_deps\spdlog-src\include;$(NMakeIncludeSearchPath)</NMakeIncludeSearchPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <ClCompile Include="..\packer\main.cpp" />
+    <ClCompile Include="..\packer\core\ApkAssembler.cpp" />
+    <ClCompile Include="..\packer\core\BuildPipeline.cpp" />
+    <ClCompile Include="..\packer\core\Generators.cpp" />
+    <ClCompile Include="..\packer\core\Hash.cpp" />
+    <ClCompile Include="..\packer\core\IconGenerator.cpp" />
+    <ClCompile Include="..\packer\core\Json.cpp" />
+    <ClCompile Include="..\packer\core\Logging.cpp" />
+    <ClCompile Include="..\packer\core\ProcessRunner.cpp" />
+    <ClCompile Include="..\packer\core\ProjectConfig.cpp" />
+    <ClCompile Include="..\packer\core\ProjectValidator.cpp" />
+    <ClCompile Include="..\packer\core\ReleaseMetadata.cpp" />
+    <ClCompile Include="..\packer\core\SigningKeyManager.cpp" />
+    <ClCompile Include="..\packer\core\Toolchain.cpp" />
+    <ClCompile Include="..\packer\gui\GuiMain.cpp" />
+    <ClCompile Include="..\packer\gui\GuiProjectModel.cpp" />
+    <ClCompile Include="..\packer\tests\PackerTests.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\packer\core\ApkAssembler.h" />
+    <ClInclude Include="..\packer\core\BuildPipeline.h" />
+    <ClInclude Include="..\packer\core\Generators.h" />
+    <ClInclude Include="..\packer\core\Hash.h" />
+    <ClInclude Include="..\packer\core\IconGenerator.h" />
+    <ClInclude Include="..\packer\core\Json.h" />
+    <ClInclude Include="..\packer\core\Logging.h" />
+    <ClInclude Include="..\packer\core\ProcessRunner.h" />
+    <ClInclude Include="..\packer\core\ProjectConfig.h" />
+    <ClInclude Include="..\packer\core\ProjectValidator.h" />
+    <ClInclude Include="..\packer\core\ReleaseMetadata.h" />
+    <ClInclude Include="..\packer\core\SigningKeyManager.h" />
+    <ClInclude Include="..\packer\core\Toolchain.h" />
+    <ClInclude Include="..\packer\gui\GuiProjectModel.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\CMakeLists.txt" />
+    <None Include="..\CMakePresets.json" />
+    <None Include="..\toolchain.lock.json" />
+    <None Include="..\DEVELOPMENT.md" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>

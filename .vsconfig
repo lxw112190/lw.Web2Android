@@ -1,0 +1,7 @@
+{
+  "version": "1.0",
+  "components": [
+    "Microsoft.VisualStudio.Workload.NativeDesktop",
+    "Microsoft.VisualStudio.Component.VC.CMake.Project"
+  ]
+}

@@ -9,7 +9,7 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 ## GUI preview
 
 <p align="center">
-  <img src="assets/lw-Web2Android-GUI.png" alt="lw.Web2Android GUI" width="680">
+  <img src="assets/lw-Web2Android-GUI.jpg" alt="lw.Web2Android v0.2.6 GUI" width="680">
 </p>
 
 ## Features
@@ -255,15 +255,19 @@ The Android Runtime uses `WebViewAssetLoader` and an HTTPS-style application URL
 
 ## Build from source
 
-Development requires CMake, the Visual Studio 2022 C++ toolchain, JDK 17, Gradle 8.9, and the locked Android SDK. End users do not need these development dependencies.
+For Packer/GUI development, install the Visual Studio 2022 **Desktop development with C++** and CMake components, open [lw.Web2Android.sln](lw.Web2Android.sln), select `Release | x64`, and build the solution. **Open a local folder** with the `Visual Studio 2022 x64` preset remains available as an alternative. See [DEVELOPMENT.md](DEVELOPMENT.md) for the complete workflow.
+
+```powershell
+cmake --preset vs2022-x64
+cmake --build --preset vs2022-release
+ctest --preset vs2022-release-tests
+```
+
+JDK 17, Gradle 8.9, and the locked Android SDK are required only when rebuilding the Android Java Runtime. End users do not need these development dependencies.
 
 ```powershell
 gradle -p runtime clean :app:lintRelease :app:assembleRelease
 ./tools/package-runtime.ps1
-
-cmake -S packer -B build/packer -A x64 -DBUILD_TESTING=ON
-cmake --build build/packer --config Release --parallel
-ctest --test-dir build/packer -C Release --output-on-failure
 ```
 
 Precompiled Runtime files and APKs are not committed; CI generates them from source. Main directories:
@@ -275,6 +279,8 @@ samples/      Remote-mode and Unicode Assets regression configurations
 tools/        Runtime, toolchain, and release scripts
 .github/      Unified CI and Release workflow
 ```
+
+`tools/package-vs2022-development.ps1` creates a private VS2022 development package containing source, offline dependencies, prebuilt programs, Runtime v6, and the complete minimal toolchain. Android SDK components remain subject to their license; do not upload this complete package as a public Release.
 
 ## Current limitations
 
