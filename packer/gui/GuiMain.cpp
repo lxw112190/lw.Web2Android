@@ -99,7 +99,7 @@ struct BuildCompletion {
 };
 
 constexpr RECT kIconPreviewRect{48, 557, 112, 621};
-constexpr RECT kStatusRect{48, 950, 712, 978};
+constexpr RECT kStatusRect{28, 950, 732, 978};
 constexpr UINT kBuildProgressMessage = WM_APP + 1;
 constexpr UINT kBuildFinishedMessage = WM_APP + 2;
 constexpr UINT kToolchainFinishedMessage = WM_APP + 3;
@@ -662,7 +662,7 @@ void BuildInterface(State& state) {
     AddLabel(state, L"", 48, 828, 470, 24, kToolchainStatus, FontRole::Small);
     AddButton(state, L"初始化工具链", 560, 820, 152, 34, kInstallToolchain);
 
-    AddButton(state, L"生成 Android APK", 48, 881, 664, 48, kBuild);
+    AddButton(state, L"生成 Android APK", 28, 881, 704, 48, kBuild);
 
     const auto output = std::filesystem::current_path() / "output";
     SetWindowTextW(GetDlgItem(state.window, kOutput), output.c_str());
