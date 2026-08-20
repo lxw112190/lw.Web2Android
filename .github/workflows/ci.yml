@@ -339,12 +339,8 @@ jobs:
             },
             [pscustomobject]@{
               apk = 'build/samples/custom-icon/custom-icon-1.0.0-android.apk'
-              required = @(
-                'classes.dex', 'assets/lw-config.json', 'assets/www/index.html',
-                'res/mipmap-mdpi/ic_launcher.png', 'res/mipmap-hdpi/ic_launcher.png',
-                'res/mipmap-xhdpi/ic_launcher.png', 'res/mipmap-xxhdpi/ic_launcher.png',
-                'res/mipmap-xxxhdpi/ic_launcher.png'
-              )
+              required = @('classes.dex', 'assets/lw-config.json', 'assets/www/index.html')
+              iconDensities = @('mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi')
               forbidden = @('res/drawable/ic_launcher.xml')
               expectHttp = $false
             }
@@ -362,6 +358,19 @@ jobs:
               $names = @($zip.Entries.FullName)
               foreach ($required in $expectation.required) {
                 if ($required -notin $names) { throw "$apk is missing $required" }
+              }
+              $iconDensities = $expectation.PSObject.Properties['iconDensities']
+              if ($null -ne $iconDensities) {
+                foreach ($density in $iconDensities.Value) {
+                  # AAPT2 canonicalizes density resources to directories such as
+                  # mipmap-mdpi-v4; accept its version qualifier but still require
+                  # exactly one launcher PNG for every generated density.
+                  $pattern = "^res/mipmap-$density(?:-v[0-9]+)?/ic_launcher[.]png$"
+                  $iconEntries = @($names | Where-Object { $_ -match $pattern })
+                  if ($iconEntries.Count -ne 1) {
+                    throw "$apk must contain exactly one $density launcher icon; found: $($iconEntries -join ', ')"
+                  }
+                }
               }
               foreach ($forbidden in $expectation.forbidden) {
                 if ($forbidden -in $names) { throw "$apk unexpectedly contains $forbidden" }
