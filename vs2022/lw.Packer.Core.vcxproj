@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion><Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{2F608BB1-6C4D-4E12-A8BC-202608200001}</ProjectGuid><RootNamespace>lwPackerCore</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ImportDirectoryBuildProps>false</ImportDirectoryBuildProps><ImportDirectoryBuildTargets>false</ImportDirectoryBuildTargets><VcpkgEnabled>false</VcpkgEnabled>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration"><ConfigurationType>StaticLibrary</ConfigurationType><UseDebugLibraries>true</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration"><ConfigurationType>StaticLibrary</ConfigurationType><UseDebugLibraries>false</UseDebugLibraries><PlatformToolset>v143</PlatformToolset><WholeProgramOptimization>true</WholeProgramOptimization><CharacterSet>Unicode</CharacterSet></PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" /><ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets"><Import Project="lw.Web2Android.Common.props" /></ImportGroup>
+  <PropertyGroup Label="UserMacros" /><PropertyGroup><TargetName>lw_packer_core</TargetName></PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"><ClCompile><PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile></ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'"><ClCompile><PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions><FunctionLevelLinking>true</FunctionLevelLinking><IntrinsicFunctions>true</IntrinsicFunctions></ClCompile><Lib><LinkTimeCodeGeneration>true</LinkTimeCodeGeneration></Lib></ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\packer\core\ApkAssembler.cpp" /><ClCompile Include="..\packer\core\BuildPipeline.cpp" /><ClCompile Include="..\packer\core\Generators.cpp" /><ClCompile Include="..\packer\core\Hash.cpp" /><ClCompile Include="..\packer\core\IconGenerator.cpp" /><ClCompile Include="..\packer\core\Json.cpp" /><ClCompile Include="..\packer\core\Logging.cpp" /><ClCompile Include="..\packer\core\ProcessRunner.cpp" /><ClCompile Include="..\packer\core\ProjectConfig.cpp" /><ClCompile Include="..\packer\core\ProjectValidator.cpp" /><ClCompile Include="..\packer\core\ReleaseMetadata.cpp" /><ClCompile Include="..\packer\core\SigningKeyManager.cpp" /><ClCompile Include="..\packer\core\Toolchain.cpp" /><ClCompile Include="..\packer\gui\GuiProjectModel.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\packer\core\ApkAssembler.h" /><ClInclude Include="..\packer\core\BuildPipeline.h" /><ClInclude Include="..\packer\core\Generators.h" /><ClInclude Include="..\packer\core\Hash.h" /><ClInclude Include="..\packer\core\IconGenerator.h" /><ClInclude Include="..\packer\core\Json.h" /><ClInclude Include="..\packer\core\Logging.h" /><ClInclude Include="..\packer\core\ProcessRunner.h" /><ClInclude Include="..\packer\core\ProjectConfig.h" /><ClInclude Include="..\packer\core\ProjectValidator.h" /><ClInclude Include="..\packer\core\ReleaseMetadata.h" /><ClInclude Include="..\packer\core\SigningKeyManager.h" /><ClInclude Include="..\packer\core\Toolchain.h" /><ClInclude Include="..\packer\gui\GuiProjectModel.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" /><ImportGroup Label="ExtensionTargets" />
+</Project>

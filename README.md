@@ -9,13 +9,14 @@
 ## 界面预览
 
 <p align="center">
-  <img src="assets/lw-Web2Android-GUI.jpg" alt="lw.Web2Android v0.2.6 GUI" width="680">
+  <img src="assets/lw-Web2Android-GUI.jpg" alt="lw.Web2Android GUI" width="680">
 </p>
 
 ## 主要能力
 
 - 本地静态网站和在线 URL 两种模式；
-- 原生 Windows GUI，支持高 DPI 和后台构建；
+- 原生 Windows GUI，支持高 DPI、后台构建和固定尺寸双栏布局；
+- 网页来源与应用设置采用左右双栏，左侧内嵌项目支持二维码且不依赖外部图片；
 - 预编译 Android Runtime DEX，无需为每个项目重新编译 Java；
 - AAPT2 资源生成、ZIP 组装、`zipalign` 和 `apksigner` 完整流水线；
 - 每个 Package Name 独立且可复用的 RSA 3072 签名身份；
@@ -29,7 +30,7 @@
 - Custom Scheme 外部应用跳转失败时保留当前 WebView；
 - GitHub Actions 自动构建 Runtime、Packer、GUI 和真实 React/Vite Demo。
 
-当前版本：`v0.2.6`<br>
+当前版本：`v0.2.7`<br>
 Android：`minSdk 23`，`targetSdk 35`
 
 ## 下载与首次使用
@@ -43,7 +44,7 @@ bin/lw.Web2Android.GUI.exe
 公开发行包包含：
 
 ```text
-lw-Web2Android-v0.2.6-windows-x64/
+lw-Web2Android-v0.2.7-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
@@ -235,8 +236,8 @@ Runtime 还会记录最终生效的 WebView 视口策略、屏幕像素/密度�
 推送 `v*` 标签时，完整 CI 成功后会自动创建 GitHub Release：
 
 ```bash
-git tag -a v0.2.6 -m "lw.Web2Android v0.2.6"
-git push origin v0.2.6
+git tag -a v0.2.7 -m "lw.Web2Android v0.2.7"
+git push origin v0.2.7
 ```
 
 ## 架构
@@ -255,7 +256,9 @@ Android Runtime 使用 `WebViewAssetLoader` 通过 HTTPS 风格的应用内 URL 
 
 ## 从源码构建
 
-只修改 C++ Packer/GUI 时，安装 Visual Studio 2022 的“使用 C++ 的桌面开发”和 CMake 组件即可。可直接打开根目录的 [lw.Web2Android.sln](lw.Web2Android.sln)，选择 `Release | x64` 后生成解决方案；也可以使用“打开本地文件夹”和 `Visual Studio 2022 x64` 预设。详细步骤见 [DEVELOPMENT.md](DEVELOPMENT.md)。
+只修改 C++ Packer/GUI 时，安装 Visual Studio 2022 的“使用 C++ 的桌面开发”即可。根目录的 [lw.Web2Android.sln](lw.Web2Android.sln) 是原生 VS2022 多工程解决方案，选择 `Release | x64` 后可直接生成，不调用 PowerShell、CMake 或 Ninja。完整私有开发包已包含解压好的离线 spdlog 头文件。详细步骤见 [DEVELOPMENT.md](DEVELOPMENT.md)。
+
+CMake 构建继续保留给 CI 和命令行开发者：
 
 ```powershell
 cmake --preset vs2022-x64

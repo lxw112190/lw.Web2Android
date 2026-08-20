@@ -64,6 +64,21 @@ enum ControlId {
     kInstallToolchain,
     kSourceLabel,
     kModeHint,
+    kHeaderTitle,
+    kHeaderSubtitle,
+    kHeaderVersion,
+    kSourceSectionTitle,
+    kSupportTitle,
+    kSupportCaption,
+    kSettingsSectionTitle,
+    kNameLabel,
+    kPackageLabel,
+    kAppIconLabel,
+    kVersionNameLabel,
+    kVersionCodeLabel,
+    kOrientationLabel,
+    kOutputLabel,
+    kSigningHint,
 };
 
 enum class FontRole { Title, Section, Body, Small };
@@ -84,8 +99,15 @@ struct State {
     HBRUSH backgroundBrush = nullptr;
     HBRUSH cardBrush = nullptr;
     HBITMAP iconPreview = nullptr;
+    HBITMAP sponsorQr = nullptr;
     std::vector<ControlLayout> controls;
     GuiEnvironment environment;
+    RECT leftCard{};
+    RECT rightCard{};
+    RECT iconPreviewRect{};
+    RECT sponsorRect{};
+    RECT sponsorDivider{};
+    RECT statusRect{};
     std::wstring status = L"准备就绪 · 请选择网页来源和 APK 输出目录";
     COLORREF statusColor = kSuccess;
     COLORREF iconHintColor = kMuted;
@@ -98,17 +120,22 @@ struct BuildCompletion {
     std::wstring error;
 };
 
-constexpr RECT kIconPreviewRect{48, 557, 112, 621};
-constexpr RECT kStatusRect{28, 950, 732, 978};
 constexpr UINT kBuildProgressMessage = WM_APP + 1;
 constexpr UINT kBuildFinishedMessage = WM_APP + 2;
 constexpr UINT kToolchainFinishedMessage = WM_APP + 3;
 constexpr UINT_PTR kIconValidationTimer = 1;
+constexpr int kSponsorResourceId = 201;
 
 int Scale(int value, UINT dpi) { return MulDiv(value, static_cast<int>(dpi), 96); }
 
 RECT ScaleRect(RECT value, UINT dpi) {
     return {Scale(value.left, dpi), Scale(value.top, dpi), Scale(value.right, dpi), Scale(value.bottom, dpi)};
+}
+
+int Unscale(int value, UINT dpi) { return MulDiv(value, 96, static_cast<int>(dpi)); }
+
+RECT MakeRect(int x, int y, int width, int height) {
+    return {x, y, x + width, y + height};
 }
 
 HFONT MakeFont(int height, int weight, UINT dpi) {
@@ -149,6 +176,196 @@ void LayoutControls(const State& state) {
         const auto rect = ScaleRect(item.logical, state.dpi);
         MoveWindow(item.control, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, TRUE);
     }
+}
+
+void SetControlRect(State& state, int id, RECT logical) {
+    const auto control = GetDlgItem(state.window, id);
+    if (!control) return;
+    const auto item = std::find_if(state.controls.begin(), state.controls.end(),
+                                   [control](const ControlLayout& value) {
+                                       return value.control == control;
+                                   });
+    if (item != state.controls.end()) item->logical = logical;
+}
+
+void SetControlRect(State& state, int id, int x, int y, int width, int height) {
+    SetControlRect(state, id, MakeRect(x, y, width, height));
+}
+
+const ControlLayout* FindControlLayout(const State& state, int id) {
+    const auto control = GetDlgItem(state.window, id);
+    const auto item = std::find_if(state.controls.begin(), state.controls.end(),
+                                   [control](const ControlLayout& value) {
+                                       return value.control == control;
+                                   });
+    return item == state.controls.end() ? nullptr : &*item;
+}
+
+bool ContainsRect(const RECT& outer, const RECT& inner) {
+    return inner.left >= outer.left && inner.top >= outer.top &&
+           inner.right <= outer.right && inner.bottom <= outer.bottom;
+}
+
+bool ValidateLayout(const State& state) {
+    const auto build = FindControlLayout(state, kBuild);
+    const auto browseIcon = FindControlLayout(state, kBrowseIcon);
+    const auto restoreIcon = FindControlLayout(state, kRestoreDefaultIcon);
+    const auto statusWidth = state.statusRect.right - state.statusRect.left;
+    const auto cardsWidth = state.rightCard.right - state.leftCard.left;
+    const bool keyControlsExist = GetDlgItem(state.window, kSource) &&
+                                  GetDlgItem(state.window, kName) &&
+                                  GetDlgItem(state.window, kBuild);
+    const auto windowStyle = static_cast<DWORD>(GetWindowLongPtrW(state.window, GWL_STYLE));
+    return keyControlsExist && (windowStyle & (WS_MAXIMIZEBOX | WS_THICKFRAME)) == 0 &&
+           state.sponsorQr &&
+           state.leftCard.right < state.rightCard.left &&
+           state.leftCard.top == state.rightCard.top &&
+           state.leftCard.bottom == state.rightCard.bottom &&
+           ContainsRect(state.leftCard, state.sponsorRect) &&
+           ContainsRect(state.rightCard, state.iconPreviewRect) &&
+           build && build->logical.left == state.leftCard.left &&
+           build->logical.right == state.rightCard.right &&
+           browseIcon && restoreIcon &&
+           restoreIcon->logical.top - browseIcon->logical.bottom >= 4 &&
+           statusWidth == cardsWidth;
+}
+
+void LayoutInterface(State& state) {
+    RECT physicalClient{};
+    GetClientRect(state.window, &physicalClient);
+    const auto width = Unscale(physicalClient.right - physicalClient.left, state.dpi);
+    const auto height = Unscale(physicalClient.bottom - physicalClient.top, state.dpi);
+
+    constexpr int margin = 24;
+    constexpr int gap = 16;
+    constexpr int headerHeight = 84;
+    constexpr int buildHeight = 44;
+    const auto statusHeight = 22;
+    const auto statusTop = height - margin - statusHeight;
+    const auto buildTop = statusTop - 7 - buildHeight;
+    const auto cardsTop = headerHeight + 12;
+    const auto cardsBottom = buildTop - 10;
+    const auto contentWidth = width - margin * 2;
+    const auto availableColumns = contentWidth - gap;
+    const auto leftWidth = std::clamp(availableColumns * 35 / 100, 300, 360);
+    const auto rightWidth = availableColumns - leftWidth;
+    state.leftCard = MakeRect(margin, cardsTop, leftWidth, cardsBottom - cardsTop);
+    state.rightCard = MakeRect(margin + leftWidth + gap, cardsTop,
+                               rightWidth, cardsBottom - cardsTop);
+    state.statusRect = MakeRect(margin, statusTop, contentWidth, statusHeight);
+
+    SetControlRect(state, kHeaderTitle, margin + 6, 18, 390, 38);
+    SetControlRect(state, kHeaderSubtitle, margin + 7, 56, 520, 22);
+    SetControlRect(state, kHeaderVersion, width - margin - 100, 31, 100, 22);
+
+    const int leftX = static_cast<int>(state.leftCard.left) + 16;
+    const int leftRight = static_cast<int>(state.leftCard.right) - 16;
+    const int leftInnerWidth = leftRight - leftX;
+    const int leftY = static_cast<int>(state.leftCard.top);
+    const auto sourceRadioTop = leftY + 46;
+    const auto sourceLabelTop = leftY + 82;
+    const auto sourceEditTop = leftY + 106;
+    const auto allowHttpTop = leftY + 146;
+    const auto dividerTop = leftY + 184;
+    const auto supportTitleTop = leftY + 200;
+    SetControlRect(state, kSourceSectionTitle, leftX, leftY + 10, leftInnerWidth, 26);
+    SetControlRect(state, kModeLocal, leftX, sourceRadioTop, 142, 24);
+    SetControlRect(state, kModeRemote, leftX + 148, sourceRadioTop,
+                   std::max(96, leftInnerWidth - 148), 24);
+    SetControlRect(state, kSourceLabel, leftX, sourceLabelTop, 72, 20);
+    SetControlRect(state, kModeHint, leftX + 76, sourceLabelTop,
+                   std::max(120, leftInnerWidth - 76), 20);
+
+    const auto sourceButtonWidth = 82;
+    SetControlRect(state, kSource, leftX, sourceEditTop,
+                   leftInnerWidth - sourceButtonWidth - 8, 30);
+    SetControlRect(state, kBrowseSource, leftRight - sourceButtonWidth, sourceEditTop,
+                   sourceButtonWidth, 30);
+    SetControlRect(state, kAllowHttp, leftX, allowHttpTop, leftInnerWidth, 24);
+    state.sponsorDivider = MakeRect(leftX, dividerTop, leftInnerWidth, 1);
+    SetControlRect(state, kSupportTitle, leftX, supportTitleTop, leftInnerWidth, 22);
+
+    auto qrSize = 152;
+    const auto qrTop = leftY + 228;
+    const auto captionHeight = 38;
+    const int availableQrHeight = static_cast<int>(state.leftCard.bottom) - 8 -
+                                  captionHeight - qrTop;
+    qrSize = std::clamp(std::min(qrSize, availableQrHeight), 88, 152);
+    state.sponsorRect = MakeRect(state.leftCard.left + (leftWidth - qrSize) / 2,
+                                 qrTop, qrSize, qrSize);
+    SetControlRect(state, kSupportCaption, leftX, state.sponsorRect.bottom + 4,
+                   leftInnerWidth, captionHeight);
+
+    const int rightX = static_cast<int>(state.rightCard.left) + 16;
+    const int rightRight = static_cast<int>(state.rightCard.right) - 16;
+    const int rightInnerWidth = rightRight - rightX;
+    const int rightY = static_cast<int>(state.rightCard.top);
+    constexpr int editHeight = 30;
+    const auto nameLabelTop = rightY + 40;
+    const auto nameEditTop = rightY + 60;
+    const auto packageLabelTop = rightY + 104;
+    const auto packageEditTop = rightY + 124;
+    const auto iconLabelTop = rightY + 172;
+    const auto iconContentTop = rightY + 192;
+    SetControlRect(state, kSettingsSectionTitle, rightX, rightY + 10, rightInnerWidth, 24);
+    SetControlRect(state, kNameLabel, rightX, nameLabelTop, rightInnerWidth, 18);
+    SetControlRect(state, kName, rightX, nameEditTop, rightInnerWidth, editHeight);
+    SetControlRect(state, kPackageLabel, rightX, packageLabelTop, rightInnerWidth, 18);
+    SetControlRect(state, kPackage, rightX, packageEditTop, rightInnerWidth, editHeight);
+    SetControlRect(state, kAppIconLabel, rightX, iconLabelTop, rightInnerWidth, 18);
+
+    constexpr int previewSize = 60;
+    state.iconPreviewRect = MakeRect(rightX, iconContentTop, previewSize, previewSize);
+    const auto actionWidth = 82;
+    const auto actionX = rightRight - actionWidth;
+    const int iconPathX = static_cast<int>(state.iconPreviewRect.right) + 10;
+    SetControlRect(state, kIcon, iconPathX, iconContentTop,
+                   std::max(110, actionX - 8 - iconPathX), editHeight);
+    SetControlRect(state, kBrowseIcon, actionX, iconContentTop, actionWidth, editHeight);
+    SetControlRect(state, kIconHint, iconPathX, iconContentTop + 32,
+                   std::max(110, actionX - 8 - iconPathX), 22);
+    SetControlRect(state, kRestoreDefaultIcon, actionX, iconContentTop + 36, actionWidth, 26);
+
+    const auto versionTop = rightY + 270;
+    const auto rowGap = 10;
+    const auto versionNameWidth = std::max(110, rightInnerWidth * 24 / 100);
+    const auto versionCodeWidth = std::max(84, rightInnerWidth * 18 / 100);
+    const auto orientationWidth = std::max(118, rightInnerWidth * 24 / 100);
+    const auto versionCodeX = rightX + versionNameWidth + rowGap;
+    const auto orientationX = versionCodeX + versionCodeWidth + rowGap;
+    const auto fullscreenX = orientationX + orientationWidth + rowGap;
+    SetControlRect(state, kVersionNameLabel, rightX, versionTop,
+                   versionNameWidth, 18);
+    SetControlRect(state, kVersionName, rightX, versionTop + 18,
+                   versionNameWidth, editHeight);
+    SetControlRect(state, kVersionCodeLabel, versionCodeX, versionTop,
+                   versionCodeWidth, 18);
+    SetControlRect(state, kVersionCode, versionCodeX, versionTop + 18,
+                   versionCodeWidth, editHeight);
+    SetControlRect(state, kOrientationLabel, orientationX, versionTop,
+                   orientationWidth, 18);
+    SetControlRect(state, kOrientation, orientationX, versionTop + 18,
+                   orientationWidth, 160);
+    SetControlRect(state, kFullscreen, fullscreenX, versionTop + 20,
+                   std::max(88, rightRight - fullscreenX), 24);
+
+    const auto outputTop = rightY + 334;
+    SetControlRect(state, kOutputLabel, rightX, outputTop, rightInnerWidth, 18);
+    SetControlRect(state, kOutput, rightX, outputTop + 18,
+                   rightInnerWidth - actionWidth - 8, editHeight);
+    SetControlRect(state, kBrowseOutput, actionX, outputTop + 18,
+                   actionWidth, editHeight);
+    SetControlRect(state, kSigningHint, rightX, rightY + 398, rightInnerWidth, 20);
+    ShowWindow(GetDlgItem(state.window, kSigningHint), SW_SHOW);
+    const auto toolchainTop = rightY + 432;
+    SetControlRect(state, kToolchainStatus, rightX, toolchainTop,
+                   rightInnerWidth - 132, 28);
+    SetControlRect(state, kInstallToolchain, rightRight - 124, toolchainTop - 2,
+                   124, 30);
+
+    SetControlRect(state, kBuild, margin, buildTop, contentWidth, buildHeight);
+    LayoutControls(state);
+    InvalidateRect(state.window, nullptr, TRUE);
 }
 
 void CenterWindowInWorkArea(HWND window) {
@@ -261,35 +478,24 @@ std::filesystem::path PickPngFile(HWND owner) {
     return result;
 }
 
-HBITMAP CreateIconPreviewBitmap(const std::filesystem::path& source, UINT pixelSize) {
+HBITMAP CreateBitmapFromWicSource(IWICImagingFactory* factory, IWICBitmapSource* source,
+                                  UINT pixelWidth, UINT pixelHeight, const char* context) {
     using Microsoft::WRL::ComPtr;
-    ComPtr<IWICImagingFactory> factory;
-    if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
-                                IID_PPV_ARGS(&factory)))) {
-        throw std::runtime_error("Unable to create icon preview decoder");
-    }
-    ComPtr<IWICBitmapDecoder> decoder;
-    if (FAILED(factory->CreateDecoderFromFilename(source.c_str(), nullptr, GENERIC_READ,
-                                                  WICDecodeMetadataCacheOnLoad, &decoder))) {
-        throw std::runtime_error("Unable to decode icon preview");
-    }
-    ComPtr<IWICBitmapFrameDecode> frame;
     ComPtr<IWICBitmapScaler> scaler;
     ComPtr<IWICFormatConverter> converter;
-    if (FAILED(decoder->GetFrame(0, &frame)) ||
-        FAILED(factory->CreateBitmapScaler(&scaler)) ||
-        FAILED(scaler->Initialize(frame.Get(), pixelSize, pixelSize, WICBitmapInterpolationModeFant)) ||
+    if (FAILED(factory->CreateBitmapScaler(&scaler)) ||
+        FAILED(scaler->Initialize(source, pixelWidth, pixelHeight, WICBitmapInterpolationModeFant)) ||
         FAILED(factory->CreateFormatConverter(&converter)) ||
         FAILED(converter->Initialize(scaler.Get(), GUID_WICPixelFormat32bppBGRA,
                                      WICBitmapDitherTypeNone, nullptr, 0.0,
                                      WICBitmapPaletteTypeCustom))) {
-        throw std::runtime_error("Unable to prepare icon preview");
+        throw std::runtime_error(std::string("Unable to prepare ") + context);
     }
 
-    const UINT stride = pixelSize * 4U;
-    std::vector<std::uint8_t> pixels(static_cast<std::size_t>(stride) * pixelSize);
+    const UINT stride = pixelWidth * 4U;
+    std::vector<std::uint8_t> pixels(static_cast<std::size_t>(stride) * pixelHeight);
     if (FAILED(converter->CopyPixels(nullptr, stride, static_cast<UINT>(pixels.size()), pixels.data()))) {
-        throw std::runtime_error("Unable to read icon preview pixels");
+        throw std::runtime_error(std::string("Unable to read ") + context + " pixels");
     }
     for (std::size_t index = 0; index < pixels.size(); index += 4U) {
         const auto alpha = static_cast<unsigned int>(pixels[index + 3U]);
@@ -303,17 +509,85 @@ HBITMAP CreateIconPreviewBitmap(const std::filesystem::path& source, UINT pixelS
 
     BITMAPINFO bitmapInfo{};
     bitmapInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-    bitmapInfo.bmiHeader.biWidth = static_cast<LONG>(pixelSize);
-    bitmapInfo.bmiHeader.biHeight = -static_cast<LONG>(pixelSize);
+    bitmapInfo.bmiHeader.biWidth = static_cast<LONG>(pixelWidth);
+    bitmapInfo.bmiHeader.biHeight = -static_cast<LONG>(pixelHeight);
     bitmapInfo.bmiHeader.biPlanes = 1;
     bitmapInfo.bmiHeader.biBitCount = 32;
     bitmapInfo.bmiHeader.biCompression = BI_RGB;
     void* bitmapPixels = nullptr;
     const auto bitmap = CreateDIBSection(nullptr, &bitmapInfo, DIB_RGB_COLORS,
                                          &bitmapPixels, nullptr, 0);
-    if (!bitmap || !bitmapPixels) throw std::runtime_error("Unable to create icon preview bitmap");
+    if (!bitmap || !bitmapPixels) {
+        throw std::runtime_error(std::string("Unable to create ") + context + " bitmap");
+    }
     std::memcpy(bitmapPixels, pixels.data(), pixels.size());
     return bitmap;
+}
+
+HBITMAP CreateIconPreviewBitmap(const std::filesystem::path& source, UINT pixelSize) {
+    using Microsoft::WRL::ComPtr;
+    ComPtr<IWICImagingFactory> factory;
+    if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
+                                IID_PPV_ARGS(&factory)))) {
+        throw std::runtime_error("Unable to create icon preview decoder");
+    }
+    ComPtr<IWICBitmapDecoder> decoder;
+    if (FAILED(factory->CreateDecoderFromFilename(source.c_str(), nullptr, GENERIC_READ,
+                                                  WICDecodeMetadataCacheOnLoad, &decoder))) {
+        throw std::runtime_error("Unable to decode icon preview");
+    }
+    ComPtr<IWICBitmapFrameDecode> frame;
+    if (FAILED(decoder->GetFrame(0, &frame))) {
+        throw std::runtime_error("Unable to read icon preview frame");
+    }
+    return CreateBitmapFromWicSource(factory.Get(), frame.Get(), pixelSize, pixelSize,
+                                     "icon preview");
+}
+
+HBITMAP CreateSponsorQrBitmap() {
+    using Microsoft::WRL::ComPtr;
+    const auto module = GetModuleHandleW(nullptr);
+    const auto resource = FindResourceW(module, MAKEINTRESOURCEW(kSponsorResourceId), RT_RCDATA);
+    if (!resource) throw std::runtime_error("Unable to find embedded sponsor QR resource");
+    const auto resourceSize = SizeofResource(module, resource);
+    const auto loaded = LoadResource(module, resource);
+    auto* bytes = static_cast<BYTE*>(LockResource(loaded));
+    if (!loaded || !bytes || resourceSize == 0) {
+        throw std::runtime_error("Unable to read embedded sponsor QR resource");
+    }
+
+    ComPtr<IWICImagingFactory> factory;
+    ComPtr<IWICStream> stream;
+    ComPtr<IWICBitmapDecoder> decoder;
+    ComPtr<IWICBitmapFrameDecode> frame;
+    ComPtr<IWICBitmapClipper> clipper;
+    if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
+                                IID_PPV_ARGS(&factory))) ||
+        FAILED(factory->CreateStream(&stream)) ||
+        FAILED(stream->InitializeFromMemory(bytes, resourceSize)) ||
+        FAILED(factory->CreateDecoderFromStream(stream.Get(), nullptr,
+                                                WICDecodeMetadataCacheOnLoad, &decoder)) ||
+        FAILED(decoder->GetFrame(0, &frame)) ||
+        FAILED(factory->CreateBitmapClipper(&clipper))) {
+        throw std::runtime_error("Unable to decode embedded sponsor QR resource");
+    }
+
+    UINT width = 0;
+    UINT height = 0;
+    if (FAILED(frame->GetSize(&width, &height)) || width == 0 || height == 0) {
+        throw std::runtime_error("Embedded sponsor QR resource has invalid dimensions");
+    }
+    const auto cropSize = std::min(width * 52U / 100U, height * 38U / 100U);
+    WICRect crop{};
+    crop.X = static_cast<INT>((width - cropSize) / 2U);
+    crop.Y = static_cast<INT>(std::min(height * 23U / 100U, height - cropSize));
+    crop.Width = static_cast<INT>(cropSize);
+    crop.Height = static_cast<INT>(cropSize);
+    if (FAILED(clipper->Initialize(frame.Get(), &crop))) {
+        throw std::runtime_error("Unable to crop embedded sponsor QR resource");
+    }
+    return CreateBitmapFromWicSource(factory.Get(), clipper.Get(), 192, 192,
+                                     "sponsor QR");
 }
 
 void DrawRoundedPanel(HDC dc, RECT rect, COLORREF fill, COLORREF border, int radius) {
@@ -329,7 +603,7 @@ void DrawRoundedPanel(HDC dc, RECT rect, COLORREF fill, COLORREF border, int rad
 }
 
 void DrawIconPreview(HDC dc, const State& state) {
-    const auto rect = ScaleRect(kIconPreviewRect, state.dpi);
+    const auto rect = ScaleRect(state.iconPreviewRect, state.dpi);
     DrawRoundedPanel(dc, rect, kCard, kBorder, Scale(10, state.dpi));
     if (!state.iconPreview) {
         SetBkMode(dc, TRANSPARENT);
@@ -347,6 +621,38 @@ void DrawIconPreview(HDC dc, const State& state) {
     const auto x = rect.left + (rect.right - rect.left - bitmap.bmWidth) / 2;
     const auto y = rect.top + (rect.bottom - rect.top - bitmap.bmHeight) / 2;
     BitBlt(dc, x, y, bitmap.bmWidth, bitmap.bmHeight, memoryDc, 0, 0, SRCCOPY);
+    SelectObject(memoryDc, oldBitmap);
+    DeleteDC(memoryDc);
+}
+
+void DrawSponsorQr(HDC dc, const State& state) {
+    const auto rect = ScaleRect(state.sponsorRect, state.dpi);
+    DrawRoundedPanel(dc, rect, kCard, kBorder, Scale(8, state.dpi));
+    auto content = rect;
+    const auto inset = Scale(4, state.dpi);
+    InflateRect(&content, -inset, -inset);
+    if (!state.sponsorQr) {
+        SetBkMode(dc, TRANSPARENT);
+        SetTextColor(dc, kMuted);
+        SelectObject(dc, state.smallFont);
+        DrawTextW(dc, L"二维码不可用", -1, &content,
+                  DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+        return;
+    }
+
+    BITMAP bitmap{};
+    if (GetObjectW(state.sponsorQr, sizeof(bitmap), &bitmap) == 0) return;
+    const auto memoryDc = CreateCompatibleDC(dc);
+    if (!memoryDc) return;
+    const auto oldBitmap = SelectObject(memoryDc, state.sponsorQr);
+    const auto oldMode = SetStretchBltMode(dc, HALFTONE);
+    POINT oldOrigin{};
+    SetBrushOrgEx(dc, content.left, content.top, &oldOrigin);
+    StretchBlt(dc, content.left, content.top,
+               content.right - content.left, content.bottom - content.top,
+               memoryDc, 0, 0, bitmap.bmWidth, bitmap.bmHeight, SRCCOPY);
+    SetBrushOrgEx(dc, oldOrigin.x, oldOrigin.y, nullptr);
+    SetStretchBltMode(dc, oldMode);
     SelectObject(memoryDc, oldBitmap);
     DeleteDC(memoryDc);
 }
@@ -384,7 +690,7 @@ void SetStatus(HWND window, const std::wstring& text, COLORREF color = kSuccess)
     if (!state) return;
     state->status = text;
     state->statusColor = color;
-    const auto rect = ScaleRect(kStatusRect, state->dpi);
+    const auto rect = ScaleRect(state->statusRect, state->dpi);
     RedrawWindow(window, &rect, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW | RDW_NOCHILDREN);
 }
 
@@ -404,7 +710,12 @@ void RefreshIconPreview(State& state) {
     COLORREF hintColor = kMuted;
     try {
         const auto info = IconGenerator::Inspect(source);
-        replacement = CreateIconPreviewBitmap(source, static_cast<UINT>(Scale(56, state.dpi)));
+        const int previewWidth = static_cast<int>(state.iconPreviewRect.right -
+                                                   state.iconPreviewRect.left);
+        const int previewHeight = static_cast<int>(state.iconPreviewRect.bottom -
+                                                    state.iconPreviewRect.top);
+        const auto previewSize = std::max(24, std::min(previewWidth, previewHeight) - 8);
+        replacement = CreateIconPreviewBitmap(source, static_cast<UINT>(Scale(previewSize, state.dpi)));
         if (usesDefault) {
             hint = L"使用内置默认图标 · 建议使用 512×512 或更高分辨率的正方形 PNG";
         } else {
@@ -424,7 +735,7 @@ void RefreshIconPreview(State& state) {
     state.iconHintColor = hintColor;
     SetDynamicLabelText(state.window, kIconHint, hint);
     EnableWindow(GetDlgItem(state.window, kRestoreDefaultIcon), !usesDefault);
-    const auto previewRect = ScaleRect(kIconPreviewRect, state.dpi);
+    const auto previewRect = ScaleRect(state.iconPreviewRect, state.dpi);
     RedrawWindow(state.window, &previewRect, nullptr,
                  RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW | RDW_NOCHILDREN);
 }
@@ -449,8 +760,8 @@ void UpdateMode(HWND window) {
     const bool local = IsDlgButtonChecked(window, kModeLocal) == BST_CHECKED;
     SetDynamicLabelText(window, kSourceLabel, local ? L"网页目录" : L"在线网址");
     SetDynamicLabelText(window, kModeHint,
-                        local ? L"选择普通 HTML、Vue、React 或 Vite 的构建产物目录（入口为 index.html）"
-                              : L"输入在线网址；HTTP 地址会自动开启可信内网选项");
+                        local ? L"HTML / Vue / React / Vite 构建目录"
+                              : L"输入需要打开的在线网址");
     SendMessageW(GetDlgItem(window, kSource), EM_SETCUEBANNER, TRUE,
                  reinterpret_cast<LPARAM>(local ? L"例如：D:\\project\\dist"
                                                 : L"例如：https://example.com 或 http://intranet.example.test"));
@@ -610,64 +921,79 @@ void StartToolchainInstall(HWND window) {
 }
 
 void BuildInterface(State& state) {
-    AddLabel(state, L"lw.Web2Android", 34, 22, 360, 38, 0, FontRole::Title);
-    AddLabel(state, L"把网页项目快速转换为可安装的 Android APK", 35, 63, 520, 24, 0, FontRole::Small);
+    AddLabel(state, L"lw.Web2Android", 0, 0, 360, 38, kHeaderTitle, FontRole::Title);
+    AddLabel(state, L"网页项目 → Android APK", 0, 0, 520, 24,
+             kHeaderSubtitle, FontRole::Small);
     const auto productVersion = std::wstring(L"v") + Utf8ToWide(LW_WEB2ANDROID_VERSION);
-    AddControl(state, L"STATIC", productVersion.c_str(), SS_RIGHT, 620, 39, 92, 22, 0, FontRole::Small);
+    AddControl(state, L"STATIC", productVersion.c_str(), SS_RIGHT, 0, 0, 92, 22,
+               kHeaderVersion, FontRole::Small);
 
-    AddLabel(state, L"01  网页来源", 48, 126, 200, 28, 0, FontRole::Section);
+    AddLabel(state, L"01  网页来源", 0, 0, 200, 28,
+             kSourceSectionTitle, FontRole::Section);
     AddControl(state, L"BUTTON", L"本地静态目录", WS_TABSTOP | BS_AUTORADIOBUTTON | WS_GROUP,
-               48, 162, 145, 26, kModeLocal);
+               0, 0, 145, 26, kModeLocal);
     AddControl(state, L"BUTTON", L"在线网址", WS_TABSTOP | BS_AUTORADIOBUTTON,
-               208, 162, 120, 26, kModeRemote);
+               0, 0, 120, 26, kModeRemote);
     CheckRadioButton(state.window, kModeLocal, kModeRemote, kModeLocal);
-    AddLabel(state, L"网页目录", 48, 202, 90, 22, kSourceLabel, FontRole::Small);
-    AddLabel(state, L"选择普通 HTML、Vue、React 或 Vite 的构建产物目录（入口为 index.html）",
-             141, 203, 565, 22, kModeHint, FontRole::Small);
-    AddEdit(state, L"", 48, 228, 548, kSource, L"例如：D:\\project\\dist");
-    AddButton(state, L"选择目录", 610, 228, 102, 34, kBrowseSource);
+    AddLabel(state, L"网页目录", 0, 0, 90, 22, kSourceLabel, FontRole::Small);
+    AddLabel(state, L"HTML / Vue / React / Vite 构建目录",
+             0, 0, 260, 22, kModeHint, FontRole::Small);
+    AddEdit(state, L"", 0, 0, 240, kSource, L"例如：D:\\project\\dist");
+    AddButton(state, L"选择目录", 0, 0, 82, 30, kBrowseSource);
     AddControl(state, L"BUTTON", L"允许 HTTP（仅建议可信内网）", WS_TABSTOP | BS_AUTOCHECKBOX,
-               48, 270, 300, 26, kAllowHttp, FontRole::Small);
+               0, 0, 280, 24, kAllowHttp, FontRole::Small);
+    AddLabel(state, L"支持项目持续维护", 0, 0, 260, 22,
+             kSupportTitle, FontRole::Small);
+    AddControl(state, L"STATIC", L"如果这个工具帮到了你，\r\n欢迎支持项目持续完善。",
+               SS_CENTER, 0, 0, 260, 38, kSupportCaption, FontRole::Small);
 
-    AddLabel(state, L"02  应用设置", 48, 347, 200, 28, 0, FontRole::Section);
-    AddLabel(state, L"应用名称", 48, 389, 120, 22, 0, FontRole::Small);
-    AddEdit(state, L"我的网页应用", 48, 413, 664, kName, L"显示在 Android 桌面上的名称");
-    AddLabel(state, L"Package Name", 48, 461, 160, 22, 0, FontRole::Small);
-    AddEdit(state, L"com.example.myapp", 48, 485, 664, kPackage, L"例如：com.company.app");
+    AddLabel(state, L"02  应用设置", 0, 0, 200, 28,
+             kSettingsSectionTitle, FontRole::Section);
+    AddLabel(state, L"应用名称", 0, 0, 120, 22, kNameLabel, FontRole::Small);
+    AddEdit(state, L"我的网页应用", 0, 0, 420, kName, L"显示在 Android 桌面上的名称");
+    AddLabel(state, L"Package Name", 0, 0, 160, 22, kPackageLabel, FontRole::Small);
+    AddEdit(state, L"com.example.myapp", 0, 0, 420, kPackage, L"例如：com.company.app");
 
-    AddLabel(state, L"应用图标", 48, 533, 120, 22, 0, FontRole::Small);
-    AddEdit(state, L"", 128, 557, 468, kIcon, L"可选：正方形 PNG");
-    AddButton(state, L"选择图标", 610, 557, 102, 34, kBrowseIcon);
-    AddLabel(state, L"", 128, 599, 468, 22, kIconHint, FontRole::Small);
-    AddButton(state, L"恢复默认", 610, 598, 102, 28, kRestoreDefaultIcon);
+    AddLabel(state, L"应用图标", 0, 0, 120, 22, kAppIconLabel, FontRole::Small);
+    AddEdit(state, L"", 0, 0, 280, kIcon, L"可选：正方形 PNG");
+    AddButton(state, L"选择图标", 0, 0, 82, 30, kBrowseIcon);
+    AddLabel(state, L"", 0, 0, 280, 22, kIconHint, FontRole::Small);
+    AddButton(state, L"使用默认", 0, 0, 82, 26, kRestoreDefaultIcon);
 
-    AddLabel(state, L"Version Name", 48, 639, 150, 22, 0, FontRole::Small);
-    AddEdit(state, L"1.0.0", 48, 663, 170, kVersionName);
-    AddLabel(state, L"Version Code", 242, 639, 150, 22, 0, FontRole::Small);
-    AddEdit(state, L"1", 242, 663, 110, kVersionCode, nullptr, ES_NUMBER);
-    AddLabel(state, L"屏幕方向", 376, 639, 120, 22, 0, FontRole::Small);
-    const auto orientation = AddCombo(state, 376, 663, 170, kOrientation);
+    AddLabel(state, L"Version Name", 0, 0, 150, 22, kVersionNameLabel, FontRole::Small);
+    AddEdit(state, L"1.0.0", 0, 0, 130, kVersionName);
+    AddLabel(state, L"Version Code", 0, 0, 150, 22, kVersionCodeLabel, FontRole::Small);
+    AddEdit(state, L"1", 0, 0, 100, kVersionCode, nullptr, ES_NUMBER);
+    AddLabel(state, L"屏幕方向", 0, 0, 120, 22, kOrientationLabel, FontRole::Small);
+    const auto orientation = AddCombo(state, 0, 0, 150, kOrientation);
     SendMessageW(orientation, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"自动"));
     SendMessageW(orientation, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"竖屏"));
     SendMessageW(orientation, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"横屏"));
     SendMessageW(orientation, CB_SETCURSEL, 0, 0);
     AddControl(state, L"BUTTON", L"全屏显示", WS_TABSTOP | BS_AUTOCHECKBOX,
-               584, 667, 120, 26, kFullscreen);
+               0, 0, 100, 24, kFullscreen);
 
-    AddLabel(state, L"输出目录", 48, 723, 120, 22, 0, FontRole::Small);
-    AddEdit(state, L"", 48, 747, 548, kOutput, L"APK、校验和与发行元数据的输出目录");
-    AddButton(state, L"选择位置", 610, 747, 102, 34, kBrowseOutput);
+    AddLabel(state, L"输出目录", 0, 0, 120, 22, kOutputLabel, FontRole::Small);
+    AddEdit(state, L"", 0, 0, 320, kOutput, L"APK、校验和与发行元数据的输出目录");
+    AddButton(state, L"选择位置", 0, 0, 82, 30, kBrowseOutput);
     AddLabel(state, L"签名：按 Package Name 自动创建或复用独立身份，可在 CLI 中导出 PFX 备份",
-             48, 800, 650, 24, 0, FontRole::Small);
-    AddLabel(state, L"", 48, 828, 470, 24, kToolchainStatus, FontRole::Small);
-    AddButton(state, L"初始化工具链", 560, 820, 152, 34, kInstallToolchain);
+             0, 0, 520, 20, kSigningHint, FontRole::Small);
+    AddLabel(state, L"", 0, 0, 360, 28, kToolchainStatus, FontRole::Small);
+    AddButton(state, L"初始化工具链", 0, 0, 124, 30, kInstallToolchain);
 
-    AddButton(state, L"生成 Android APK", 28, 881, 704, 48, kBuild);
+    AddButton(state, L"生成 Android APK", 0, 0, 704, 44, kBuild);
 
     const auto output = std::filesystem::current_path() / "output";
     SetWindowTextW(GetDlgItem(state.window, kOutput), output.c_str());
+    LayoutInterface(state);
     UpdateToolchainDisplay(state);
     RefreshIconPreview(state);
+    try {
+        state.sponsorQr = CreateSponsorQrBitmap();
+    } catch (const std::exception& error) {
+        PackerLogger().Warn(std::string("Unable to load embedded sponsor QR: ") + error.what());
+    }
+    InvalidateRect(state.window, nullptr, TRUE);
 }
 
 LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
@@ -686,15 +1012,18 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
             BuildInterface(*state);
             return 0;
         }
+        case WM_SIZE:
+            if (state && wparam != SIZE_MINIMIZED) LayoutInterface(*state);
+            return 0;
         case WM_DPICHANGED:
             if (state) {
                 state->dpi = HIWORD(wparam);
                 RecreateFonts(*state);
-                LayoutControls(*state);
                 const auto* suggested = reinterpret_cast<RECT*>(lparam);
                 SetWindowPos(window, nullptr, suggested->left, suggested->top,
                              suggested->right - suggested->left, suggested->bottom - suggested->top,
                              SWP_NOACTIVATE | SWP_NOZORDER);
+                LayoutInterface(*state);
                 RefreshIconPreview(*state);
                 RedrawWindow(window, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
             }
@@ -853,16 +1182,23 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
             RECT client{};
             GetClientRect(window, &client);
             FillRect(dc, &client, state ? state->backgroundBrush : reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1));
-            RECT header{0, 0, client.right, state ? Scale(105, state->dpi) : 105};
+            const auto dpi = state ? state->dpi : 96;
+            RECT header{0, 0, client.right, Scale(84, dpi)};
             const auto headerBrush = CreateSolidBrush(kHeader);
             FillRect(dc, &header, headerBrush);
             DeleteObject(headerBrush);
-            const auto dpi = state ? state->dpi : 96;
-            DrawRoundedPanel(dc, ScaleRect(RECT{28, 109, 732, 305}, dpi), kCard, kBorder, Scale(18, dpi));
-            DrawRoundedPanel(dc, ScaleRect(RECT{28, 320, 732, 864}, dpi), kCard, kBorder, Scale(18, dpi));
             if (state) {
+                DrawRoundedPanel(dc, ScaleRect(state->leftCard, dpi),
+                                 kCard, kBorder, Scale(16, dpi));
+                DrawRoundedPanel(dc, ScaleRect(state->rightCard, dpi),
+                                 kCard, kBorder, Scale(16, dpi));
+                const auto divider = ScaleRect(state->sponsorDivider, dpi);
+                const auto dividerBrush = CreateSolidBrush(kBorder);
+                FillRect(dc, &divider, dividerBrush);
+                DeleteObject(dividerBrush);
                 DrawIconPreview(dc, *state);
-                const auto statusRect = ScaleRect(kStatusRect, state->dpi);
+                DrawSponsorQr(dc, *state);
+                const auto statusRect = ScaleRect(state->statusRect, state->dpi);
                 FillRect(dc, &statusRect, state->backgroundBrush);
                 SetBkMode(dc, OPAQUE);
                 SetBkColor(dc, kBackground);
@@ -887,6 +1223,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
                 DeleteObject(state->backgroundBrush);
                 DeleteObject(state->cardBrush);
                 if (state->iconPreview) DeleteObject(state->iconPreview);
+                if (state->sponsorQr) DeleteObject(state->sponsorQr);
                 delete state;
             }
             PostQuitMessage(0);
@@ -895,7 +1232,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
     return DefWindowProcW(window, message, wparam, lparam);
 }
 
-int RunGui(HINSTANCE instance) {
+int RunGui(HINSTANCE instance, bool showWindow = true) {
     PackerLogger().Info(std::string("GUI started, version ") + LW_WEB2ANDROID_VERSION);
     INITCOMMONCONTROLSEX controls{sizeof(controls), ICC_STANDARD_CLASSES};
     InitCommonControlsEx(&controls);
@@ -910,7 +1247,7 @@ int RunGui(HINSTANCE instance) {
     if (!RegisterClassExW(&windowClass)) throw std::runtime_error("Unable to register the GUI window");
     const DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
     const auto dpi = GetDpiForSystem();
-    RECT bounds{0, 0, Scale(760, dpi), Scale(1000, dpi)};
+    RECT bounds{0, 0, Scale(1000, dpi), Scale(670, dpi)};
     AdjustWindowRectExForDpi(&bounds, style, FALSE, WS_EX_CONTROLPARENT, dpi);
     const auto window = CreateWindowExW(
         WS_EX_CONTROLPARENT, kClassName, L"lw.Web2Android · 网页转 Android APK",
@@ -919,6 +1256,18 @@ int RunGui(HINSTANCE instance) {
     if (!window) throw std::runtime_error("Unable to create the GUI window");
     const DWORD corner = 2;
     DwmSetWindowAttribute(window, 33, &corner, sizeof(corner));
+    if (!showWindow) {
+        RECT normalBounds{0, 0, Scale(1000, dpi), Scale(670, dpi)};
+        AdjustWindowRectExForDpi(&normalBounds, style, FALSE, WS_EX_CONTROLPARENT, dpi);
+        SetWindowPos(window, nullptr, 0, 0,
+                     normalBounds.right - normalBounds.left,
+                     normalBounds.bottom - normalBounds.top,
+                     SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOZORDER);
+        auto* state = reinterpret_cast<State*>(GetWindowLongPtrW(window, GWLP_USERDATA));
+        const auto valid = state && ValidateLayout(*state);
+        DestroyWindow(window);
+        return valid ? 0 : 1;
+    }
     CenterWindowInWorkArea(window);
     ShowWindow(window, SW_SHOW);
     UpdateWindow(window);
@@ -932,12 +1281,13 @@ int RunGui(HINSTANCE instance) {
     return static_cast<int>(message.wParam);
 }
 
-int RunSmokeTest() {
+int RunSmokeTest(HINSTANCE instance) {
     const auto environment = GuiEnvironment::Discover(CurrentExecutable(), std::filesystem::current_path());
-    return std::filesystem::is_regular_file(environment.toolchainLock) &&
-                   std::filesystem::is_directory(environment.runtimeDirectory)
-               ? 0
-               : 1;
+    if (!std::filesystem::is_regular_file(environment.toolchainLock) ||
+        !std::filesystem::is_directory(environment.runtimeDirectory)) {
+        return 1;
+    }
+    return RunGui(instance, false);
 }
 
 }  // namespace
@@ -948,7 +1298,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR commandLine, int) {
     const auto initialized = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
     try {
         const auto result = std::wstring(commandLine) == L"--smoke-test"
-                                ? lw::web2android::gui::RunSmokeTest()
+                                ? lw::web2android::gui::RunSmokeTest(instance)
                                 : lw::web2android::gui::RunGui(instance);
         if (SUCCEEDED(initialized)) CoUninitialize();
         return result;

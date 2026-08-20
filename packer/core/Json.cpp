@@ -83,7 +83,6 @@ private:
             return JsonValue{};
         }
         Fail("expected a string, integer, boolean, or null");
-        return JsonValue{};
     }
 
     JsonValue ParseInteger() {
@@ -141,7 +140,6 @@ private:
             }
         }
         Fail("unterminated string");
-        return {};
     }
 
     std::uint32_t ParseUnicodeCodePoint() {

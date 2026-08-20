@@ -9,13 +9,14 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 ## GUI preview
 
 <p align="center">
-  <img src="assets/lw-Web2Android-GUI.jpg" alt="lw.Web2Android v0.2.6 GUI" width="680">
+  <img src="assets/lw-Web2Android-GUI.jpg" alt="lw.Web2Android GUI" width="680">
 </p>
 
 ## Features
 
 - Local static website and remote URL modes;
-- native high-DPI Windows GUI with background builds;
+- native high-DPI Windows GUI with background builds and a fixed-size two-column layout;
+- side-by-side source and application settings, with a self-contained project-support QR area in the left column;
 - precompiled Android Runtime DEX, so Java is not rebuilt per project;
 - complete AAPT2, ZIP assembly, `zipalign`, and `apksigner` pipeline;
 - independent, reusable RSA-3072 signing identity per package name;
@@ -29,7 +30,7 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 - non-fatal external custom-scheme handling that preserves the current WebView;
 - GitHub Actions builds the Runtime, Packer, GUI, and a real React/Vite demo.
 
-Current version: `v0.2.6`<br>
+Current version: `v0.2.7`<br>
 Android: `minSdk 23`, `targetSdk 35`
 
 ## Download and first run
@@ -43,7 +44,7 @@ bin/lw.Web2Android.GUI.exe
 The public distribution contains:
 
 ```text
-lw-Web2Android-v0.2.6-windows-x64/
+lw-Web2Android-v0.2.7-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
@@ -235,8 +236,8 @@ The demo APK has passed validation on a physical Android device. The pinned sour
 Pushing a `v*` tag creates a GitHub Release only after the full workflow passes:
 
 ```bash
-git tag -a v0.2.6 -m "lw.Web2Android v0.2.6"
-git push origin v0.2.6
+git tag -a v0.2.7 -m "lw.Web2Android v0.2.7"
+git push origin v0.2.7
 ```
 
 ## Architecture
@@ -255,7 +256,9 @@ The Android Runtime uses `WebViewAssetLoader` and an HTTPS-style application URL
 
 ## Build from source
 
-For Packer/GUI development, install the Visual Studio 2022 **Desktop development with C++** and CMake components, open [lw.Web2Android.sln](lw.Web2Android.sln), select `Release | x64`, and build the solution. **Open a local folder** with the `Visual Studio 2022 x64` preset remains available as an alternative. See [DEVELOPMENT.md](DEVELOPMENT.md) for the complete workflow.
+For Packer/GUI development, install the Visual Studio 2022 **Desktop development with C++** workload. The root [lw.Web2Android.sln](lw.Web2Android.sln) is a native multi-project VS2022 solution: select `Release | x64` and build directly, without invoking PowerShell, CMake, or Ninja. The complete private development package includes the extracted offline spdlog headers. See [DEVELOPMENT.md](DEVELOPMENT.md) for the complete workflow.
+
+The CMake build remains available for CI and command-line development:
 
 ```powershell
 cmake --preset vs2022-x64

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(lw_Web2Android VERSION 0.2.6 LANGUAGES CXX)
+project(lw_Web2Android VERSION 0.2.7 LANGUAGES CXX)
 
 if(WIN32)
     function(lw_add_version_resource target file_description internal_name original_filename)
@@ -103,6 +103,14 @@ if(WIN32)
         "lw.Web2Android.GUI"
         "lw.Web2Android.GUI.exe"
     )
+    set(LW_SPONSOR_RESOURCE "${CMAKE_CURRENT_SOURCE_DIR}/../assets/sponsor.jpg")
+    set(LW_GUI_RESOURCE "${CMAKE_CURRENT_BINARY_DIR}/lw.Web2Android.GUI.resources.rc")
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/windows/gui-resources.rc.in"
+        "${LW_GUI_RESOURCE}"
+        @ONLY
+    )
+    target_sources(lw.Web2Android.GUI PRIVATE "${LW_GUI_RESOURCE}")
 endif()
 
 if(MSVC)

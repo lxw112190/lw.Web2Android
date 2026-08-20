@@ -1,0 +1,5 @@
+#pragma code_page(65001)
+#define LW_FILE_DESCRIPTION "lw.Web2Android 命令行打包工具"
+#define LW_INTERNAL_NAME "lw.Web2Android"
+#define LW_ORIGINAL_FILENAME "lw.Web2Android.exe"
+#include "version-common.rc"

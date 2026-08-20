@@ -120,6 +120,12 @@ jobs:
           if ($actual -ne 'd8862955c6d74e5846b3f580b1605d2428b11d97a410d86e2fb13e857cd3a744') {
             throw 'spdlog source SHA-256 mismatch'
           }
+          tar.exe -xzf $archive -C .deps
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path -LiteralPath '.deps/spdlog-1.17.0/include/spdlog/spdlog.h')) {
+            throw 'Extracted spdlog source has an unexpected layout'
+          }
+          Move-Item -LiteralPath .deps/spdlog-1.17.0 -Destination .deps/spdlog-src
 
       - name: Build and validate Runtime Bundle
         shell: pwsh
@@ -230,6 +236,22 @@ jobs:
           ctest --test-dir build/packer -C Release --output-on-failure
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & build/packer/Release/lw.Web2Android.GUI.exe --smoke-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build and test native VS2022 solution
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+          $msbuild = (& $vswhere -latest -products * -requires Microsoft.Component.MSBuild `
+            -find 'MSBuild\Current\Bin\MSBuild.exe' | Select-Object -First 1)
+          if (-not $msbuild) { throw 'MSBuild for Visual Studio 2022 was not found' }
+
+          & $msbuild lw.Web2Android.sln /m /t:Build /p:Configuration=Release /p:Platform=x64 /v:minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          & build/vs2022-native/x64/Release/lw_packer_tests.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & build/vs2022-native/x64/Release/lw.Web2Android.GUI.exe --smoke-test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build signed demo and verify identity isolation

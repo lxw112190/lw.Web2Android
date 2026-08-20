@@ -1,13 +1,13 @@
 [CmdletBinding()]
 param(
-    [string]$BuildDirectory = 'build/packer-verified-v026/Release',
+    [string]$BuildDirectory = 'build/vs2022-native/x64/Release',
     [string]$ToolchainDirectory = 'toolchain',
     [string]$DestinationDirectory = 'build/releases'
 )
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$version = '0.2.6'
+$version = '0.2.7'
 $packageName = "lw-Web2Android-v$version-vs2022-complete-private"
 $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 
@@ -48,6 +48,18 @@ if ([string]$runtimeMetadata.runtimeVersion -ne '6') {
 if (-not (Test-Path -LiteralPath (Join-Path $repoRoot '.deps/spdlog.tar.gz') -PathType Leaf)) {
     throw 'Offline dependency archive was not found: .deps/spdlog.tar.gz'
 }
+$nativeProjects = @(
+    'vs2022/lw.Packer.Core.vcxproj',
+    'vs2022/lw.Web2Android.CLI.vcxproj',
+    'vs2022/lw.Web2Android.GUI.vcxproj',
+    'vs2022/lw.Packer.Tests.vcxproj',
+    'vs2022/lw.Web2Android.Common.props'
+)
+foreach ($relative in $nativeProjects) {
+    if (-not (Test-Path -LiteralPath (Join-Path $repoRoot $relative) -PathType Leaf)) {
+        throw "Native VS2022 project file was not found: $relative"
+    }
+}
 
 New-Item -ItemType Directory -Force -Path $releaseRoot | Out-Null
 if (Test-Path -LiteralPath $package) { Remove-Item -LiteralPath $package -Recurse -Force }
@@ -84,6 +96,9 @@ $rootFiles = @(
 )
 foreach ($file in $rootFiles) {
     Copy-Item -LiteralPath (Join-Path $repoRoot $file) -Destination $package
+}
+if (Test-Path -LiteralPath (Join-Path $package 'tools/build-vs2022-solution.ps1')) {
+    throw 'The private package unexpectedly contains the obsolete CMake wrapper build script.'
 }
 Copy-Item -LiteralPath (Join-Path $build 'lw.Web2Android.exe'),
                       (Join-Path $build 'lw.Web2Android.GUI.exe') -Destination $package

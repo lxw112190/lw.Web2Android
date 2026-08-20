@@ -1,0 +1,8 @@
+#pragma code_page(65001)
+#define LW_FILE_DESCRIPTION "lw.Web2Android 图形化打包工具"
+#define LW_INTERNAL_NAME "lw.Web2Android.GUI"
+#define LW_ORIGINAL_FILENAME "lw.Web2Android.GUI.exe"
+#include "version-common.rc"
+
+#define IDR_SPONSOR_QR 201
+IDR_SPONSOR_QR RCDATA "..\\..\\assets\\sponsor.jpg"

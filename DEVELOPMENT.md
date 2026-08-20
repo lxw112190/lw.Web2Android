@@ -10,37 +10,35 @@
 
 ## 使用 Visual Studio 2022 编译
 
-1. 安装 Visual Studio 2022，并选择“使用 C++ 的桌面开发”和“用于 Windows 的 C++ CMake 工具”；
+1. 安装 Visual Studio 2022，并选择“使用 C++ 的桌面开发”；
 2. 双击根目录的 `lw.Web2Android.sln`；
 3. 在工具栏选择 `Release` 和 `x64`；
 4. 点击“生成 → 生成解决方案”。
 
-解决方案中的工程会调用包内的 CMake 预设，自动编译 CLI、GUI 和测试程序。所有源码都使用相对路径，整个目录复制到另一台电脑后不需要重新生成 `.sln`。
-
-也可以在 Visual Studio 中选择“打开本地文件夹”，打开开发包根目录并使用 `Visual Studio 2022 x64` CMake 预设。
-
-Visual Studio 使用根目录的 `CMakePresets.json` 自动生成当前电脑专用的构建目录，不依赖原打包电脑的绝对路径。C++ 构建使用 `.deps/spdlog.tar.gz`，配置阶段不需要联网下载第三方库。
-
-构建入口会自动规整进程环境中可能重复的 `PATH` / `Path`，避免 MSBuild 因环境变量名称大小写重复而无法启动编译器。工程会优先使用 VS2022 自带的 CMake，避免误用 Python 包或其他软件写入 `Path` 的同名 CMake 启动器。完整构建过程记录在：
+这是原生 VS2022 解决方案，不调用 PowerShell、CMake 或 Ninja。解决方案包含：
 
 ```text
-logs/vs2022-build.log
+lw.Web2Android.sln
+├── lw.Packer.Core       C++17 静态库
+├── lw.Web2Android       命令行程序
+├── lw.Web2Android.GUI   Win32 GUI（默认启动项目）
+└── lw.Packer.Tests      本机测试程序
 ```
 
-日志达到 2 MiB 后自动轮转，最多保留 5 份历史文件。若 Visual Studio 只显示 `MSB3073` 或“已退出，代码为 1”，请查看或发送该日志；真正的 CMake、编译器和链接器错误会保留在其中。
+完整私有开发包已经在 `.deps/spdlog-src/` 中准备好头文件依赖，编译不联网。各工程使用相对路径，并显式禁用上级目录的 `Directory.Build.props`、`Directory.Build.targets` 和全局 vcpkg 集成，复制整个目录后不需要重新生成 `.sln`。
 
-建议解压到较短的路径，例如 `D:\src\lw.Web2Android`。避免在多层压缩包或过深的目录中直接编译，以免旧版 MSBuild 的中间文件路径超过 Windows 路径长度限制。
+建议解压到较短的路径，例如 `D:\src\lw.Web2Android`，避免旧版工具链的中间文件路径超过 Windows 路径长度限制。
 
 Release 输出位于：
 
 ```text
-build/vs2022-x64/packer/Release/
+build/vs2022-native/x64/Release/
 ├── lw.Web2Android.exe
 ├── lw.Web2Android.GUI.exe
 └── lw_packer_tests.exe
 ```
 
-也可以在“开发人员 PowerShell”中执行：
+仓库仍保留 CMake 构建给 CI 和命令行开发者，但它不是完整私有开发包使用 Visual Studio 编译的前置条件：
 
 ```powershell
 cmake --preset vs2022-x64
