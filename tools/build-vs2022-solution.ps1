@@ -54,18 +54,42 @@ function Normalize-ProcessPath {
 }
 
 function Find-CMake {
-    $command = Get-Command cmake.exe -ErrorAction SilentlyContinue
-    if ($command) { return $command.Source }
-
-    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
-    if (Test-Path -LiteralPath $vswhere -PathType Leaf) {
-        $installation = (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.CMake.Project -property installationPath | Select-Object -First 1)
-        if ($installation) {
-            $candidate = Join-Path $installation 'Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe'
-            if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+    # This solution targets VS2022, so its bundled CMake must take precedence.
+    # Python packages and other applications sometimes add an incomplete
+    # cmake.exe shim to Path; selecting that shim makes configuration fail
+    # before the compiler is ever started.
+    $programFilesX86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)', 'Process')
+    if ($programFilesX86) {
+        $vswhere = Join-Path $programFilesX86 'Microsoft Visual Studio/Installer/vswhere.exe'
+        if (Test-Path -LiteralPath $vswhere -PathType Leaf) {
+            $installation = (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.CMake.Project -property installationPath | Select-Object -First 1)
+            if ($installation) {
+                $candidate = Join-Path $installation 'Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe'
+                if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+            }
         }
     }
+
+    $command = Get-Command cmake.exe -ErrorAction SilentlyContinue
+    if ($command) {
+        Write-Warning "The VS2022 CMake component was not found; falling back to CMake from Path: $($command.Source)"
+        return $command.Source
+    }
     throw 'CMake was not found. Add the Visual Studio 2022 CMake component and reopen the solution.'
+}
+
+function Invoke-NativeLogged([string]$FilePath, [string[]]$Arguments) {
+    # Windows PowerShell 5.1 turns redirected native stderr into a non-terminating
+    # NativeCommandError. Temporarily allow it through the pipeline, then write
+    # every line via the host so Start-Transcript records stdout and stderr.
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & $FilePath @Arguments 2>&1 | ForEach-Object { Write-Host $_ }
+        return $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousPreference
+    }
 }
 
 $exitCode = 0
@@ -99,14 +123,14 @@ try {
     if (-not ($Clean -and -not $Rebuild)) {
         Push-Location $repoRoot
         try {
-            & $cmake --preset vs2022-x64
-            if ($LASTEXITCODE -ne 0) {
-                throw "CMake configuration failed with exit code $LASTEXITCODE."
+            $configureExitCode = Invoke-NativeLogged $cmake @('--preset', 'vs2022-x64')
+            if ($configureExitCode -ne 0) {
+                throw "CMake configuration failed with exit code $configureExitCode."
             }
             $buildPreset = if ($Configuration -eq 'Debug') { 'vs2022-debug' } else { 'vs2022-release' }
-            & $cmake --build --preset $buildPreset
-            if ($LASTEXITCODE -ne 0) {
-                throw "CMake build failed with exit code $LASTEXITCODE."
+            $buildExitCode = Invoke-NativeLogged $cmake @('--build', '--preset', $buildPreset)
+            if ($buildExitCode -ne 0) {
+                throw "CMake build failed with exit code $buildExitCode."
             }
         } finally {
             Pop-Location

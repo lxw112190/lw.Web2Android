@@ -21,7 +21,7 @@
 
 Visual Studio 使用根目录的 `CMakePresets.json` 自动生成当前电脑专用的构建目录，不依赖原打包电脑的绝对路径。C++ 构建使用 `.deps/spdlog.tar.gz`，配置阶段不需要联网下载第三方库。
 
-构建入口会自动规整进程环境中可能重复的 `PATH` / `Path`，避免 MSBuild 因环境变量名称大小写重复而无法启动编译器。完整构建过程记录在：
+构建入口会自动规整进程环境中可能重复的 `PATH` / `Path`，避免 MSBuild 因环境变量名称大小写重复而无法启动编译器。工程会优先使用 VS2022 自带的 CMake，避免误用 Python 包或其他软件写入 `Path` 的同名 CMake 启动器。完整构建过程记录在：
 
 ```text
 logs/vs2022-build.log
