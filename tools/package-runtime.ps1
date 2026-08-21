@@ -113,6 +113,11 @@ foreach ($requiredLoggingMarker in @(
     ', overview=',
     'Display metrics:',
     'Web viewport:',
+    'External intent received; action=',
+    'External content accepted; kind=',
+    'External content delivered to WebView; kind=',
+    'lw:external-content',
+    '__lwExternalContentQueue',
     'without a Native Bridge'
 )) {
     if (-not $runtimeDexText.Contains($requiredLoggingMarker)) {
@@ -136,6 +141,17 @@ $metadata = [ordered]@{
         legacyFixedWidthFitToWidth = $true
         html5FullscreenOrientationPolicy = 'preserve-landscape-otherwise-sensor'
         nativeBridge = $false
+        externalContent = [ordered]@{
+            eventName = 'lw:external-content'
+            queueName = '__lwExternalContentQueue'
+            receiveSharedText = $true
+            openTextFiles = $true
+            multipleFiles = $false
+            writeBack = $false
+            nativeBridge = $false
+            remoteModeAllowed = $false
+            defaultMaxTextBytes = 8388608
+        }
     }
     logging = [ordered]@{
         maxFileSizeBytes = 2097152

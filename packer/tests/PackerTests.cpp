@@ -111,7 +111,14 @@ void TestProjectAndGenerators(const std::filesystem::path& root) {
     Require(manifest.find("configChanges=\"keyboardHidden|orientation|screenSize\"") !=
                     std::string::npos,
             "manifest must keep the WebView alive across fullscreen video rotation");
+    Require(manifest.find("android.intent.action.VIEW") == std::string::npos &&
+                manifest.find("android:launchMode=\"singleTop\"") == std::string::npos,
+            "default manifest must not register external content integration");
     const auto runtime = lw::web2android::RuntimeConfigGenerator::Generate(config, "1");
+    Require(runtime.find("\"schemaVersion\": 2") != std::string::npos,
+            "Runtime config schema must be 2");
+    Require(runtime.find("\"enabled\": false") != std::string::npos,
+            "Runtime external content must be disabled by default");
     Require(runtime.find("\"fullscreen\": true") != std::string::npos, "runtime fullscreen config");
     Require(runtime.find("\"runtimeVersion\": \"1\"") != std::string::npos,
             "runtime version config");
@@ -164,6 +171,81 @@ void TestProjectAndGenerators(const std::filesystem::path& root) {
     lw::web2android::ResourceGenerator::Generate(httpConfig, httpResources);
     Require(std::filesystem::is_regular_file(httpResources / "xml" / "network_security_config.xml"),
             "HTTP mode must generate Network Security Config");
+}
+
+void TestExternalContentConfiguration(const std::filesystem::path& root) {
+    const auto configFile = root / "external-content-project.json";
+    lw::web2android::WriteTextFile(
+        configFile,
+        "{\n"
+        "  \"schemaVersion\": 1,\n"
+        "  \"mode\": \"local\",\n"
+        "  \"name\": \"External Content\",\n"
+        "  \"packageName\": \"com.example.externalcontent\",\n"
+        "  \"source\": \"web\",\n"
+        "  \"toolchainLock\": \"toolchain.lock.json\",\n"
+        "  \"externalContent\": {\n"
+        "    \"enabled\": true,\n"
+        "    \"receiveSharedText\": true,\n"
+        "    \"openFiles\": true,\n"
+        "    \"preset\": \"text-config\",\n"
+        "    \"extensions\": [\" custom \"],\n"
+        "    \"fileNames\": [\"Special.Config\"],\n"
+        "    \"mimeTypes\": [\"application/x-example-config\"],\n"
+        "    \"maxTextBytes\": 1048576\n"
+        "  }\n"
+        "}\n");
+    const auto config = lw::web2android::ProjectConfig::Load(configFile);
+    lw::web2android::ProjectValidator::Validate(config);
+    Require(config.externalContent.enabled && config.externalContent.receiveSharedText &&
+                config.externalContent.openFiles,
+            "external content flags must load");
+    Require(config.externalContent.maxTextBytes == 1048576U,
+            "external content maximum size must load");
+
+    const auto resolved = lw::web2android::ResolveExternalContentConfig(config.externalContent);
+    Require(std::find(resolved.extensions.begin(), resolved.extensions.end(), "yaml") != resolved.extensions.end(),
+            "text-config preset must include yaml");
+    Require(std::find(resolved.extensions.begin(), resolved.extensions.end(), "custom") !=
+                resolved.extensions.end(),
+            "custom extension must be normalized and merged");
+    Require(std::find(resolved.fileNames.begin(), resolved.fileNames.end(), "dockerfile") !=
+                resolved.fileNames.end(),
+            "text-config preset must include Dockerfile");
+    auto codeConfig = config.externalContent;
+    codeConfig.preset = "code-config";
+    const auto resolvedCode = lw::web2android::ResolveExternalContentConfig(codeConfig);
+    Require(std::find(resolvedCode.extensions.begin(), resolvedCode.extensions.end(), "vue") !=
+                resolvedCode.extensions.end(),
+            "code-config preset must include Vue single-file components");
+
+    const auto manifest = lw::web2android::ManifestGenerator::Generate(config);
+    for (const auto* marker : {"android:launchMode=\"singleTop\"", "android.intent.action.VIEW",
+                               "android.intent.action.SEND", "android.intent.category.DEFAULT", "text/*",
+                               "application/json", "application/yaml", "application/toml", "application/xml"}) {
+        Require(manifest.find(marker) != std::string::npos,
+                std::string("external content manifest marker missing: ") + marker);
+    }
+    const auto runtime = lw::web2android::RuntimeConfigGenerator::Generate(config, "6");
+    Require(runtime.find("\"schemaVersion\": 2") != std::string::npos,
+            "Runtime config schema must be 2");
+    Require(runtime.find("\"externalContent\"") != std::string::npos &&
+                runtime.find("\"maxTextBytes\": 1048576") != std::string::npos &&
+                runtime.find("\"yaml\"") != std::string::npos,
+            "Runtime external content policy must be generated");
+
+    auto remote = config;
+    remote.mode = "remote";
+    remote.source.clear();
+    remote.url = "https://example.com";
+    bool rejected = false;
+    try {
+        lw::web2android::ProjectValidator::Validate(remote);
+    } catch (const std::runtime_error& error) {
+        rejected = std::string(error.what()) ==
+                   "External content integration is supported only for local Web projects.";
+    }
+    Require(rejected, "Remote projects must reject external content integration explicitly");
 }
 
 void TestZipAssembler(const std::filesystem::path& root) {
@@ -230,6 +312,9 @@ void TestGuiProjectModel(const std::filesystem::path& root) {
     local.versionCode = 21;
     local.orientation = "portrait";
     local.fullscreen = true;
+    local.receiveSharedText = true;
+    local.openExternalFiles = true;
+    local.externalContentPreset = "text-config";
     local.outputDirectory = root / "gui-output";
     const auto localConfig = lw::web2android::gui::CreateProjectConfig(local, environment);
     Require(localConfig.mode == "local" && localConfig.entry == "index.html", "GUI local project mapping");
@@ -238,12 +323,17 @@ void TestGuiProjectModel(const std::filesystem::path& root) {
     Require(localConfig.toolchainLock == root / "toolchain.lock.json", "GUI toolchain lock mapping");
     Require(localConfig.runtimeDirectory == runtime, "GUI Runtime Bundle mapping");
     Require(!localConfig.allowHttp, "GUI must keep HTTP disabled by default");
+    Require(localConfig.externalContent.enabled && localConfig.externalContent.receiveSharedText &&
+                localConfig.externalContent.openFiles && localConfig.externalContent.preset == "text-config",
+            "GUI external content mapping");
 
     lw::web2android::gui::GuiProjectInput remote = local;
     remote.remote = true;
     remote.sourceDirectory.clear();
     remote.remoteUrl = "https://example.com/app";
     remote.packageName = "com.example.guiremote";
+    remote.receiveSharedText = false;
+    remote.openExternalFiles = false;
     const auto remoteConfig = lw::web2android::gui::CreateProjectConfig(remote, environment);
     Require(remoteConfig.mode == "remote" && remoteConfig.source.empty(), "GUI remote project mapping");
     Require(remoteConfig.url == remote.remoteUrl, "GUI remote URL mapping");
@@ -457,10 +547,12 @@ int main(int argc, char* argv[]) {
         }
         if (argc == 2 && std::string(argv[1]) == "--generators-only") {
             TestProjectAndGenerators(temporary.path);
+            TestExternalContentConfiguration(temporary.path);
             std::cout << "Packer generator tests passed" << std::endl;
             return 0;
         }
         TestProjectAndGenerators(temporary.path);
+        TestExternalContentConfiguration(temporary.path);
         TestZipAssembler(temporary.path);
         TestGuiProjectModel(temporary.path);
         TestSigningIdentity(temporary.path);

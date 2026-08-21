@@ -64,6 +64,10 @@ ProjectConfig CreateProjectConfig(const GuiProjectInput& input, const GuiEnviron
     config.fullscreen = input.fullscreen;
     config.orientation = input.orientation;
     config.allowHttp = input.allowHttp;
+    config.externalContent.enabled = input.receiveSharedText || input.openExternalFiles;
+    config.externalContent.receiveSharedText = input.receiveSharedText;
+    config.externalContent.openFiles = input.openExternalFiles;
+    config.externalContent.preset = input.externalContentPreset;
     config.outputDirectory = Normalize(input.outputDirectory);
     config.toolchainLock = Normalize(environment.toolchainLock);
     config.runtimeDirectory = Normalize(environment.runtimeDirectory);

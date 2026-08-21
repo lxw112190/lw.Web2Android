@@ -30,7 +30,7 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 - non-fatal external custom-scheme handling that preserves the current WebView;
 - GitHub Actions builds the Runtime, Packer, GUI, and a real React/Vite demo.
 
-Current version: `v0.2.7`<br>
+Current version: `v0.2.8`<br>
 Android: `minSdk 23`, `targetSdk 35`
 
 ## Download and first run
@@ -44,7 +44,7 @@ bin/lw.Web2Android.GUI.exe
 The public distribution contains:
 
 ```text
-lw-Web2Android-v0.2.7-windows-x64/
+lw-Web2Android-v0.2.8-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
@@ -88,8 +88,9 @@ Downloads are checked with SHA-256 and temporary files are removed. Once initial
 2. For local mode, select the build output that contains `index.html`, such as a Vite `dist` directory.
 3. Enter the app name, package name, version name, and version code.
 4. Optionally select a square PNG app icon; the bundled default icon is used otherwise.
-5. Select orientation, fullscreen behavior, and an output directory.
-6. Click **Build Android APK**.
+5. Optionally enable shared text or text/config-file opening under **System integration** for a local project.
+6. Select orientation, fullscreen behavior, and an output directory.
+7. Click **Build Android APK**; after a successful build, File Explorer opens the output folder and selects the generated APK.
 
 Local Web assets must use relative URLs. A Vite project should normally set:
 
@@ -127,6 +128,12 @@ Example `project.json`:
   "fullscreen": false,
   "orientation": "auto",
   "allowHttp": false,
+  "externalContent": {
+    "enabled": true,
+    "receiveSharedText": true,
+    "openFiles": true,
+    "preset": "text-config"
+  },
   "output": "output"
 }
 ```
@@ -143,6 +150,28 @@ Build and manage signing identities:
 Paths are resolved relative to `project.json`. `entry` is relative to `source` and is converted to `assets/www/<entry>` in the APK. Remote mode uses `mode: "remote"` and `url`; plain HTTP is accepted only with `allowHttp: true`.
 
 See [packer/README.md](packer/README.md) for all CLI options.
+
+## Open text and configuration files from other apps
+
+This capability is local-Web-only. In the GUI, enable **Receive shared text** or **Open text/config files**, choose **Common text documents**, **Text and configuration files (recommended)**, or **Code, text, and configuration files**, then build and install the APK. Text can then be shared from another app, or a file can be opened through Android's **Open with** flow. Remote URL mode clears and disables these controls.
+
+The Web application receives a read-only text copy through the stable `lw:external-content` event. Consume the startup queue first because application code may initialize after the Runtime during a cold start:
+
+```js
+function handleExternalContent(payload) {
+  console.log(payload.kind, payload.name, payload.mimeType, payload.text);
+}
+
+const queue = window.__lwExternalContentQueue || [];
+while (queue.length) handleExternalContent(queue.shift());
+window.addEventListener("lw:external-content", event => {
+  handleExternalContent(event.detail);
+});
+```
+
+Payload schema 1 contains `kind` (`text`/`file`), `sourceAction` (`share`/`view`), `name`, `extension`, `mimeType`, `size`, `encoding`, and `text`. The default limit is 8 MiB. Strict UTF-8, UTF-8 BOM, and UTF-16LE/BE BOM are supported; multiple files, binary data, unapproved types, and other encodings are rejected with a lightweight message. See [samples/external-content-editor](samples/external-content-editor).
+
+> This capability only passes content explicitly selected or shared by the user in one direction to a local Web page. It does not expose a general Native Bridge, obtain broad filesystem access, or write back to the original `content://` URI. Runtime logs never record the body, full URI, or filename.
 
 ## Enterprise intranet and HTTP
 
@@ -236,8 +265,8 @@ The demo APK has passed validation on a physical Android device. The pinned sour
 Pushing a `v*` tag creates a GitHub Release only after the full workflow passes:
 
 ```bash
-git tag -a v0.2.7 -m "lw.Web2Android v0.2.7"
-git push origin v0.2.7
+git tag -a v0.2.8 -m "lw.Web2Android v0.2.8"
+git push origin v0.2.8
 ```
 
 ## Architecture

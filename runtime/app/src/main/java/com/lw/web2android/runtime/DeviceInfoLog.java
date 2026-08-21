@@ -90,6 +90,11 @@ final class DeviceInfoLog {
                 .append('\n');
         output.append("  Fullscreen   : ").append(config.fullscreen).append('\n');
         output.append("  Orientation  : ").append(config.orientation).append('\n');
+        output.append("\nExternal Content\n");
+        output.append("  Enabled      : ").append(config.externalContent.enabled).append('\n');
+        output.append("  Shared Text  : ").append(config.externalContent.receiveSharedText).append('\n');
+        output.append("  Open Files   : ").append(config.externalContent.openFiles).append('\n');
+        output.append("  Max Bytes    : ").append(config.externalContent.maxTextBytes).append('\n');
         output.append("==================================================\n\n");
         return output.toString();
     }

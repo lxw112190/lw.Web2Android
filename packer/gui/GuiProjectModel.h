@@ -30,6 +30,9 @@ struct GuiProjectInput {
     std::string orientation = "auto";
     bool fullscreen = false;
     bool allowHttp = false;
+    bool receiveSharedText = false;
+    bool openExternalFiles = false;
+    std::string externalContentPreset = "text-config";
     std::filesystem::path outputDirectory;
 };
 

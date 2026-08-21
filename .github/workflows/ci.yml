@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 env:
-  PRODUCT_VERSION: '0.2.7'
-  PACKAGE_NAME: lw-Web2Android-v0.2.7-windows-x64
+  PRODUCT_VERSION: '0.2.8'
+  PACKAGE_NAME: lw-Web2Android-v0.2.8-windows-x64
   WECHAT_DEMO_REPOSITORY: lxw112190/wechat-article-formatter
   WECHAT_DEMO_REF: ad1afc5a2c31d7cb7dc458a69944d6cb7ee0cd88
 
@@ -191,6 +191,18 @@ jobs:
               $runtimeMetadata.capabilities.nativeBridge) {
             throw 'Runtime Web compatibility metadata is missing or invalid'
           }
+          $externalContent = $runtimeMetadata.capabilities.externalContent
+          if ($externalContent.eventName -ne 'lw:external-content' -or
+              $externalContent.queueName -ne '__lwExternalContentQueue' -or
+              -not $externalContent.receiveSharedText -or
+              -not $externalContent.openTextFiles -or
+              $externalContent.multipleFiles -or
+              $externalContent.writeBack -or
+              $externalContent.nativeBridge -or
+              $externalContent.remoteModeAllowed -or
+              $externalContent.defaultMaxTextBytes -ne 8388608) {
+            throw 'Runtime external-content metadata is missing or invalid'
+          }
 
       - name: Build real Web demo
         id: demo
@@ -308,6 +320,9 @@ jobs:
           & $packer build samples/custom-icon/project.json @common
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+          & $packer build samples/external-content-editor/project.json @common
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
           $packerLog = 'build/packer/Release/logs/packer.log'
           $logBytes = [System.IO.File]::ReadAllBytes($packerLog)
           if ($logBytes.Length -lt 3 -or $logBytes[0] -ne 0xEF -or
@@ -344,6 +359,7 @@ jobs:
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $lock = Get-Content -Raw toolchain.lock.json | ConvertFrom-Json
           $zipalign = Join-Path $env:ANDROID_SDK_ROOT "build-tools/$($lock.buildToolsVersion)/zipalign.exe"
+          $aapt2 = Join-Path $env:ANDROID_SDK_ROOT "build-tools/$($lock.buildToolsVersion)/aapt2.exe"
           $apksigner = Join-Path $env:ANDROID_SDK_ROOT "build-tools/$($lock.buildToolsVersion)/lib/apksigner.jar"
           $expectations = @(
             [pscustomobject]@{
@@ -383,6 +399,13 @@ jobs:
               iconDensities = @('mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi')
               forbidden = @('res/drawable/ic_launcher.xml')
               expectHttp = $false
+            },
+            [pscustomobject]@{
+              apk = 'build/samples/external-content/external-content-editor-android.apk'
+              required = @('classes.dex', 'assets/lw-config.json', 'assets/www/index.html')
+              forbidden = @('assets/www/project.json')
+              expectHttp = $false
+              expectExternalContent = $true
             }
           )
 
@@ -429,6 +452,29 @@ jobs:
                 $runtimeConfig = $reader.ReadToEnd() | ConvertFrom-Json
               } finally {
                 $reader.Dispose()
+              }
+              if ($runtimeConfig.schemaVersion -ne 2) {
+                throw "$apk uses unexpected Runtime config schemaVersion $($runtimeConfig.schemaVersion)"
+              }
+              $expectExternal = $expectation.PSObject.Properties['expectExternalContent']
+              if ($null -ne $expectExternal -and $expectExternal.Value) {
+                if (-not $runtimeConfig.externalContent.enabled -or
+                    -not $runtimeConfig.externalContent.receiveSharedText -or
+                    -not $runtimeConfig.externalContent.openFiles -or
+                    $runtimeConfig.externalContent.maxTextBytes -ne 8388608 -or
+                    'yaml' -notin $runtimeConfig.externalContent.extensions -or
+                    'application/yaml' -notin $runtimeConfig.externalContent.mimeTypes) {
+                  throw "$apk external-content Runtime config is incomplete"
+                }
+                $manifestTree = (& $aapt2 dump xmltree --file AndroidManifest.xml $apk) -join "`n"
+                if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+                foreach ($marker in @('android.intent.action.VIEW', 'android.intent.action.SEND',
+                                      'android.intent.category.DEFAULT', 'text/*', 'application/json',
+                                      'application/yaml', 'application/toml')) {
+                  if (-not $manifestTree.Contains($marker)) {
+                    throw "$apk Manifest is missing external-content marker: $marker"
+                  }
+                }
               }
               if ($expectation.expectHttp -and -not $runtimeConfig.allowHttp) {
                 throw "$apk did not preserve the trusted-intranet HTTP setting"

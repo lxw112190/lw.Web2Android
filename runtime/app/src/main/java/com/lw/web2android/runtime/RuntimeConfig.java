@@ -4,16 +4,22 @@ import android.content.Context;
 import android.net.Uri;
 
 import org.json.JSONException;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.Locale;
+import java.util.Set;
 
 final class RuntimeConfig {
-    static final int SUPPORTED_SCHEMA_VERSION = 1;
+    static final int SUPPORTED_SCHEMA_VERSION = 2;
+    private static final long MIN_EXTERNAL_TEXT_BYTES = 64L * 1024L;
+    private static final long MAX_EXTERNAL_TEXT_BYTES = 32L * 1024L * 1024L;
 
     enum Mode {
         LOCAL,
@@ -33,6 +39,7 @@ final class RuntimeConfig {
     final boolean fullscreen;
     final Orientation orientation;
     final boolean allowHttp;
+    final ExternalContent externalContent;
 
     private RuntimeConfig(
             Mode mode,
@@ -41,7 +48,8 @@ final class RuntimeConfig {
             String url,
             boolean fullscreen,
             Orientation orientation,
-            boolean allowHttp) {
+            boolean allowHttp,
+            ExternalContent externalContent) {
         this.mode = mode;
         this.runtimeVersion = runtimeVersion;
         this.entry = entry;
@@ -49,6 +57,7 @@ final class RuntimeConfig {
         this.fullscreen = fullscreen;
         this.orientation = orientation;
         this.allowHttp = allowHttp;
+        this.externalContent = externalContent;
     }
 
     static RuntimeConfig load(Context context) throws ConfigException {
@@ -73,6 +82,8 @@ final class RuntimeConfig {
             } else {
                 validateRemoteUrl(url, allowHttp);
             }
+            ExternalContent externalContent = parseExternalContent(
+                    json.optJSONObject("externalContent"), mode);
 
             return new RuntimeConfig(
                     mode,
@@ -81,7 +92,8 @@ final class RuntimeConfig {
                     url,
                     json.optBoolean("fullscreen", false),
                     parseOrientation(json.optString("orientation", "auto")),
-                    allowHttp);
+                    allowHttp,
+                    externalContent);
         } catch (IOException | JSONException error) {
             throw new ConfigException("Unable to read assets/lw-config.json", error);
         }
@@ -164,6 +176,67 @@ final class RuntimeConfig {
         return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
+    private static ExternalContent parseExternalContent(JSONObject json, Mode mode)
+            throws ConfigException, JSONException {
+        if (json == null) return ExternalContent.disabled();
+        boolean enabled = json.optBoolean("enabled", false);
+        boolean receiveSharedText = json.optBoolean("receiveSharedText", false);
+        boolean openFiles = json.optBoolean("openFiles", false);
+        boolean acceptOctetStream = json.optBoolean("acceptOctetStream", false);
+        long maxTextBytes = json.optLong("maxTextBytes", 8L * 1024L * 1024L);
+        if (enabled && mode != Mode.LOCAL) {
+            throw new ConfigException("External content integration requires local mode");
+        }
+        if (enabled && !receiveSharedText && !openFiles) {
+            throw new ConfigException("externalContent enables no receive capability");
+        }
+        if (maxTextBytes < MIN_EXTERNAL_TEXT_BYTES || maxTextBytes > MAX_EXTERNAL_TEXT_BYTES) {
+            throw new ConfigException("externalContent.maxTextBytes is outside the supported range");
+        }
+        Set<String> extensions = readStringSet(json.optJSONArray("extensions"), "extensions");
+        Set<String> fileNames = readStringSet(json.optJSONArray("fileNames"), "fileNames");
+        Set<String> mimeTypes = readStringSet(json.optJSONArray("mimeTypes"), "mimeTypes");
+        for (String extension : extensions) {
+            if (!extension.matches("[a-z0-9][a-z0-9._+\\-]*") || extension.startsWith(".")
+                    || "..".equals(extension) || extension.indexOf('/') >= 0
+                    || extension.indexOf('\\') >= 0) {
+                throw new ConfigException("externalContent contains an invalid extension");
+            }
+        }
+        for (String fileName : fileNames) {
+            if (fileName.isEmpty() || ".".equals(fileName) || "..".equals(fileName)
+                    || fileName.indexOf('/') >= 0 || fileName.indexOf('\\') >= 0) {
+                throw new ConfigException("externalContent contains an invalid file name");
+            }
+        }
+        for (String mimeType : mimeTypes) {
+            if ("*/*".equals(mimeType)
+                    || !mimeType.matches("[a-z0-9!#$&^_.+\\-]+/([a-z0-9!#$&^_.+\\-]+|\\*)")) {
+                throw new ConfigException("externalContent contains an invalid MIME type");
+            }
+        }
+        return new ExternalContent(enabled, receiveSharedText, openFiles, acceptOctetStream,
+                maxTextBytes, extensions, fileNames, mimeTypes);
+    }
+
+    private static Set<String> readStringSet(JSONArray array, String property)
+            throws ConfigException, JSONException {
+        if (array == null) return Collections.emptySet();
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        for (int index = 0; index < array.length(); ++index) {
+            Object item = array.get(index);
+            if (!(item instanceof String)) {
+                throw new ConfigException("externalContent." + property + " must contain strings");
+            }
+            String value = normalized((String) item);
+            if (value.isEmpty()) {
+                throw new ConfigException("externalContent." + property + " contains an empty value");
+            }
+            values.add(value);
+        }
+        return Collections.unmodifiableSet(values);
+    }
+
     private static String readUtf8(InputStream input) throws IOException {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         byte[] buffer = new byte[4096];
@@ -181,6 +254,41 @@ final class RuntimeConfig {
 
         ConfigException(String message, Throwable cause) {
             super(message, cause);
+        }
+    }
+
+    static final class ExternalContent {
+        final boolean enabled;
+        final boolean receiveSharedText;
+        final boolean openFiles;
+        final boolean acceptOctetStream;
+        final long maxTextBytes;
+        final Set<String> extensions;
+        final Set<String> fileNames;
+        final Set<String> mimeTypes;
+
+        ExternalContent(
+                boolean enabled,
+                boolean receiveSharedText,
+                boolean openFiles,
+                boolean acceptOctetStream,
+                long maxTextBytes,
+                Set<String> extensions,
+                Set<String> fileNames,
+                Set<String> mimeTypes) {
+            this.enabled = enabled;
+            this.receiveSharedText = receiveSharedText;
+            this.openFiles = openFiles;
+            this.acceptOctetStream = acceptOctetStream;
+            this.maxTextBytes = maxTextBytes;
+            this.extensions = extensions;
+            this.fileNames = fileNames;
+            this.mimeTypes = mimeTypes;
+        }
+
+        static ExternalContent disabled() {
+            return new ExternalContent(false, false, false, false, 8L * 1024L * 1024L,
+                    Collections.emptySet(), Collections.emptySet(), Collections.emptySet());
         }
     }
 }

@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.DisplayMetrics;
@@ -16,14 +17,21 @@ import android.view.WindowManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.webkit.WebViewAssetLoader;
 
+import java.util.ArrayDeque;
+
 /** Fixed, resource-independent Android Runtime entry point. */
 public final class MainActivity extends Activity implements RuntimeWebViewClient.ErrorHandler {
+    private static final int MAX_PENDING_EXTERNAL_CONTENT = 4;
     private WebView webView;
     private RuntimeConfig config;
     private RuntimeWebChromeClient webChromeClient;
+    private ExternalContentReceiver externalContentReceiver;
+    private final ArrayDeque<ExternalContentPayload> pendingExternalContent = new ArrayDeque<>();
+    private boolean webPageReady;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,6 +57,9 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
                 + ", fullscreen=" + config.fullscreen
                 + ", orientation=" + config.orientation
                 + ", allowHttp=" + config.allowHttp);
+        externalContentReceiver = new ExternalContentReceiver(
+                getContentResolver(), config.externalContent);
+        consumeExternalIntent(getIntent());
 
         try {
             applyRuntimeWindowConfig();
@@ -63,6 +74,83 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
         } catch (RuntimeException error) {
             RuntimeLog.error("Unable to initialize Android WebView", error);
             showRuntimeError("Unable to initialize Android WebView: " + error.getMessage());
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        consumeExternalIntent(intent);
+    }
+
+    private void consumeExternalIntent(Intent intent) {
+        if (externalContentReceiver == null) return;
+        ExternalContentReceiver.Result result = externalContentReceiver.receive(intent);
+        if (result.payload != null) enqueueExternalContent(result.payload);
+        if (result.userMessage != null) {
+            Toast.makeText(this, result.userMessage, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void enqueueExternalContent(ExternalContentPayload payload) {
+        if (pendingExternalContent.size() >= MAX_PENDING_EXTERNAL_CONTENT) {
+            pendingExternalContent.removeFirst();
+            RuntimeLog.warn("External content queue full; oldest payload dropped");
+        }
+        pendingExternalContent.addLast(payload);
+        flushExternalContentIfReady();
+    }
+
+    void onWebPageStarted(String url) {
+        webPageReady = false;
+    }
+
+    void onWebPageFinished(String url) {
+        webPageReady = isTrustedLocalPage(url);
+        if (webPageReady) {
+            RuntimeLog.debug("Trusted local Web page ready for external content");
+            flushExternalContentIfReady();
+        }
+    }
+
+    private void flushExternalContentIfReady() {
+        if (config == null || config.mode != RuntimeConfig.Mode.LOCAL || webView == null
+                || !webPageReady || !isTrustedLocalPage(webView.getUrl())) return;
+        while (!pendingExternalContent.isEmpty()) {
+            ExternalContentPayload payload = pendingExternalContent.removeFirst();
+            String payloadJson = payload.toJsonString()
+                    .replace("\u2028", "\\u2028")
+                    .replace("\u2029", "\\u2029");
+            String script = "(function(payload){"
+                    + "var q=window.__lwExternalContentQueue;"
+                    + "if(!Array.isArray(q)){q=[];window.__lwExternalContentQueue=q;}"
+                    + "q.push(payload);"
+                    + "window.dispatchEvent(new CustomEvent('lw:external-content',{detail:payload}));"
+                    + "})(" + payloadJson + ");";
+            try {
+                webView.evaluateJavascript(script, null);
+                RuntimeLog.info("External content delivered to WebView; kind="
+                        + payload.kind.wireValue);
+            } catch (RuntimeException error) {
+                pendingExternalContent.addFirst(payload);
+                RuntimeLog.warn("External content delivery deferred; exception="
+                        + error.getClass().getSimpleName());
+                break;
+            }
+        }
+    }
+
+    static boolean isTrustedLocalPage(String rawUrl) {
+        if (rawUrl == null || rawUrl.isEmpty()) return false;
+        try {
+            Uri uri = Uri.parse(rawUrl);
+            String path = uri.getPath();
+            return "https".equalsIgnoreCase(uri.getScheme())
+                    && "appassets.androidplatform.net".equalsIgnoreCase(uri.getHost())
+                    && path != null && path.startsWith("/assets/");
+        } catch (RuntimeException error) {
+            return false;
         }
     }
 
@@ -300,6 +388,7 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
             webView.destroy();
             webView = null;
             webChromeClient = null;
+            webPageReady = false;
         }
     }
 

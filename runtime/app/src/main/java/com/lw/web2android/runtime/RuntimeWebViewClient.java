@@ -75,6 +75,7 @@ final class RuntimeWebViewClient extends WebViewClientCompat {
     @Override
     public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
         RuntimeLog.info("Page started: " + RuntimeLog.safeUrl(url));
+        activity.onWebPageStarted(url);
         super.onPageStarted(view, url, favicon);
     }
 
@@ -82,6 +83,7 @@ final class RuntimeWebViewClient extends WebViewClientCompat {
     public void onPageFinished(WebView view, String url) {
         RuntimeLog.info("Page finished: " + RuntimeLog.safeUrl(url));
         activity.logWebViewport(view);
+        activity.onWebPageFinished(url);
         super.onPageFinished(view, url);
     }
 

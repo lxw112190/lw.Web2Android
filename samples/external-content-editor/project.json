@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "mode": "local",
+  "name": "External Content Demo",
+  "packageName": "com.lw.samples.externalcontent",
+  "versionName": "1.0.0",
+  "versionCode": 1,
+  "source": ".",
+  "entry": "index.html",
+  "fullscreen": false,
+  "orientation": "auto",
+  "allowHttp": false,
+  "output": "../../build/samples/external-content",
+  "outputFile": "external-content-editor-android.apk",
+  "toolchainLock": "../../toolchain.lock.json",
+  "runtime": "../../toolchain/runtime",
+  "externalContent": {
+    "enabled": true,
+    "receiveSharedText": true,
+    "openFiles": true,
+    "preset": "text-config"
+  }
+}

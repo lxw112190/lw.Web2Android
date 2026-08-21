@@ -7,7 +7,7 @@ Release 构建同时启用 R8 代码收缩与优化资源收缩。仅固定动�
 ## 当前能力
 
 - `WebViewAssetLoader` 本地 HTTPS 风格 URL；
-- `assets/lw-config.json` schema 1，本地入口使用与 APK 一致的 `www/<entry>` 资产路径；
+- `assets/lw-config.json` schema 2，本地入口使用与 APK 一致的 `www/<entry>` 资产路径；
 - local 与 remote 两种模式；
 - JavaScript、DOM Storage、localStorage 与 IndexedDB；
 - WebView 历史返回；
@@ -23,12 +23,14 @@ Release 构建同时启用 R8 代码收缩与优化资源收缩。仅固定动�
 - HTML5 视频通过 `WebChromeClient` 进入全屏，支持返回键退出和方向恢复；
 - 对没有移动端 viewport 的固定宽度网页启用 Wide Viewport 与 Overview Mode，按设备宽度整体缩放而不重新排版；
 - Custom Scheme 无可用处理程序时只记录 WARN 和 Toast，不销毁当前 WebView。
+- local 模式可接收单条分享文本或用户明确打开的 `content://` 文本/配置文件，并通过 `lw:external-content` CustomEvent 单向交给本地页面；
+- 外部内容严格执行类型、8 MiB 默认上限、二进制与 UTF-8/UTF-16 BOM 编码检查；不支持多文件或写回原 URI。
 
 Runtime 启动日志会记录最终生效的 `WebView viewport: wide=true, overview=true`、屏幕像素/密度和 WebView Provider；每次页面完成后以 DEBUG 记录 `innerWidth`、`innerHeight`、`scrollWidth`、`scrollHeight`、`screenWidth`、`screenHeight` 与 `devicePixelRatio`，用于区分 fit-to-width 缩放和真正的响应式重排。
 
 HTML5 全屏方向策略为：Landscape 应用使用 `sensorLandscape`，Portrait/Auto 应用使用 `sensor`，退出全屏后恢复进入前的 requested orientation；方向变化会写入 DEBUG 日志。
 
-Runtime 不调用 `addJavascriptInterface`，不提供 Native Bridge，也不引用应用动态生成的 `R` 类。
+Runtime 不调用 `addJavascriptInterface`，不提供 Native Bridge，也不引用应用动态生成的 `R` 类。外部内容只会投递到 `https://appassets.androidplatform.net/assets/` 可信本地页面，remote 模式完全禁用。
 
 ## 真机日志
 

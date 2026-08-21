@@ -7,6 +7,59 @@
 #include <stdexcept>
 
 namespace lw::web2android {
+namespace {
+
+std::string MimeDataElements(const std::vector<std::string>& mimeTypes, bool acceptOctetStream) {
+    std::string result;
+    for (const auto& mimeType : mimeTypes) {
+        result += "                <data android:mimeType=\"" + EscapeXml(mimeType) + "\"/>\n";
+    }
+    if (acceptOctetStream) {
+        result += "                <data android:mimeType=\"application/octet-stream\"/>\n";
+    }
+    return result;
+}
+
+std::string ExternalIntentFilters(const ProjectConfig& config) {
+    if (!config.externalContent.enabled) return {};
+    std::string filters;
+    if (config.externalContent.receiveSharedText) {
+        filters +=
+            "            <intent-filter>\n"
+            "                <action android:name=\"android.intent.action.SEND\"/>\n"
+            "                <category android:name=\"android.intent.category.DEFAULT\"/>\n"
+            "                <data android:mimeType=\"text/plain\"/>\n"
+            "            </intent-filter>\n";
+    }
+    if (config.externalContent.openFiles) {
+        const auto resolved = ResolveExternalContentConfig(config.externalContent);
+        const auto data = MimeDataElements(resolved.mimeTypes, config.externalContent.acceptOctetStream);
+        filters +=
+            "            <intent-filter>\n"
+            "                <action android:name=\"android.intent.action.VIEW\"/>\n"
+            "                <category android:name=\"android.intent.category.DEFAULT\"/>\n" + data +
+            "            </intent-filter>\n"
+            "            <intent-filter>\n"
+            "                <action android:name=\"android.intent.action.SEND\"/>\n"
+            "                <category android:name=\"android.intent.category.DEFAULT\"/>\n" + data +
+            "            </intent-filter>\n";
+    }
+    return filters;
+}
+
+std::string JsonStringArray(const std::vector<std::string>& values, int indent) {
+    if (values.empty()) return "[]";
+    const std::string spaces(static_cast<std::size_t>(indent), ' ');
+    const std::string itemSpaces(static_cast<std::size_t>(indent + 2), ' ');
+    std::string result = "[\n";
+    for (std::size_t index = 0; index < values.size(); ++index) {
+        result += itemSpaces + "\"" + EscapeJson(values[index]) + "\"";
+        result += index + 1U == values.size() ? "\n" : ",\n";
+    }
+    return result + spaces + "]";
+}
+
+}  // namespace
 
 void WriteTextFile(const std::filesystem::path& file, const std::string& content) {
     std::filesystem::create_directories(file.parent_path());
@@ -28,6 +81,10 @@ std::string ManifestGenerator::Generate(const ProjectConfig& config) {
     const auto networkSecurityConfig = config.allowHttp
         ? "\n        android:networkSecurityConfig=\"@xml/network_security_config\""
         : "";
+    const auto launchMode = config.externalContent.enabled
+        ? "\n            android:launchMode=\"singleTop\""
+        : "";
+    const auto externalIntentFilters = ExternalIntentFilters(config);
     return "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
            "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\"\n"
            "    package=\"" + EscapeXml(config.packageName) + "\">\n\n" +
@@ -44,11 +101,12 @@ std::string ManifestGenerator::Generate(const ProjectConfig& config) {
            "        <activity\n"
            "            android:name=\"com.lw.web2android.runtime.MainActivity\"\n"
            "            android:configChanges=\"keyboardHidden|orientation|screenSize\"\n"
-           "            android:exported=\"true\"" + orientation + ">\n"
+           "            android:exported=\"true\"" + launchMode + orientation + ">\n"
            "            <intent-filter>\n"
            "                <action android:name=\"android.intent.action.MAIN\"/>\n"
            "                <category android:name=\"android.intent.category.LAUNCHER\"/>\n"
            "            </intent-filter>\n"
+           + externalIntentFilters +
            "        </activity>\n"
            "    </application>\n"
            "</manifest>\n";
@@ -59,15 +117,28 @@ std::string RuntimeConfigGenerator::Generate(const ProjectConfig& config, const 
     // Local web files are packaged below assets/www, so the Runtime config must
     // contain the corresponding APK asset path rather than the source path.
     const auto runtimeEntry = config.mode == "local" ? "www/" + config.entry : config.entry;
+    const auto resolved = ResolveExternalContentConfig(config.externalContent);
     return "{\n"
-           "  \"schemaVersion\": 1,\n"
+           "  \"schemaVersion\": 2,\n"
            "  \"runtimeVersion\": \"" + EscapeJson(runtimeVersion) + "\",\n"
            "  \"mode\": \"" + EscapeJson(config.mode) + "\",\n"
            "  \"entry\": \"" + EscapeJson(runtimeEntry) + "\",\n"
            "  \"url\": \"" + EscapeJson(config.url) + "\",\n"
            "  \"fullscreen\": " + std::string(config.fullscreen ? "true" : "false") + ",\n"
            "  \"orientation\": \"" + EscapeJson(config.orientation) + "\",\n"
-           "  \"allowHttp\": " + std::string(config.allowHttp ? "true" : "false") + "\n"
+           "  \"allowHttp\": " + std::string(config.allowHttp ? "true" : "false") + ",\n"
+           "  \"externalContent\": {\n"
+           "    \"enabled\": " + std::string(config.externalContent.enabled ? "true" : "false") + ",\n"
+           "    \"receiveSharedText\": " +
+               std::string(config.externalContent.receiveSharedText ? "true" : "false") + ",\n"
+           "    \"openFiles\": " + std::string(config.externalContent.openFiles ? "true" : "false") + ",\n"
+           "    \"acceptOctetStream\": " +
+               std::string(config.externalContent.acceptOctetStream ? "true" : "false") + ",\n"
+           "    \"maxTextBytes\": " + std::to_string(config.externalContent.maxTextBytes) + ",\n"
+           "    \"extensions\": " + JsonStringArray(resolved.extensions, 4) + ",\n"
+           "    \"fileNames\": " + JsonStringArray(resolved.fileNames, 4) + ",\n"
+           "    \"mimeTypes\": " + JsonStringArray(resolved.mimeTypes, 4) + "\n"
+           "  }\n"
            "}\n";
 }
 

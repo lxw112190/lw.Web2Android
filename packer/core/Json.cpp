@@ -2,6 +2,7 @@
 
 #include <charconv>
 #include <stdexcept>
+#include <utility>
 
 namespace lw::web2android {
 namespace {
@@ -28,13 +29,19 @@ class Parser {
 public:
     explicit Parser(const std::string& source) : source_(source) {}
 
-    std::map<std::string, JsonValue> ParseObject() {
+    std::map<std::string, JsonValue> ParseRootObject() {
         SkipWhitespace();
+        auto result = ParseObject();
+        EnsureEnd();
+        return result;
+    }
+
+private:
+    std::map<std::string, JsonValue> ParseObject() {
         Expect('{');
         SkipWhitespace();
         std::map<std::string, JsonValue> result;
         if (Consume('}')) {
-            EnsureEnd();
             return result;
         }
 
@@ -48,7 +55,6 @@ public:
             }
             SkipWhitespace();
             if (Consume('}')) {
-                EnsureEnd();
                 return result;
             }
             Expect(',');
@@ -56,7 +62,20 @@ public:
         }
     }
 
-private:
+    std::vector<JsonValue> ParseArray() {
+        Expect('[');
+        SkipWhitespace();
+        std::vector<JsonValue> result;
+        if (Consume(']')) return result;
+        while (true) {
+            result.push_back(ParseValue());
+            SkipWhitespace();
+            if (Consume(']')) return result;
+            Expect(',');
+            SkipWhitespace();
+        }
+    }
+
     JsonValue ParseValue() {
         if (Peek() == '"') {
             JsonValue value;
@@ -66,6 +85,18 @@ private:
         }
         if (Peek() == '-' || (Peek() >= '0' && Peek() <= '9')) {
             return ParseInteger();
+        }
+        if (Peek() == '{') {
+            JsonValue value;
+            value.type = JsonValue::Type::Object;
+            value.objectValue = ParseObject();
+            return value;
+        }
+        if (Peek() == '[') {
+            JsonValue value;
+            value.type = JsonValue::Type::Array;
+            value.arrayValue = ParseArray();
+            return value;
         }
         if (ConsumeLiteral("true")) {
             JsonValue value;
@@ -82,7 +113,7 @@ private:
         if (ConsumeLiteral("null")) {
             return JsonValue{};
         }
-        Fail("expected a string, integer, boolean, or null");
+        Fail("expected a string, integer, boolean, object, array, or null");
     }
 
     JsonValue ParseInteger() {
@@ -234,9 +265,11 @@ const JsonValue& RequireValue(const std::map<std::string, JsonValue>& values, co
 
 JsonObject JsonObject::Parse(const std::string& json) {
     JsonObject object;
-    object.values_ = Parser(json).ParseObject();
+    object.values_ = Parser(json).ParseRootObject();
     return object;
 }
+
+JsonObject::JsonObject(std::map<std::string, JsonValue> values) : values_(std::move(values)) {}
 
 bool JsonObject::Contains(const std::string& key) const {
     return values_.find(key) != values_.end();
@@ -269,6 +302,32 @@ bool JsonObject::OptionalBoolean(const std::string& key, bool fallback) const {
     const auto& value = RequireValue(values_, key);
     if (value.type != JsonValue::Type::Boolean) throw std::runtime_error("JSON property must be a boolean: " + key);
     return value.booleanValue;
+}
+
+JsonObject JsonObject::RequiredObject(const std::string& key) const {
+    const auto& value = RequireValue(values_, key);
+    if (value.type != JsonValue::Type::Object) {
+        throw std::runtime_error("JSON property must be an object: " + key);
+    }
+    return JsonObject(value.objectValue);
+}
+
+std::vector<std::string> JsonObject::OptionalStringArray(
+    const std::string& key, const std::vector<std::string>& fallback) const {
+    if (!Contains(key)) return fallback;
+    const auto& value = RequireValue(values_, key);
+    if (value.type != JsonValue::Type::Array) {
+        throw std::runtime_error("JSON property must be an array: " + key);
+    }
+    std::vector<std::string> result;
+    result.reserve(value.arrayValue.size());
+    for (const auto& item : value.arrayValue) {
+        if (item.type != JsonValue::Type::String) {
+            throw std::runtime_error("JSON array items must be strings: " + key);
+        }
+        result.push_back(item.stringValue);
+    }
+    return result;
 }
 
 std::string EscapeJson(const std::string& value) {

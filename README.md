@@ -30,7 +30,7 @@
 - Custom Scheme 外部应用跳转失败时保留当前 WebView；
 - GitHub Actions 自动构建 Runtime、Packer、GUI 和真实 React/Vite Demo。
 
-当前版本：`v0.2.7`<br>
+当前版本：`v0.2.8`<br>
 Android：`minSdk 23`，`targetSdk 35`
 
 ## 下载与首次使用
@@ -44,7 +44,7 @@ bin/lw.Web2Android.GUI.exe
 公开发行包包含：
 
 ```text
-lw-Web2Android-v0.2.7-windows-x64/
+lw-Web2Android-v0.2.8-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
@@ -88,8 +88,9 @@ toolchain/
 2. 本地模式选择包含 `index.html` 的构建输出目录，例如 Vite 的 `dist`。
 3. 填写应用名称、Package Name、Version Name 和 Version Code。
 4. 可选：选择正方形 PNG 应用图标；不选择时使用内置默认图标。
-5. 选择屏幕方向、全屏选项和输出目录。
-6. 点击“生成 Android APK”。
+5. 可选：本地项目可在“系统集成”中启用分享文本或文本/配置文件打开方式。
+6. 选择屏幕方向、全屏选项和输出目录。
+7. 点击“生成 Android APK”；成功后会自动打开输出文件夹并选中生成的 APK。
 
 本地 Web 资源必须使用相对 URL。Vite 项目推荐配置：
 
@@ -127,6 +128,12 @@ npm run build -- --base=./
   "fullscreen": false,
   "orientation": "auto",
   "allowHttp": false,
+  "externalContent": {
+    "enabled": true,
+    "receiveSharedText": true,
+    "openFiles": true,
+    "preset": "text-config"
+  },
   "output": "output"
 }
 ```
@@ -143,6 +150,28 @@ npm run build -- --base=./
 路径相对于 `project.json` 解析。`entry` 相对于 `source`；打包后会自动转换为 APK 内的 `assets/www/<entry>`。远程模式使用 `mode: "remote"` 和 `url`，HTTP 只有在 `allowHttp: true` 时允许。
 
 完整 CLI 参数见 [packer/README.md](packer/README.md)。
+
+## 使用其他 App 打开文本 / 配置文件
+
+该能力仅支持本地 Web 项目。GUI 勾选“接收分享文本”或“打开文本 / 配置文件”，选择“常用文本文档”“文本与配置文件（推荐）”或“代码、文本与配置文件”预设后构建并安装 APK；随后可从微信、QQ 或文件管理器中分享文本，或选择“用其他应用打开”。在线网址模式会清空并禁用这些控件。
+
+Web 页面通过固定事件 `lw:external-content` 接收一个只读文本副本。冷启动时业务脚本可能晚于 Runtime，需先消费固定队列：
+
+```js
+function handleExternalContent(payload) {
+  console.log(payload.kind, payload.name, payload.mimeType, payload.text);
+}
+
+const queue = window.__lwExternalContentQueue || [];
+while (queue.length) handleExternalContent(queue.shift());
+window.addEventListener("lw:external-content", event => {
+  handleExternalContent(event.detail);
+});
+```
+
+Payload schema 1 包含 `kind`（`text`/`file`）、`sourceAction`（`share`/`view`）、`name`、`extension`、`mimeType`、`size`、`encoding` 和 `text`。默认最大文本为 8 MiB，支持严格 UTF-8、UTF-8 BOM、UTF-16LE/BE BOM；多文件、二进制、未允许类型及其他编码会被拒绝并显示轻量提示。示例见 [samples/external-content-editor](samples/external-content-editor)。
+
+> 该能力只把用户明确选择或分享的内容单向交给本地 Web 页面，不提供通用 Native Bridge，不会自动获得整个手机文件系统权限，也不会写回原始 `content://` URI。Runtime 日志不记录正文、完整 URI 或文件名。
 
 ## 企业内网与 HTTP
 
@@ -236,8 +265,8 @@ Runtime 还会记录最终生效的 WebView 视口策略、屏幕像素/密度�
 推送 `v*` 标签时，完整 CI 成功后会自动创建 GitHub Release：
 
 ```bash
-git tag -a v0.2.7 -m "lw.Web2Android v0.2.7"
-git push origin v0.2.7
+git tag -a v0.2.8 -m "lw.Web2Android v0.2.8"
+git push origin v0.2.8
 ```
 
 ## 架构

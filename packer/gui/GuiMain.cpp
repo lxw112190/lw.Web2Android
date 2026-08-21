@@ -79,6 +79,12 @@ enum ControlId {
     kOrientationLabel,
     kOutputLabel,
     kSigningHint,
+    kSystemIntegrationLabel,
+    kReceiveSharedText,
+    kOpenExternalFiles,
+    kExternalPresetLabel,
+    kExternalPreset,
+    kExternalHint,
 };
 
 enum class FontRole { Title, Section, Body, Small };
@@ -214,7 +220,9 @@ bool ValidateLayout(const State& state) {
     const auto cardsWidth = state.rightCard.right - state.leftCard.left;
     const bool keyControlsExist = GetDlgItem(state.window, kSource) &&
                                   GetDlgItem(state.window, kName) &&
-                                  GetDlgItem(state.window, kBuild);
+                                  GetDlgItem(state.window, kBuild) &&
+                                  GetDlgItem(state.window, kReceiveSharedText) &&
+                                  GetDlgItem(state.window, kExternalPreset);
     const auto windowStyle = static_cast<DWORD>(GetWindowLongPtrW(state.window, GWL_STYLE));
     return keyControlsExist && (windowStyle & (WS_MAXIMIZEBOX | WS_THICKFRAME)) == 0 &&
            state.sponsorQr &&
@@ -285,12 +293,12 @@ void LayoutInterface(State& state) {
     state.sponsorDivider = MakeRect(leftX, dividerTop, leftInnerWidth, 1);
     SetControlRect(state, kSupportTitle, leftX, supportTitleTop, leftInnerWidth, 22);
 
-    auto qrSize = 152;
+    auto qrSize = 220;
     const auto qrTop = leftY + 228;
     const auto captionHeight = 38;
     const int availableQrHeight = static_cast<int>(state.leftCard.bottom) - 8 -
                                   captionHeight - qrTop;
-    qrSize = std::clamp(std::min(qrSize, availableQrHeight), 88, 152);
+    qrSize = std::clamp(std::min(qrSize, availableQrHeight), 120, 220);
     state.sponsorRect = MakeRect(state.leftCard.left + (leftWidth - qrSize) / 2,
                                  qrTop, qrSize, qrSize);
     SetControlRect(state, kSupportCaption, leftX, state.sponsorRect.bottom + 4,
@@ -349,15 +357,26 @@ void LayoutInterface(State& state) {
     SetControlRect(state, kFullscreen, fullscreenX, versionTop + 20,
                    std::max(88, rightRight - fullscreenX), 24);
 
-    const auto outputTop = rightY + 334;
+    const auto integrationTop = rightY + 334;
+    SetControlRect(state, kSystemIntegrationLabel, rightX, integrationTop, rightInnerWidth, 20);
+    SetControlRect(state, kReceiveSharedText, rightX, integrationTop + 24,
+                   rightInnerWidth / 2, 24);
+    SetControlRect(state, kOpenExternalFiles, rightX + rightInnerWidth / 2, integrationTop + 24,
+                   rightInnerWidth / 2, 24);
+    SetControlRect(state, kExternalPresetLabel, rightX, integrationTop + 54, 72, 20);
+    SetControlRect(state, kExternalPreset, rightX + 78, integrationTop + 50,
+                   std::min(220, rightInnerWidth - 78), 140);
+    SetControlRect(state, kExternalHint, rightX, integrationTop + 82, rightInnerWidth, 20);
+
+    const auto outputTop = rightY + 446;
     SetControlRect(state, kOutputLabel, rightX, outputTop, rightInnerWidth, 18);
     SetControlRect(state, kOutput, rightX, outputTop + 18,
                    rightInnerWidth - actionWidth - 8, editHeight);
     SetControlRect(state, kBrowseOutput, actionX, outputTop + 18,
                    actionWidth, editHeight);
-    SetControlRect(state, kSigningHint, rightX, rightY + 398, rightInnerWidth, 20);
+    SetControlRect(state, kSigningHint, rightX, rightY + 510, rightInnerWidth, 20);
     ShowWindow(GetDlgItem(state.window, kSigningHint), SW_SHOW);
-    const auto toolchainTop = rightY + 432;
+    const auto toolchainTop = rightY + 544;
     SetControlRect(state, kToolchainStatus, rightX, toolchainTop,
                    rightInnerWidth - 132, 28);
     SetControlRect(state, kInstallToolchain, rightRight - 124, toolchainTop - 2,
@@ -476,6 +495,29 @@ std::filesystem::path PickPngFile(HWND owner) {
     }
     dialog->Release();
     return result;
+}
+
+void RevealGeneratedApk(HWND owner, const std::filesystem::path& apk) {
+    if (!std::filesystem::is_regular_file(apk)) {
+        PackerLogger().Warn("Cannot reveal generated APK because it does not exist: " +
+                            apk.u8string());
+        return;
+    }
+
+    const auto parameters = std::wstring(L"/select,\"") + apk.wstring() + L"\"";
+    SHELLEXECUTEINFOW execute{sizeof(execute)};
+    execute.fMask = SEE_MASK_FLAG_NO_UI;
+    execute.hwnd = owner;
+    execute.lpVerb = L"open";
+    execute.lpFile = L"explorer.exe";
+    execute.lpParameters = parameters.c_str();
+    execute.nShow = SW_SHOWNORMAL;
+    if (ShellExecuteExW(&execute)) {
+        PackerLogger().Info("Opened APK output folder and selected: " + apk.u8string());
+    } else {
+        PackerLogger().Warn("Unable to open APK output folder; Windows error " +
+                            std::to_string(GetLastError()) + ": " + apk.u8string());
+    }
 }
 
 HBITMAP CreateBitmapFromWicSource(IWICImagingFactory* factory, IWICBitmapSource* source,
@@ -756,6 +798,32 @@ void EnableHttpForRemoteUrl(HWND window) {
     SetStatus(window, L"已为 HTTP 地址开启明文访问 · 仅建议用于可信内网", RGB(180, 103, 0));
 }
 
+void UpdateExternalContentControls(HWND window) {
+    const bool local = IsDlgButtonChecked(window, kModeLocal) == BST_CHECKED;
+    if (!local) {
+        CheckDlgButton(window, kReceiveSharedText, BST_UNCHECKED);
+        CheckDlgButton(window, kOpenExternalFiles, BST_UNCHECKED);
+    }
+    EnableWindow(GetDlgItem(window, kReceiveSharedText), local);
+    EnableWindow(GetDlgItem(window, kOpenExternalFiles), local);
+    const bool openFiles = local &&
+        IsDlgButtonChecked(window, kOpenExternalFiles) == BST_CHECKED;
+    EnableWindow(GetDlgItem(window, kExternalPresetLabel), openFiles);
+    EnableWindow(GetDlgItem(window, kExternalPreset), openFiles);
+    std::wstring hint;
+    if (!local) {
+        hint = L"外部文件导入仅支持本地 Web 项目";
+    } else if (!openFiles) {
+        hint = L"勾选“打开文本 / 配置文件”后可选择允许的文件类型";
+    } else {
+        const auto preset = SendMessageW(GetDlgItem(window, kExternalPreset), CB_GETCURSEL, 0, 0);
+        if (preset == 0) hint = L"TXT、Markdown、日志和 CSV 等常用文本文档";
+        else if (preset == 2) hint = L"再包含 Vue、JS/TS、HTML/CSS、Python、Java 和 C/C++ 等源码";
+        else hint = L"包含常用文本，以及 JSON、YAML、XML、INI 和 ENV 等配置文件";
+    }
+    SetDynamicLabelText(window, kExternalHint, hint);
+}
+
 void UpdateMode(HWND window) {
     const bool local = IsDlgButtonChecked(window, kModeLocal) == BST_CHECKED;
     SetDynamicLabelText(window, kSourceLabel, local ? L"网页目录" : L"在线网址");
@@ -766,6 +834,7 @@ void UpdateMode(HWND window) {
                  reinterpret_cast<LPARAM>(local ? L"例如：D:\\project\\dist"
                                                 : L"例如：https://example.com 或 http://intranet.example.test"));
     EnableWindow(GetDlgItem(window, kBrowseSource), local);
+    UpdateExternalContentControls(window);
     EnableHttpForRemoteUrl(window);
     InvalidateRect(window, nullptr, TRUE);
 }
@@ -819,6 +888,12 @@ void StartBuild(HWND window) {
         input.orientation = orientationIndex == 1 ? "portrait" : orientationIndex == 2 ? "landscape" : "auto";
         input.fullscreen = IsDlgButtonChecked(window, kFullscreen) == BST_CHECKED;
         input.allowHttp = IsDlgButtonChecked(window, kAllowHttp) == BST_CHECKED;
+        input.receiveSharedText = IsDlgButtonChecked(window, kReceiveSharedText) == BST_CHECKED;
+        input.openExternalFiles = IsDlgButtonChecked(window, kOpenExternalFiles) == BST_CHECKED;
+        const auto presetIndex = SendMessageW(GetDlgItem(window, kExternalPreset), CB_GETCURSEL, 0, 0);
+        input.externalContentPreset = presetIndex == 0 ? "text-basic"
+                                      : presetIndex == 2 ? "code-config"
+                                                         : "text-config";
         input.outputDirectory = std::filesystem::path(Text(window, kOutput));
         auto config = CreateProjectConfig(input, state->environment);
         PackerLogger().Info("GUI build requested for package " + config.packageName);
@@ -973,6 +1048,19 @@ void BuildInterface(State& state) {
     AddControl(state, L"BUTTON", L"全屏显示", WS_TABSTOP | BS_AUTOCHECKBOX,
                0, 0, 100, 24, kFullscreen);
 
+    AddLabel(state, L"系统集成", 0, 0, 120, 22, kSystemIntegrationLabel, FontRole::Small);
+    AddControl(state, L"BUTTON", L"接收分享文本", WS_TABSTOP | BS_AUTOCHECKBOX,
+               0, 0, 160, 24, kReceiveSharedText, FontRole::Small);
+    AddControl(state, L"BUTTON", L"打开文本 / 配置文件", WS_TABSTOP | BS_AUTOCHECKBOX,
+               0, 0, 190, 24, kOpenExternalFiles, FontRole::Small);
+    AddLabel(state, L"文件类型", 0, 0, 80, 22, kExternalPresetLabel, FontRole::Small);
+    const auto externalPreset = AddCombo(state, 0, 0, 220, kExternalPreset);
+    SendMessageW(externalPreset, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"常用文本文档"));
+    SendMessageW(externalPreset, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"文本与配置文件（推荐）"));
+    SendMessageW(externalPreset, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"代码、文本与配置文件"));
+    SendMessageW(externalPreset, CB_SETCURSEL, 1, 0);
+    AddLabel(state, L"", 0, 0, 420, 22, kExternalHint, FontRole::Small);
+
     AddLabel(state, L"输出目录", 0, 0, 120, 22, kOutputLabel, FontRole::Small);
     AddEdit(state, L"", 0, 0, 320, kOutput, L"APK、校验和与发行元数据的输出目录");
     AddButton(state, L"选择位置", 0, 0, 82, 30, kBrowseOutput);
@@ -986,6 +1074,7 @@ void BuildInterface(State& state) {
     const auto output = std::filesystem::current_path() / "output";
     SetWindowTextW(GetDlgItem(state.window, kOutput), output.c_str());
     LayoutInterface(state);
+    UpdateExternalContentControls(state.window);
     UpdateToolchainDisplay(state);
     RefreshIconPreview(state);
     try {
@@ -1043,6 +1132,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
             if (completion->success) {
                 PackerLogger().Info("GUI build completed: " + completion->result.apk.u8string());
                 SetStatus(window, L"生成完成 · APK 签名、验证与 SHA-256 均已通过");
+                RevealGeneratedApk(window, completion->result.apk);
                 const auto detail = L"APK 已成功生成：\n\n" + completion->result.apk.wstring() +
                                     L"\n\nAPK SHA-256：\n" + Utf8ToWide(completion->result.apkSha256) +
                                     L"\n\n证书 SHA-256：\n" + Utf8ToWide(completion->result.certificateSha256);
@@ -1092,6 +1182,12 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
                 case kModeLocal:
                 case kModeRemote:
                     UpdateMode(window);
+                    return 0;
+                case kOpenExternalFiles:
+                    if (HIWORD(wparam) == BN_CLICKED) UpdateExternalContentControls(window);
+                    return 0;
+                case kExternalPreset:
+                    if (HIWORD(wparam) == CBN_SELCHANGE) UpdateExternalContentControls(window);
                     return 0;
                 case kSource:
                     if (HIWORD(wparam) == EN_CHANGE) EnableHttpForRemoteUrl(window);
@@ -1149,7 +1245,8 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
             const auto dc = reinterpret_cast<HDC>(wparam);
             const auto id = GetDlgCtrlID(reinterpret_cast<HWND>(lparam));
             const bool dynamicCardLabel = id == kIconHint || id == kSourceLabel ||
-                                          id == kModeHint || id == kToolchainStatus;
+                                           id == kModeHint || id == kToolchainStatus ||
+                                           id == kExternalHint;
             if (state && dynamicCardLabel) {
                 SetBkMode(dc, OPAQUE);
                 SetBkColor(dc, kCard);
@@ -1247,7 +1344,7 @@ int RunGui(HINSTANCE instance, bool showWindow = true) {
     if (!RegisterClassExW(&windowClass)) throw std::runtime_error("Unable to register the GUI window");
     const DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
     const auto dpi = GetDpiForSystem();
-    RECT bounds{0, 0, Scale(1000, dpi), Scale(670, dpi)};
+    RECT bounds{0, 0, Scale(1000, dpi), Scale(780, dpi)};
     AdjustWindowRectExForDpi(&bounds, style, FALSE, WS_EX_CONTROLPARENT, dpi);
     const auto window = CreateWindowExW(
         WS_EX_CONTROLPARENT, kClassName, L"lw.Web2Android · 网页转 Android APK",
@@ -1257,7 +1354,7 @@ int RunGui(HINSTANCE instance, bool showWindow = true) {
     const DWORD corner = 2;
     DwmSetWindowAttribute(window, 33, &corner, sizeof(corner));
     if (!showWindow) {
-        RECT normalBounds{0, 0, Scale(1000, dpi), Scale(670, dpi)};
+        RECT normalBounds{0, 0, Scale(1000, dpi), Scale(780, dpi)};
         AdjustWindowRectExForDpi(&normalBounds, style, FALSE, WS_EX_CONTROLPARENT, dpi);
         SetWindowPos(window, nullptr, 0, 0,
                      normalBounds.right - normalBounds.left,

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>External Content Demo</title>
+  <style>
+    body { margin: 0; padding: 24px; font: 16px/1.5 system-ui, sans-serif; color: #1c273c; }
+    .meta { color: #65748b; margin-bottom: 12px; }
+    textarea { box-sizing: border-box; width: 100%; min-height: 60vh; padding: 12px; }
+  </style>
+</head>
+<body>
+  <h1>等待外部内容</h1>
+  <div class="meta" id="meta">从其他应用分享文本，或选择“用其他应用打开”文本/配置文件。</div>
+  <textarea id="content" placeholder="接收到的只读文本副本会显示在这里"></textarea>
+  <script>
+    function handleExternalContent(payload) {
+      document.getElementById('meta').textContent =
+        (payload.kind === 'file' ? payload.name : '分享文本') +
+        ' · ' + (payload.mimeType || 'unknown') + ' · ' + payload.size + ' bytes';
+      document.getElementById('content').value = payload.text;
+    }
+
+    const queue = window.__lwExternalContentQueue || [];
+    while (queue.length) handleExternalContent(queue.shift());
+    window.__lwExternalContentQueue = queue;
+    window.addEventListener('lw:external-content', event => {
+      handleExternalContent(event.detail);
+      const pending = window.__lwExternalContentQueue || [];
+      const index = pending.indexOf(event.detail);
+      if (index >= 0) pending.splice(index, 1);
+    });
+  </script>
+</body>
+</html>

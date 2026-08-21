@@ -2,8 +2,8 @@
 #include <windows.h>
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 0,2,7,0
- PRODUCTVERSION 0,2,7,0
+ FILEVERSION 0,2,8,0
+ PRODUCTVERSION 0,2,8,0
  FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
 #ifdef _DEBUG
  FILEFLAGS VS_FF_DEBUG
@@ -20,12 +20,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "天天代码码天天\0"
             VALUE "FileDescription", LW_FILE_DESCRIPTION "\0"
-            VALUE "FileVersion", "0.2.7.0\0"
+            VALUE "FileVersion", "0.2.8.0\0"
             VALUE "InternalName", LW_INTERNAL_NAME "\0"
             VALUE "LegalCopyright", "Copyright (c) 2026 天天代码码天天\0"
             VALUE "OriginalFilename", LW_ORIGINAL_FILENAME "\0"
             VALUE "ProductName", "lw.Web2Android\0"
-            VALUE "ProductVersion", "0.2.7\0"
+            VALUE "ProductVersion", "0.2.8\0"
         END
     END
     BLOCK "VarFileInfo"

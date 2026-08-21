@@ -1,10 +1,20 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "runtimeVersion": "6",
   "mode": "remote",
   "entry": "index.html",
   "url": "https://example.com",
   "fullscreen": false,
   "orientation": "auto",
-  "allowHttp": false
+  "allowHttp": false,
+  "externalContent": {
+    "enabled": false,
+    "receiveSharedText": false,
+    "openFiles": false,
+    "acceptOctetStream": false,
+    "maxTextBytes": 8388608,
+    "extensions": [],
+    "fileNames": [],
+    "mimeTypes": []
+  }
 }
