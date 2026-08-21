@@ -28,6 +28,7 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 - legacy fixed-width pages without a mobile viewport use Wide Viewport and Overview Mode for fit-to-width scaling, without layout reflow;
 - CLI/project.json supports square PNG app icons and converts them to five Android Launcher mipmap densities; the bundled default icon is used when the GUI does not specify one;
 - non-fatal external custom-scheme handling that preserves the current WebView;
+- local Web apps can receive text shared by other apps and register as an Android handler for text, configuration, and source-code files;
 - GitHub Actions builds the Runtime, Packer, GUI, and a real React/Vite demo.
 
 Current version: `v0.2.8`<br>
@@ -153,23 +154,100 @@ See [packer/README.md](packer/README.md) for all CLI options.
 
 ## Open text and configuration files from other apps
 
-This capability is local-Web-only. In the GUI, enable **Receive shared text** or **Open text/config files**, choose **Common text documents**, **Text and configuration files (recommended)**, or **Code, text, and configuration files**, then build and install the APK. Text can then be shared from another app, or a file can be opened through Android's **Open with** flow. Remote URL mode clears and disables these controls.
+`v0.2.8` adds Android integration for external text and configuration files. For example, after packaging a Vue text editor, a user can receive a text file in WeChat, QQ, or a file manager, choose **Open with**, and select the generated APK. The Android Runtime reads the file explicitly selected by the user and passes a safe, read-only text copy to the Vue page. Selected text can also be shared to the APK from another app.
 
-The Web application receives a read-only text copy through the stable `lw:external-content` event. Consume the startup queue first because application code may initialize after the Runtime during a cold start:
+### Preparation
 
-```js
-function handleExternalContent(payload) {
-  console.log(payload.kind, payload.name, payload.mimeType, payload.text);
+1. Use the `v0.2.8` application and Runtime. Android Build Tools from an older complete toolchain can be reused, but `toolchain/runtime/` and `runtime-v6.zip` must be replaced with the copies from the `v0.2.8` distribution. Using a fully extracted `v0.2.8` package is the simplest option.
+2. This feature is available only in **Local website** mode. Build the Vue, React, or other frontend project into a directory that contains `index.html`, such as Vite's `dist`.
+3. Local assets must use relative paths. Set `base: "./"` in a Vite project.
+4. Integrate the queue and event code below, and pass `payload.text` to the editor. Without this code, Android can deliver the file to the APK but the page will not display it automatically.
+5. The feature imports a read-only copy; it does not modify the original file supplied by WeChat or a file manager. Use the Web application's download, export, or save-as function for edited content.
+
+### GUI options
+
+| Option | Purpose |
+| --- | --- |
+| Receive shared text | Handles plain text sent by other apps through Android `ACTION_SEND`, such as text selected in a browser or messaging app and then shared. |
+| Open text/config files | Registers the APK as an Android file handler and accepts one file explicitly selected through **Open with**. |
+
+The file-type preset controls both Android file associations and the Runtime allowlist:
+
+| Preset | Intended use | Main types |
+| --- | --- | --- |
+| Common text documents | Notes and Markdown viewing/editing | `txt`, `log`, `md`, `markdown`, `csv`, `README`, and `LICENSE` |
+| Text and configuration files (recommended) | Text editors and configuration viewers | The types above, plus `json`, `jsonc`, `yaml`, `yml`, `toml`, `xml`, `ini`, `conf`, `cfg`, `properties`, `env`, `.env`, `Dockerfile`, `Makefile`, `CMakeLists.txt`, and similar names |
+| Code, text, and configuration files | Source viewers and lightweight code editors | The types above, plus `vue`, `js`, `ts`, `tsx`, `jsx`, `html`, `css`, `sql`, `py`, `sh`, `c/cpp`, `java`, `kt`, `go`, `rs`, `lua`, `gradle`, and related types |
+
+A preset only defines Android associations and the security allowlist. It does not add syntax highlighting, formatting, or parsing support to the Web editor. Remote URL mode clears and disables all these options.
+
+### Vue / Web integration
+
+The Runtime delivers content through the stable `lw:external-content` event. During a cold start, the Runtime may run before Vue is initialized, so the page must drain `window.__lwExternalContentQueue` before listening for new events. Vue 3 `<script setup>` example:
+
+```vue
+<script setup>
+import { onBeforeUnmount, onMounted, ref } from "vue";
+
+const content = ref("");
+const currentName = ref("");
+
+function applyExternalContent(payload) {
+  content.value = payload.text;
+  currentName.value = payload.name || "Shared text";
 }
 
-const queue = window.__lwExternalContentQueue || [];
-while (queue.length) handleExternalContent(queue.shift());
-window.addEventListener("lw:external-content", event => {
-  handleExternalContent(event.detail);
+function onExternalContent(event) {
+  applyExternalContent(event.detail);
+  const queue = window.__lwExternalContentQueue || [];
+  const index = queue.indexOf(event.detail);
+  if (index >= 0) queue.splice(index, 1);
+}
+
+onMounted(() => {
+  const queue = window.__lwExternalContentQueue || [];
+  while (queue.length) applyExternalContent(queue.shift());
+  window.__lwExternalContentQueue = queue;
+  window.addEventListener("lw:external-content", onExternalContent);
 });
+
+onBeforeUnmount(() => {
+  window.removeEventListener("lw:external-content", onExternalContent);
+});
+</script>
+
+<template>
+  <p>{{ currentName }}</p>
+  <textarea v-model="content" />
+</template>
 ```
 
-Payload schema 1 contains `kind` (`text`/`file`), `sourceAction` (`share`/`view`), `name`, `extension`, `mimeType`, `size`, `encoding`, and `text`. The default limit is 8 MiB. Strict UTF-8, UTF-8 BOM, and UTF-16LE/BE BOM are supported; multiple files, binary data, unapproved types, and other encodings are rejected with a lightweight message. See [samples/external-content-editor](samples/external-content-editor).
+When using Monaco, CodeMirror, or a similar editor, call its `setValue(payload.text)` method inside `applyExternalContent()` instead of letting `v-model` overwrite the editor state.
+
+Payload schema 1 fields:
+
+| Field | Meaning |
+| --- | --- |
+| `kind` | `text` or `file` |
+| `sourceAction` | `share` or `view` |
+| `name` / `extension` | Display name and extension; these may be empty for shared text |
+| `mimeType` | MIME type supplied by the source app |
+| `size` / `encoding` | Text byte count and detected encoding |
+| `text` | Text content delivered to the Web editor |
+
+### Use on an Android device
+
+1. Select a local `dist` directory in the GUI, enable the required system-integration options, and build the APK.
+2. Install the APK and open it normally once to verify that the page works.
+3. Open a received file in WeChat, QQ, or a file manager, then choose **Open with** or **Other apps**.
+4. Select the packaged application from Android's app list, optionally choosing **Just once** or **Always**.
+5. After the app starts or returns to the foreground, the Vue page receives `lw:external-content`.
+
+To send selected text, choose **Share** in the source app and then select the packaged application.
+
+Whether the app appears in **Open with** depends on the source app using standard Android `ACTION_VIEW` / `ACTION_SEND` behavior and supplying a matching MIME type. `.txt` and standard `text/plain` normally work. Some apps label configuration or source files as the generic `application/octet-stream`. For security, the GUI does not register this overly broad type by default, so the app may not appear in that case. This happens before the Runtime can inspect the file and is not a content-decoding failure.
+
+The default limit is 8 MiB. Strict UTF-8, UTF-8 BOM, and UTF-16LE/BE BOM are supported. Only one file is accepted at a time; multiple files, binary data, unapproved types, and other encodings are rejected with a lightweight message. A runnable example is available at [samples/external-content-editor](samples/external-content-editor).
 
 > This capability only passes content explicitly selected or shared by the user in one direction to a local Web page. It does not expose a general Native Bridge, obtain broad filesystem access, or write back to the original `content://` URI. Runtime logs never record the body, full URI, or filename.
 
@@ -336,6 +414,6 @@ See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for third-party notices. Th
 
 If this project helps you, you can support its maintenance by scanning the QR code:
 
-<p align="center">
+<p align="left">
   <img src="assets/sponsor.jpg" alt="WeChat sponsorship" width="320">
 </p>

@@ -28,6 +28,7 @@
 - 对没有移动端 viewport 的固定宽度老式网页启用 Wide Viewport 与 Overview Mode，采用 fit-to-width 整体缩放，不重新排版；
 - CLI/project.json 支持正方形 PNG 应用图标，自动生成五档 Android Launcher mipmap 资源；GUI 未指定时使用内置默认图标；
 - Custom Scheme 外部应用跳转失败时保留当前 WebView；
+- 本地 Web 应用可接收其他 App 分享的文本，并可注册为 Android 文本、配置文件及代码文件的“打开方式”；
 - GitHub Actions 自动构建 Runtime、Packer、GUI 和真实 React/Vite Demo。
 
 当前版本：`v0.2.8`<br>
@@ -153,23 +154,100 @@ npm run build -- --base=./
 
 ## 使用其他 App 打开文本 / 配置文件
 
-该能力仅支持本地 Web 项目。GUI 勾选“接收分享文本”或“打开文本 / 配置文件”，选择“常用文本文档”“文本与配置文件（推荐）”或“代码、文本与配置文件”预设后构建并安装 APK；随后可从微信、QQ 或文件管理器中分享文本，或选择“用其他应用打开”。在线网址模式会清空并禁用这些控件。
+`v0.2.8` 新增外部文本与配置文件系统集成。例如，把 Vue 文本编辑器打包成 APK 后，用户在微信、QQ 或文件管理器中收到一个文本文件，可以选择“用其他应用打开”并选中该 APK；Android Runtime 会读取用户明确选择的文件，将安全的只读文本副本交给 Vue 页面。也可以把其他 App 中选中的文字通过“分享”发送给 APK。
 
-Web 页面通过固定事件 `lw:external-content` 接收一个只读文本副本。冷启动时业务脚本可能晚于 Runtime，需先消费固定队列：
+### 使用前准备
 
-```js
-function handleExternalContent(payload) {
-  console.log(payload.kind, payload.name, payload.mimeType, payload.text);
+1. 使用 `v0.2.8` 的程序和 Runtime。旧版完整工具链可继续复用 Android Build Tools，但必须用 `v0.2.8` 发行包中的 `toolchain/runtime/` 和 `runtime-v6.zip` 替换旧 Runtime；最简单的方式是直接使用完整解压的 `v0.2.8` 发行包。
+2. 该能力只支持“本地静态目录”，不支持“在线网址”。Vue、React 或其他前端项目应先构建为包含 `index.html` 的目录，例如 Vite 的 `dist`。
+3. 本地资源必须使用相对路径；Vite 项目请设置 `base: "./"`。
+4. Web 应用必须接入下方的队列和事件代码，把接收到的 `payload.text` 交给编辑器。未接入时，APK 会收到文件，但页面不会自动显示内容。
+5. 当前能力是“导入只读副本”，不会直接修改微信或文件管理器提供的原文件。编辑后的内容应由 Web 应用通过下载、导出或另存功能保存。
+
+### GUI 选项
+
+| 选项 | 作用 |
+| --- | --- |
+| 接收分享文本 | 接收其他 App 通过 Android `ACTION_SEND` 分享的纯文本，例如在微信或浏览器中选中文字后点击“分享”。 |
+| 打开文本 / 配置文件 | 将 APK 注册为 Android 文件打开方式，接收用户通过“用其他应用打开”选择的单个文件。 |
+
+“文件类型”预设控制 APK 向 Android 注册的类型以及 Runtime 允许读取的扩展名：
+
+| 预设 | 适合场景 | 主要类型 |
+| --- | --- | --- |
+| 常用文本文档 | 普通记事本、Markdown 阅读或编辑 | `txt`、`log`、`md`、`markdown`、`csv`、`README`、`LICENSE` |
+| 文本与配置文件（推荐） | 文本编辑器、配置查看器 | 上述类型，以及 `json`、`jsonc`、`yaml`、`yml`、`toml`、`xml`、`ini`、`conf`、`cfg`、`properties`、`env`、`.env`、`Dockerfile`、`Makefile`、`CMakeLists.txt` 等 |
+| 代码、文本与配置文件 | 代码查看器或轻量代码编辑器 | 上述类型，以及 `vue`、`js`、`ts`、`tsx`、`jsx`、`html`、`css`、`sql`、`py`、`sh`、`c/cpp`、`java`、`kt`、`go`、`rs`、`lua`、`gradle` 等 |
+
+预设只决定 Android 文件关联和安全允许列表，不会自动为 Web 编辑器增加语法高亮、格式化或文件解析能力。在线网址模式会清空并禁用这些选项。
+
+### Vue / Web 页面接入
+
+Runtime 使用固定事件 `lw:external-content` 传递内容。冷启动时 Runtime 可能早于 Vue 初始化，所以页面必须先消费 `window.__lwExternalContentQueue`，再监听事件。Vue 3 `<script setup>` 示例：
+
+```vue
+<script setup>
+import { onBeforeUnmount, onMounted, ref } from "vue";
+
+const content = ref("");
+const currentName = ref("");
+
+function applyExternalContent(payload) {
+  content.value = payload.text;
+  currentName.value = payload.name || "分享文本";
 }
 
-const queue = window.__lwExternalContentQueue || [];
-while (queue.length) handleExternalContent(queue.shift());
-window.addEventListener("lw:external-content", event => {
-  handleExternalContent(event.detail);
+function onExternalContent(event) {
+  applyExternalContent(event.detail);
+  const queue = window.__lwExternalContentQueue || [];
+  const index = queue.indexOf(event.detail);
+  if (index >= 0) queue.splice(index, 1);
+}
+
+onMounted(() => {
+  const queue = window.__lwExternalContentQueue || [];
+  while (queue.length) applyExternalContent(queue.shift());
+  window.__lwExternalContentQueue = queue;
+  window.addEventListener("lw:external-content", onExternalContent);
 });
+
+onBeforeUnmount(() => {
+  window.removeEventListener("lw:external-content", onExternalContent);
+});
+</script>
+
+<template>
+  <p>{{ currentName }}</p>
+  <textarea v-model="content" />
+</template>
 ```
 
-Payload schema 1 包含 `kind`（`text`/`file`）、`sourceAction`（`share`/`view`）、`name`、`extension`、`mimeType`、`size`、`encoding` 和 `text`。默认最大文本为 8 MiB，支持严格 UTF-8、UTF-8 BOM、UTF-16LE/BE BOM；多文件、二进制、未允许类型及其他编码会被拒绝并显示轻量提示。示例见 [samples/external-content-editor](samples/external-content-editor)。
+如果使用 Monaco、CodeMirror 等编辑器，请在 `applyExternalContent()` 中调用对应的 `setValue(payload.text)`，不要同时再用 `v-model` 覆盖编辑器状态。
+
+Payload schema 1 字段：
+
+| 字段 | 含义 |
+| --- | --- |
+| `kind` | `text` 或 `file` |
+| `sourceAction` | `share` 或 `view` |
+| `name` / `extension` | 文件显示名称和扩展名；分享文本可能为空 |
+| `mimeType` | 来源 App 提供的 MIME 类型 |
+| `size` / `encoding` | 文本字节数和检测到的编码 |
+| `text` | 提供给 Web 编辑器的文本内容 |
+
+### 在手机上使用
+
+1. 在 GUI 选择本地 `dist`，勾选所需的系统集成选项并生成 APK。
+2. 安装 APK，建议先正常启动一次，确认页面可用。
+3. 在微信、QQ 或文件管理器中打开收到的文件，选择“其他应用打开”或“用其他应用打开”。
+4. 在 Android 应用列表中选择打包后的应用；可按需选择“仅此一次”或“始终”。
+5. 应用启动或切换到前台后，Vue 页面会收到 `lw:external-content`。
+
+若要发送一段文字，则在来源 App 中选中文字，点击“分享”，再选择打包后的应用。
+
+应用是否出现在“打开方式”列表中，取决于来源 App 是否使用标准 Android `ACTION_VIEW` / `ACTION_SEND`，以及它提供的 MIME 类型是否匹配。`.txt` 和标准 `text/plain` 通常可以正常关联；部分 App 会把配置或代码文件统一标记为 `application/octet-stream`。出于安全考虑，GUI 默认不注册这种过于宽泛的类型，因此此时应用可能不会出现在列表中。这不是文件内容解析失败，而是 Android 在启动应用之前就没有匹配到文件关联。
+
+默认最大文本为 8 MiB，支持严格 UTF-8、UTF-8 BOM、UTF-16LE/BE BOM。一次只接收一个文件；多文件、二进制、未允许类型及其他编码会被拒绝并显示轻量提示。可运行示例见 [samples/external-content-editor](samples/external-content-editor)。
 
 > 该能力只把用户明确选择或分享的内容单向交给本地 Web 页面，不提供通用 Native Bridge，不会自动获得整个手机文件系统权限，也不会写回原始 `content://` URI。Runtime 日志不记录正文、完整 URI 或文件名。
 
@@ -336,6 +414,6 @@ tools/        Runtime、工具链与发行打包脚本
 
 如果项目对你有帮助，可以扫码支持维护：
 
-<p align="center">
+<p align="left">
   <img src="assets/sponsor.jpg" alt="微信赞助" width="320">
 </p>
