@@ -1,8 +1,11 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(lw_Web2Android VERSION 0.2.8 LANGUAGES CXX)
+project(lw_Web2Android VERSION 0.2.9 LANGUAGES CXX)
 
 if(WIN32)
+    set(LW_APP_ICON_RESOURCE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../assets/lw-Web2Android-app-icon.ico")
+
     function(lw_add_version_resource target file_description internal_name original_filename)
         set(LW_VERSION_FILE_DESCRIPTION "${file_description}")
         set(LW_VERSION_INTERNAL_NAME "${internal_name}")

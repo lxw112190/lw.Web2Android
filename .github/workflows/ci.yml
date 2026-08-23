@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 env:
-  PRODUCT_VERSION: '0.2.8'
-  PACKAGE_NAME: lw-Web2Android-v0.2.8-windows-x64
+  PRODUCT_VERSION: '0.2.9'
+  PACKAGE_NAME: lw-Web2Android-v0.2.9-windows-x64
   WECHAT_DEMO_REPOSITORY: lxw112190/wechat-article-formatter
   WECHAT_DEMO_REF: ad1afc5a2c31d7cb7dc458a69944d6cb7ee0cd88
 

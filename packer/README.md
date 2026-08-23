@@ -1,4 +1,4 @@
-# Packer CLI 与 GUI（v0.2.8）
+# Packer CLI 与 GUI（v0.2.9）
 
 Packer 是 Windows C++17 程序。它读取 `project.json`，动态生成 Manifest、资源和 Runtime 配置，通过锁定版本的 AAPT2 生成不含 Web Assets 的资源 APK，再由 ApkAssembler 以 UTF-8 规范 ZIP Entry 一次性注入 Web Assets 与预编译 Runtime DEX，执行 `zipalign` 后使用 Package 独立身份签名并验证 APK。
 
@@ -17,7 +17,7 @@ lw.Web2Android.exe       CLI
 lw.Web2Android.GUI.exe   原生 Win32 GUI
 ```
 
-GUI 参考 `lw.Web2App` 的设计语言，支持 Per-Monitor V2 高 DPI、后台工作线程和 15 步构建状态。v0.2.7 将网页来源与应用设置改为固定尺寸的左右双栏布局；v0.2.8 在本地模式增加受限的外部文本系统集成。左侧项目支持二维码直接编译进 EXE。GUI 只把表单映射为 `ProjectConfig`，所有 APK 逻辑仍由 `BuildPipeline` 完成。
+GUI 参考 `lw.Web2App` 的设计语言，支持 Per-Monitor V2 高 DPI、后台工作线程和 15 步构建状态。v0.2.7 将网页来源与应用设置改为固定尺寸的左右双栏布局；v0.2.8 在本地模式增加受限的外部文本系统集成；v0.2.9 为 Windows EXE 和标题栏增加统一产品图标，并在二维码下方增加项目主页与最新版本入口。左侧项目支持二维码直接编译进 EXE。GUI 只把表单映射为 `ProjectConfig`，所有 APK 逻辑仍由 `BuildPipeline` 完成。
 
 GUI 提供“允许 HTTP（仅建议可信内网）”。输入 `http://` 远程地址时会自动勾选；本地 Vue/React 访问 HTTP API 时可手动勾选。Packer 会同时生成 `INTERNET` 权限、Network Security Config 和 Runtime mixed-content 配置。
 
@@ -70,7 +70,7 @@ Packer 会在发布包当前目录自动创建 `logs` 文件夹；如果单独�
 
 `signing info` 只读取已有身份，不会自动创建新密钥。`signing export` 会在控制台关闭回显后要求输入并确认至少 8 个字符的密码，生成包含证书和私钥的标准 PKCS#12 备份；密码不会进入命令行或日志。目标文件已存在时命令会拒绝覆盖。请把备份和密码分开保管，丢失签名身份后将无法发布可覆盖安装的更新。
 
-GitHub Actions 使用统一的 `lw.Web2Android CI` workflow。CI 会从已安装 SDK 组装扁平最小工具链，检出固定版本的 `wechat-article-formatter`，构建真实 React/Vite `dist` 并生成 Demo APK；Remote、Unicode Assets、固定宽度网页、自定义图标与外部文本系统集成作为独立集成测试。CI 会拒绝反斜杠、重复条目、意外打入的 `project.json` 或缺失的中文文件。CLI、GUI、Runtime、初始化脚本、MIT License、Demo APK、发行元数据和总校验文件会合并到单个 `lw-Web2Android-v0.2.8-windows-x64` Artifact。公开发行包不重新分发 Android SDK。
+GitHub Actions 使用统一的 `lw.Web2Android CI` workflow。CI 会从已安装 SDK 组装扁平最小工具链，检出固定版本的 `wechat-article-formatter`，构建真实 React/Vite `dist` 并生成 Demo APK；Remote、Unicode Assets、固定宽度网页、自定义图标与外部文本系统集成作为独立集成测试。CI 会拒绝反斜杠、重复条目、意外打入的 `project.json` 或缺失的中文文件。CLI、GUI、Runtime、初始化脚本、MIT License、Demo APK、发行元数据和总校验文件会合并到单个 `lw-Web2Android-v0.2.9-windows-x64` Artifact。公开发行包不重新分发 Android SDK。
 
 ## project.json
 

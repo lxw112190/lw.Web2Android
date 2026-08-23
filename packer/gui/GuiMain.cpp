@@ -70,6 +70,8 @@ enum ControlId {
     kSourceSectionTitle,
     kSupportTitle,
     kSupportCaption,
+    kGitHubProject,
+    kLatestRelease,
     kSettingsSectionTitle,
     kNameLabel,
     kPackageLabel,
@@ -131,6 +133,9 @@ constexpr UINT kBuildFinishedMessage = WM_APP + 2;
 constexpr UINT kToolchainFinishedMessage = WM_APP + 3;
 constexpr UINT_PTR kIconValidationTimer = 1;
 constexpr int kSponsorResourceId = 201;
+constexpr int kApplicationIconResourceId = 101;
+constexpr wchar_t kGitHubProjectUrl[] = L"https://github.com/lxw112190/lw.Web2Android";
+constexpr wchar_t kLatestReleaseUrl[] = L"https://github.com/lxw112190/lw.Web2Android/releases";
 
 int Scale(int value, UINT dpi) { return MulDiv(value, static_cast<int>(dpi), 96); }
 
@@ -216,6 +221,8 @@ bool ValidateLayout(const State& state) {
     const auto build = FindControlLayout(state, kBuild);
     const auto browseIcon = FindControlLayout(state, kBrowseIcon);
     const auto restoreIcon = FindControlLayout(state, kRestoreDefaultIcon);
+    const auto githubProject = FindControlLayout(state, kGitHubProject);
+    const auto latestRelease = FindControlLayout(state, kLatestRelease);
     const auto statusWidth = state.statusRect.right - state.statusRect.left;
     const auto cardsWidth = state.rightCard.right - state.leftCard.left;
     const bool keyControlsExist = GetDlgItem(state.window, kSource) &&
@@ -230,6 +237,9 @@ bool ValidateLayout(const State& state) {
            state.leftCard.top == state.rightCard.top &&
            state.leftCard.bottom == state.rightCard.bottom &&
            ContainsRect(state.leftCard, state.sponsorRect) &&
+           githubProject && latestRelease &&
+           ContainsRect(state.leftCard, githubProject->logical) &&
+           ContainsRect(state.leftCard, latestRelease->logical) &&
            ContainsRect(state.rightCard, state.iconPreviewRect) &&
            build && build->logical.left == state.leftCard.left &&
            build->logical.right == state.rightCard.right &&
@@ -296,13 +306,20 @@ void LayoutInterface(State& state) {
     auto qrSize = 220;
     const auto qrTop = leftY + 228;
     const auto captionHeight = 38;
+    const auto supportButtonHeight = 30;
     const int availableQrHeight = static_cast<int>(state.leftCard.bottom) - 8 -
-                                  captionHeight - qrTop;
+                                  captionHeight - supportButtonHeight - 10 - qrTop;
     qrSize = std::clamp(std::min(qrSize, availableQrHeight), 120, 220);
     state.sponsorRect = MakeRect(state.leftCard.left + (leftWidth - qrSize) / 2,
                                  qrTop, qrSize, qrSize);
     SetControlRect(state, kSupportCaption, leftX, state.sponsorRect.bottom + 4,
                    leftInnerWidth, captionHeight);
+    const auto supportButtonsTop = state.sponsorRect.bottom + 4 + captionHeight + 6;
+    const auto supportButtonWidth = (leftInnerWidth - 8) / 2;
+    SetControlRect(state, kGitHubProject, leftX, supportButtonsTop,
+                   supportButtonWidth, supportButtonHeight);
+    SetControlRect(state, kLatestRelease, leftX + supportButtonWidth + 8, supportButtonsTop,
+                   leftInnerWidth - supportButtonWidth - 8, supportButtonHeight);
 
     const int rightX = static_cast<int>(state.rightCard.left) + 16;
     const int rightRight = static_cast<int>(state.rightCard.right) - 16;
@@ -518,6 +535,25 @@ void RevealGeneratedApk(HWND owner, const std::filesystem::path& apk) {
         PackerLogger().Warn("Unable to open APK output folder; Windows error " +
                             std::to_string(GetLastError()) + ": " + apk.u8string());
     }
+}
+
+void OpenWebPage(HWND owner, const wchar_t* url, const char* description) {
+    SHELLEXECUTEINFOW execute{sizeof(execute)};
+    execute.fMask = SEE_MASK_FLAG_NO_UI;
+    execute.hwnd = owner;
+    execute.lpVerb = L"open";
+    execute.lpFile = url;
+    execute.nShow = SW_SHOWNORMAL;
+    if (ShellExecuteExW(&execute)) {
+        PackerLogger().Info(std::string("Opened ") + description);
+        return;
+    }
+
+    const auto error = GetLastError();
+    PackerLogger().Warn(std::string("Unable to open ") + description +
+                        "; Windows error " + std::to_string(error));
+    MessageBoxW(owner, L"无法打开浏览器，请检查 Windows 默认浏览器设置。",
+                L"无法打开链接", MB_OK | MB_ICONERROR);
 }
 
 HBITMAP CreateBitmapFromWicSource(IWICImagingFactory* factory, IWICBitmapSource* source,
@@ -1021,6 +1057,8 @@ void BuildInterface(State& state) {
              kSupportTitle, FontRole::Small);
     AddControl(state, L"STATIC", L"如果这个工具帮到了你，\r\n欢迎支持项目持续完善。",
                SS_CENTER, 0, 0, 260, 38, kSupportCaption, FontRole::Small);
+    AddButton(state, L"GitHub 项目主页", 0, 0, 140, 30, kGitHubProject);
+    AddButton(state, L"查看最新版本", 0, 0, 140, 30, kLatestRelease);
 
     AddLabel(state, L"02  应用设置", 0, 0, 200, 28,
              kSettingsSectionTitle, FontRole::Section);
@@ -1223,6 +1261,12 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
                     if (!path.empty()) SetWindowTextW(GetDlgItem(window, kOutput), path.c_str());
                     return 0;
                 }
+                case kGitHubProject:
+                    OpenWebPage(window, kGitHubProjectUrl, "GitHub project page");
+                    return 0;
+                case kLatestRelease:
+                    OpenWebPage(window, kLatestReleaseUrl, "GitHub Releases page");
+                    return 0;
                 case kBuild:
                     StartBuild(window);
                     return 0;
@@ -1338,7 +1382,14 @@ int RunGui(HINSTANCE instance, bool showWindow = true) {
     windowClass.lpfnWndProc = WindowProc;
     windowClass.hInstance = instance;
     windowClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-    windowClass.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
+    windowClass.hIcon = static_cast<HICON>(LoadImageW(
+        instance, MAKEINTRESOURCEW(kApplicationIconResourceId), IMAGE_ICON,
+        GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR));
+    windowClass.hIconSm = static_cast<HICON>(LoadImageW(
+        instance, MAKEINTRESOURCEW(kApplicationIconResourceId), IMAGE_ICON,
+        GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR));
+    if (!windowClass.hIcon) windowClass.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
+    if (!windowClass.hIconSm) windowClass.hIconSm = windowClass.hIcon;
     windowClass.hbrBackground = nullptr;
     windowClass.lpszClassName = kClassName;
     if (!RegisterClassExW(&windowClass)) throw std::runtime_error("Unable to register the GUI window");

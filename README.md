@@ -17,6 +17,7 @@
 - 本地静态网站和在线 URL 两种模式；
 - 原生 Windows GUI，支持高 DPI、后台构建和固定尺寸双栏布局；
 - 网页来源与应用设置采用左右双栏，左侧内嵌项目支持二维码且不依赖外部图片；
+- Windows EXE 和 GUI 标题栏使用统一的产品图标，二维码下方可直接访问 GitHub 项目主页和最新 Release；
 - 预编译 Android Runtime DEX，无需为每个项目重新编译 Java；
 - AAPT2 资源生成、ZIP 组装、`zipalign` 和 `apksigner` 完整流水线；
 - 每个 Package Name 独立且可复用的 RSA 3072 签名身份；
@@ -31,7 +32,7 @@
 - 本地 Web 应用可接收其他 App 分享的文本，并可注册为 Android 文本、配置文件及代码文件的“打开方式”；
 - GitHub Actions 自动构建 Runtime、Packer、GUI 和真实 React/Vite Demo。
 
-当前版本：`v0.2.8`<br>
+当前版本：`v0.2.9`<br>
 Android：`minSdk 23`，`targetSdk 35`
 
 ## 下载与首次使用
@@ -45,7 +46,7 @@ bin/lw.Web2Android.GUI.exe
 公开发行包包含：
 
 ```text
-lw-Web2Android-v0.2.8-windows-x64/
+lw-Web2Android-v0.2.9-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
@@ -343,8 +344,8 @@ Runtime 还会记录最终生效的 WebView 视口策略、屏幕像素/密度�
 推送 `v*` 标签时，完整 CI 成功后会自动创建 GitHub Release：
 
 ```bash
-git tag -a v0.2.8 -m "lw.Web2Android v0.2.8"
-git push origin v0.2.8
+git tag -a v0.2.9 -m "lw.Web2Android v0.2.9"
+git push origin v0.2.9
 ```
 
 ## 架构

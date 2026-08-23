@@ -17,6 +17,7 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 - Local static website and remote URL modes;
 - native high-DPI Windows GUI with background builds and a fixed-size two-column layout;
 - side-by-side source and application settings, with a self-contained project-support QR area in the left column;
+- a unified product icon for both Windows executables and the GUI title bar, plus direct GitHub project and latest-release buttons below the QR code;
 - precompiled Android Runtime DEX, so Java is not rebuilt per project;
 - complete AAPT2, ZIP assembly, `zipalign`, and `apksigner` pipeline;
 - independent, reusable RSA-3072 signing identity per package name;
@@ -31,7 +32,7 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 - local Web apps can receive text shared by other apps and register as an Android handler for text, configuration, and source-code files;
 - GitHub Actions builds the Runtime, Packer, GUI, and a real React/Vite demo.
 
-Current version: `v0.2.8`<br>
+Current version: `v0.2.9`<br>
 Android: `minSdk 23`, `targetSdk 35`
 
 ## Download and first run
@@ -45,7 +46,7 @@ bin/lw.Web2Android.GUI.exe
 The public distribution contains:
 
 ```text
-lw-Web2Android-v0.2.8-windows-x64/
+lw-Web2Android-v0.2.9-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
@@ -343,8 +344,8 @@ The demo APK has passed validation on a physical Android device. The pinned sour
 Pushing a `v*` tag creates a GitHub Release only after the full workflow passes:
 
 ```bash
-git tag -a v0.2.8 -m "lw.Web2Android v0.2.8"
-git push origin v0.2.8
+git tag -a v0.2.9 -m "lw.Web2Android v0.2.9"
+git push origin v0.2.9
 ```
 
 ## Architecture
