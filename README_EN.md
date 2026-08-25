@@ -32,7 +32,7 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 - local Web apps can receive text shared by other apps and register as an Android handler for text, configuration, and source-code files;
 - GitHub Actions builds the Runtime, Packer, GUI, and a real React/Vite demo.
 
-Current version: `v0.2.9`<br>
+Current version: `v0.2.10`<br>
 Android: `minSdk 23`, `targetSdk 35`
 
 ## Download and first run
@@ -46,7 +46,7 @@ bin/lw.Web2Android.GUI.exe
 The public distribution contains:
 
 ```text
-lw-Web2Android-v0.2.9-windows-x64/
+lw-Web2Android-v0.2.10-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
@@ -83,6 +83,8 @@ PowerShell can initialize it as well:
 ```
 
 Downloads are checked with SHA-256 and temporary files are removed. Once initialized, the application does not depend on system `ANDROID_SDK_ROOT` or `JAVA_HOME` settings.
+
+On some corporate networks, proxies, or Windows systems that temporarily cannot reach the certificate revocation service, Schannel may return `CRYPT_E_REVOCATION_OFFLINE`. Starting with `v0.2.10`, only this explicit failure triggers an automatic retry with `curl --ssl-no-revoke`. TLS certificate-chain and hostname validation remain enabled, and the archive must still match the SHA-256 pinned in `toolchain.lock.json`; otherwise initialization fails immediately. Other TLS errors do not use this fallback.
 
 ## Build an APK with the GUI
 
@@ -344,8 +346,8 @@ The demo APK has passed validation on a physical Android device. The pinned sour
 Pushing a `v*` tag creates a GitHub Release only after the full workflow passes:
 
 ```bash
-git tag -a v0.2.9 -m "lw.Web2Android v0.2.9"
-git push origin v0.2.9
+git tag -a v0.2.10 -m "lw.Web2Android v0.2.10"
+git push origin v0.2.10
 ```
 
 ## Architecture

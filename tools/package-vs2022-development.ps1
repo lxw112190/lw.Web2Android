@@ -7,7 +7,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$version = '0.2.9'
+$version = '0.2.10'
 $packageName = "lw-Web2Android-v$version-vs2022-complete-private"
 $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 

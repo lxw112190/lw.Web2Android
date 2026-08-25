@@ -68,7 +68,8 @@ function Invoke-LoggedExternal {
         [Parameter(Mandatory = $true)][string]$FilePath,
         [Parameter(Mandatory = $true)][object[]]$ArgumentList,
         [Parameter(Mandatory = $true)][string]$Label,
-        [string[]]$InputLines
+        [string[]]$InputLines,
+        [switch]$AllowFailure
     )
 
     if (-not (Get-Command $FilePath -ErrorAction SilentlyContinue)) {
@@ -78,6 +79,7 @@ function Invoke-LoggedExternal {
     Write-ToolchainLog 'INFO' "Starting ${Label}: $FilePath $($ArgumentList -join ' ')"
     $previousErrorActionPreference = $ErrorActionPreference
     $exitCode = $null
+    $outputLines = [System.Collections.Generic.List[string]]::new()
     try {
         # Windows PowerShell 5.1 wraps native stderr as ErrorRecord objects. Keep
         # those records in the log and decide success from the native exit code;
@@ -86,12 +88,14 @@ function Invoke-LoggedExternal {
         if ($null -ne $InputLines) {
             $InputLines | & $FilePath @ArgumentList 2>&1 | ForEach-Object {
                 $line = $_.ToString()
+                $outputLines.Add($line)
                 Write-Host $line
                 Write-ToolchainLog 'INFO' "[$Label] $line"
             }
         } else {
             & $FilePath @ArgumentList 2>&1 | ForEach-Object {
                 $line = $_.ToString()
+                $outputLines.Add($line)
                 Write-Host $line
                 Write-ToolchainLog 'INFO' "[$Label] $line"
             }
@@ -102,16 +106,50 @@ function Invoke-LoggedExternal {
     }
     if ($null -eq $exitCode) { $exitCode = -1 }
     Write-ToolchainLog 'INFO' "$Label exited with code $exitCode"
+    if ($AllowFailure) {
+        return [pscustomobject]@{
+            ExitCode = $exitCode
+            Output = [string[]]$outputLines
+        }
+    }
     if ($exitCode -ne 0) { throw "$Label failed with exit code $exitCode" }
 }
 
 function Get-VerifiedArchive([string]$Url, [string]$Sha256, [string]$Name) {
     $file = Join-Path $downloads $Name
     Write-LoggedHost 'INFO' "Downloading $Name from $Url"
-    Invoke-LoggedExternal `
+    $curlArguments = @(
+        '-L', '--fail', '--retry', '3', '--silent', '--show-error',
+        '--output', $file, $Url)
+    $download = Invoke-LoggedExternal `
         -FilePath 'curl.exe' `
-        -ArgumentList @('-L', '--fail', '--retry', '3', '--silent', '--show-error', '--output', $file, $Url) `
-        -Label "download $Name"
+        -ArgumentList $curlArguments `
+        -Label "download $Name" `
+        -AllowFailure
+
+    if ($download.ExitCode -ne 0) {
+        $revocationOffline = $download.ExitCode -eq 35 -and
+            (($download.Output -join "`n") -match 'CRYPT_E_REVOCATION_OFFLINE')
+        if (-not $revocationOffline) {
+            throw "download $Name failed with exit code $($download.ExitCode)"
+        }
+
+        # Windows curl uses Schannel. Some corporate networks block access to the
+        # certificate revocation service even though the HTTPS endpoint itself is
+        # reachable. Retry only this specific failure without the online revocation
+        # lookup. Certificate-chain and hostname validation remain enabled, and the
+        # downloaded archive must still match the pinned SHA-256 below.
+        Write-LoggedHost 'WARN' "Windows certificate revocation service is unavailable; retrying $Name with Schannel online revocation checks disabled. TLS certificate validation and pinned SHA-256 verification remain enabled."
+        if (Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file -Force }
+        $retryArguments = @(
+            '-L', '--fail', '--retry', '3', '--silent', '--show-error',
+            '--ssl-no-revoke', '--output', $file, $Url)
+        Invoke-LoggedExternal `
+            -FilePath 'curl.exe' `
+            -ArgumentList $retryArguments `
+            -Label "download $Name (revocation-offline fallback)"
+    }
+
     $actual = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
     Write-ToolchainLog 'INFO' "Downloaded $Name; SHA-256=$actual"
     if ($actual -ne $Sha256.ToLowerInvariant()) {

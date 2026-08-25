@@ -32,7 +32,7 @@
 - 本地 Web 应用可接收其他 App 分享的文本，并可注册为 Android 文本、配置文件及代码文件的“打开方式”；
 - GitHub Actions 自动构建 Runtime、Packer、GUI 和真实 React/Vite Demo。
 
-当前版本：`v0.2.9`<br>
+当前版本：`v0.2.10`<br>
 Android：`minSdk 23`，`targetSdk 35`
 
 ## 下载与首次使用
@@ -46,7 +46,7 @@ bin/lw.Web2Android.GUI.exe
 公开发行包包含：
 
 ```text
-lw-Web2Android-v0.2.9-windows-x64/
+lw-Web2Android-v0.2.10-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
@@ -83,6 +83,8 @@ toolchain/
 ```
 
 下载文件会进行 SHA-256 校验，临时文件会自动清理。初始化完成后不依赖系统的 `ANDROID_SDK_ROOT` 或 `JAVA_HOME`。
+
+在部分企业网络、代理或暂时无法访问证书吊销服务器的 Windows 环境中，Schannel 可能返回 `CRYPT_E_REVOCATION_OFFLINE`。`v0.2.10` 会仅针对这个明确错误自动使用 `curl --ssl-no-revoke` 重试；TLS 证书链与主机名校验仍保持启用，下载文件也仍必须通过 `toolchain.lock.json` 中锁定的 SHA-256，否则初始化立即失败。其他 TLS 错误不会触发该回退。
 
 ## 使用 GUI 生成 APK
 
@@ -344,8 +346,8 @@ Runtime 还会记录最终生效的 WebView 视口策略、屏幕像素/密度�
 推送 `v*` 标签时，完整 CI 成功后会自动创建 GitHub Release：
 
 ```bash
-git tag -a v0.2.9 -m "lw.Web2Android v0.2.9"
-git push origin v0.2.9
+git tag -a v0.2.10 -m "lw.Web2Android v0.2.10"
+git push origin v0.2.10
 ```
 
 ## 架构
