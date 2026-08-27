@@ -7,6 +7,7 @@
 #include "core/ProjectValidator.h"
 #include "core/ProcessRunner.h"
 #include "core/ReleaseMetadata.h"
+#include "core/RuntimeBundle.h"
 #include "core/SigningKeyManager.h"
 #include "core/Toolchain.h"
 #include "gui/GuiProjectModel.h"
@@ -77,7 +78,7 @@ void TestProjectAndGenerators(const std::filesystem::path& root) {
     lw::web2android::WriteTextFile(lock,
                                   "{\"schemaVersion\":1,\"toolchainVersion\":\"test\","
                                   "\"platformApi\":35,\"buildToolsVersion\":\"35.0.0\","
-                                  "\"runtimeVersion\":\"1\"}");
+                                  "\"runtimeVersion\":\"1\",\"runtimeConfigSchemaVersion\":2}");
     const auto configFile = root / "project.json";
     lw::web2android::WriteTextFile(
         configFile,
@@ -519,7 +520,58 @@ void TestMinimalToolchainResolution(const std::filesystem::path& root) {
     lw::web2android::WriteTextFile(java, "test");
     lw::web2android::WriteTextFile(toolchain / "android.jar", "test");
     lw::web2android::WriteTextFile(toolchain / "apksigner" / "apksigner.jar", "test");
+    WriteBinary(toolchain / "runtime" / "classes.dex",
+                {'d', 'e', 'x', '\n', '0', '3', '5', '\0'});
+    const auto dexHash = lw::web2android::Sha256File(toolchain / "runtime" / "classes.dex");
+    lw::web2android::WriteTextFile(
+        toolchain / "runtime" / "metadata.json",
+        "{\"schemaVersion\":1,\"runtimeVersion\":\"1\","
+        "\"configSchemaVersion\":2,\"namespace\":\"com.lw.web2android.runtime\","
+        "\"dexFiles\":[{\"name\":\"classes.dex\",\"size\":8,\"sha256\":\"" +
+            dexHash + "\"}]}");
+    lw::web2android::WriteTextFile(
+        toolchain / "metadata.json",
+        "{\"schemaVersion\":1,\"runtimeVersion\":\"1\"}");
     Require(lw::web2android::IsMinimalToolchainDirectory(toolchain), "minimal toolchain layout detection");
+
+    const auto validDex = lw::web2android::ValidateRuntimeBundle(toolchain / "runtime", "1");
+    Require(validDex.size() == 1U, "compatible Runtime Bundle validation");
+    lw::web2android::WriteTextFile(
+        toolchain / "runtime" / "metadata.json",
+        "{\"schemaVersion\":1,\"runtimeVersion\":\"1\","
+        "\"configSchemaVersion\":1,\"namespace\":\"com.lw.web2android.runtime\","
+        "\"dexFiles\":[{\"name\":\"classes.dex\",\"size\":8,\"sha256\":\"" +
+            dexHash + "\"}]}");
+    Require(!lw::web2android::IsMinimalToolchainDirectory(toolchain),
+            "old Runtime config schema must make a minimal toolchain incompatible");
+    bool rejectedOldSchema = false;
+    try {
+        (void)lw::web2android::ValidateRuntimeBundle(toolchain / "runtime", "1");
+    } catch (const std::exception& error) {
+        rejectedOldSchema = std::string(error.what()).find("config schemaVersion 2") != std::string::npos;
+    }
+    Require(rejectedOldSchema, "old Runtime schema must fail with an actionable error");
+
+    lw::web2android::WriteTextFile(
+        toolchain / "runtime" / "metadata.json",
+        "{\"schemaVersion\":1,\"runtimeVersion\":\"1\","
+        "\"configSchemaVersion\":2,\"namespace\":\"com.lw.web2android.runtime\","
+        "\"dexFiles\":[{\"name\":\"classes.dex\",\"size\":8,\"sha256\":\"" +
+            std::string(64, '0') + "\"}]}");
+    bool rejectedHash = false;
+    try {
+        (void)lw::web2android::ValidateRuntimeBundle(toolchain / "runtime", "1");
+    } catch (const std::exception& error) {
+        rejectedHash = std::string(error.what()).find("SHA-256 mismatch") != std::string::npos;
+    }
+    Require(rejectedHash, "mixed Runtime DEX must fail SHA-256 validation");
+
+    lw::web2android::WriteTextFile(
+        toolchain / "runtime" / "metadata.json",
+        "{\"schemaVersion\":1,\"runtimeVersion\":\"1\","
+        "\"configSchemaVersion\":2,\"namespace\":\"com.lw.web2android.runtime\","
+        "\"dexFiles\":[{\"name\":\"classes.dex\",\"size\":8,\"sha256\":\"" +
+            dexHash + "\"}]}");
 
     lw::web2android::ToolchainLock lock;
     lock.toolchainVersion = "test-1";
@@ -548,6 +600,7 @@ int main(int argc, char* argv[]) {
         if (argc == 2 && std::string(argv[1]) == "--generators-only") {
             TestProjectAndGenerators(temporary.path);
             TestExternalContentConfiguration(temporary.path);
+            TestMinimalToolchainResolution(temporary.path);
             std::cout << "Packer generator tests passed" << std::endl;
             return 0;
         }

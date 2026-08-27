@@ -8,15 +8,13 @@
 #include "core/ProcessRunner.h"
 #include "core/ProjectValidator.h"
 #include "core/ReleaseMetadata.h"
+#include "core/RuntimeBundle.h"
 #include "core/SigningKeyManager.h"
 #include "core/Toolchain.h"
 
 #include <algorithm>
 #include <chrono>
-#include <fstream>
 #include <iostream>
-#include <regex>
-#include <sstream>
 #include <stdexcept>
 #include <vector>
 
@@ -57,69 +55,6 @@ private:
     std::filesystem::path path_;
     bool deleted_ = false;
 };
-
-std::string ReadText(const std::filesystem::path& file) {
-    std::ifstream input(file, std::ios::binary);
-    if (!input) throw std::runtime_error("Unable to read file: " + file.u8string());
-    std::ostringstream output;
-    output << input.rdbuf();
-    return output.str();
-}
-
-void ValidateRuntimeMetadata(const std::filesystem::path& runtimeDirectory, const ToolchainLock& lock) {
-    const auto metadataFile = runtimeDirectory / "metadata.json";
-    if (!std::filesystem::is_regular_file(metadataFile)) {
-        throw std::runtime_error("Runtime metadata was not found: " + metadataFile.u8string());
-    }
-    const auto metadata = ReadText(metadataFile);
-    std::smatch match;
-    const std::regex versionPattern("\\\"runtimeVersion\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
-    if (!std::regex_search(metadata, match, versionPattern) || match[1].str() != lock.runtimeVersion) {
-        throw std::runtime_error("Runtime metadata version does not match toolchain.lock.json");
-    }
-    const std::regex namespacePattern("\\\"namespace\\\"\\s*:\\s*\\\"com\\.lw\\.web2android\\.runtime\\\"");
-    if (!std::regex_search(metadata, namespacePattern)) {
-        throw std::runtime_error("Runtime metadata contains an unexpected namespace");
-    }
-}
-
-std::vector<std::filesystem::path> FindRuntimeDexFiles(const std::filesystem::path& directory) {
-    if (!std::filesystem::is_directory(directory)) {
-        throw std::runtime_error("Runtime directory does not exist: " + directory.u8string());
-    }
-    const std::regex namePattern("classes([2-9][0-9]*)?\\.dex");
-    std::vector<std::pair<int, std::filesystem::path>> indexed;
-    for (const auto& item : std::filesystem::directory_iterator(directory)) {
-        if (!item.is_regular_file()) continue;
-        const auto name = item.path().filename().u8string();
-        std::smatch match;
-        if (!std::regex_match(name, match, namePattern)) continue;
-        const int index = match[1].matched ? std::stoi(match[1].str()) : 1;
-        indexed.emplace_back(index, item.path());
-    }
-    std::sort(indexed.begin(), indexed.end(), [](const auto& left, const auto& right) { return left.first < right.first; });
-    if (indexed.empty() || indexed.front().first != 1) throw std::runtime_error("Runtime classes.dex was not found");
-
-    std::vector<std::filesystem::path> result;
-    for (std::size_t position = 0; position < indexed.size(); ++position) {
-        const int expected = position == 0 ? 1 : static_cast<int>(position + 1U);
-        if (indexed[position].first != expected) throw std::runtime_error("Runtime DEX numbering must be contiguous");
-        const auto bytes = ReadText(indexed[position].second);
-        if (bytes.size() < 8U || bytes.compare(0, 4, "dex\n") != 0) {
-            throw std::runtime_error("Runtime file is not a DEX: " + indexed[position].second.u8string());
-        }
-        const std::vector<std::string> forbidden = {
-            "Lcom/lw/web2android/runtime/R;", "Lcom/lw/web2android/runtime/R$",
-            "Lcom/lw/web2android/runtime/BuildConfig;"};
-        for (const auto& descriptor : forbidden) {
-            if (bytes.find(descriptor) != std::string::npos) {
-                throw std::runtime_error("Runtime DEX references a generated application class: " + descriptor);
-            }
-        }
-        result.push_back(indexed[position].second);
-    }
-    return result;
-}
 
 std::vector<ArchiveEntrySource> CollectApplicationEntries(
     const std::filesystem::path& assetsDirectory,
@@ -199,16 +134,22 @@ BuildResult BuildPipeline::Build(const ProjectConfig& config, const BuildOptions
 
     LogStep(options, 2, "Resolve locked Android toolchain");
     const auto lock = ToolchainLock::Load(config.toolchainLock);
-    const auto toolchain = AndroidToolchain::Resolve(lock, options.androidSdk, options.javaHome);
-    log.Debug("Toolchain root: " + toolchain.sdkRoot.u8string());
     auto runtimeDirectory = options.runtimeDirectory.empty() ? config.runtimeDirectory :
                             std::filesystem::absolute(options.runtimeDirectory).lexically_normal();
-    const auto minimalRuntime = toolchain.sdkRoot / "runtime";
-    if (!std::filesystem::is_directory(runtimeDirectory) && std::filesystem::is_directory(minimalRuntime)) {
-        runtimeDirectory = minimalRuntime;
+    const auto requestedRuntime = options.androidSdk / "runtime";
+    const auto applicationRuntime = DefaultApplicationToolchainDirectory() / "runtime";
+    if (!std::filesystem::is_directory(runtimeDirectory) &&
+        !options.androidSdk.empty() && std::filesystem::is_directory(requestedRuntime)) {
+        runtimeDirectory = requestedRuntime;
     }
-    ValidateRuntimeMetadata(runtimeDirectory, lock);
-    const auto dexFiles = FindRuntimeDexFiles(runtimeDirectory);
+    if (!std::filesystem::is_directory(runtimeDirectory) &&
+        std::filesystem::is_directory(applicationRuntime)) {
+        runtimeDirectory = applicationRuntime;
+    }
+    const auto dexFiles = ValidateRuntimeBundle(runtimeDirectory, lock.runtimeVersion);
+    log.Debug("Runtime Bundle validated: " + runtimeDirectory.u8string());
+    const auto toolchain = AndroidToolchain::Resolve(lock, options.androidSdk, options.javaHome);
+    log.Debug("Toolchain root: " + toolchain.sdkRoot.u8string());
 
     LogStep(options, 3, "Prepare isolated workspace");
     const auto workspace = CreateWorkspace();

@@ -29,6 +29,7 @@ public:
     std::int64_t OptionalInteger(const std::string& key, std::int64_t fallback) const;
     bool OptionalBoolean(const std::string& key, bool fallback) const;
     JsonObject RequiredObject(const std::string& key) const;
+    std::vector<JsonObject> RequiredObjectArray(const std::string& key) const;
     std::vector<std::string> OptionalStringArray(
         const std::string& key, const std::vector<std::string>& fallback = {}) const;
 

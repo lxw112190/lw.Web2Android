@@ -974,9 +974,17 @@ void StartBuild(HWND window) {
 
 void UpdateToolchainDisplay(State& state) {
     const bool ready = IsMinimalToolchainDirectory(state.environment.toolchainDirectory);
-    SetDynamicLabelText(state.window, kToolchainStatus,
-                        ready ? L"工具链：最小工具链已就绪，可直接生成 APK"
-                              : L"工具链：尚未初始化");
+    const auto installedToolchain = state.environment.applicationRoot / "toolchain";
+    const bool hasExistingToolchain =
+        std::filesystem::is_directory(installedToolchain) &&
+        (std::filesystem::is_regular_file(installedToolchain / "aapt2.exe") ||
+         std::filesystem::is_directory(installedToolchain / "runtime"));
+    SetDynamicLabelText(
+        state.window, kToolchainStatus,
+        ready ? L"工具链：最小工具链已就绪，可直接生成 APK"
+              : hasExistingToolchain
+                    ? L"工具链：Runtime 不兼容或文件损坏，请重新初始化"
+                    : L"工具链：尚未初始化");
     SetWindowTextW(GetDlgItem(state.window, kInstallToolchain), ready ? L"已初始化" : L"初始化工具链");
     EnableWindow(GetDlgItem(state.window, kInstallToolchain), !ready && !state.busy);
 }

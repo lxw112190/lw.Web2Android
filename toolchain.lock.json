@@ -7,6 +7,7 @@
   "commandLineToolsUrl": "https://dl.google.com/android/repository/commandlinetools-win-15859902_latest.zip",
   "commandLineToolsSha256": "90ae805d20434428bffcb699c290860f19bb5f66a67e6b330067e3de801fb04a",
   "runtimeVersion": "6",
+  "runtimeConfigSchemaVersion": 2,
   "javaVersion": 17,
   "javaRuntimeVersion": "17.0.20+8",
   "javaRuntimeUrl": "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.20%2B8/OpenJDK17U-jre_x64_windows_hotspot_17.0.20_8.zip",

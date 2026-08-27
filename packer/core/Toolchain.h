@@ -3,6 +3,8 @@
 #include <filesystem>
 #include <string>
 
+#include "core/RuntimeBundle.h"
+
 namespace lw::web2android {
 
 struct ToolchainLock {
@@ -11,6 +13,7 @@ struct ToolchainLock {
     int platformApi = 0;
     std::string buildToolsVersion;
     std::string runtimeVersion;
+    int runtimeConfigSchemaVersion = kRuntimeConfigSchemaVersion;
 
     static ToolchainLock Load(const std::filesystem::path& file);
 };

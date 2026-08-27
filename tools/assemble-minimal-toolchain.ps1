@@ -31,6 +31,23 @@ foreach ($file in $required) {
     if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Required toolchain file was not found: $file" }
 }
 
+$runtimeMetadata = Get-Content -Raw -LiteralPath (Join-Path $runtime 'metadata.json') | ConvertFrom-Json
+if ([string]$runtimeMetadata.runtimeVersion -ne [string]$lock.runtimeVersion -or
+    [int]$runtimeMetadata.configSchemaVersion -ne [int]$lock.runtimeConfigSchemaVersion) {
+    throw "Runtime Bundle is incompatible with this release; use the current runtime-v6.zip"
+}
+$actualDexFiles = @(Get-ChildItem -LiteralPath $runtime -Filter 'classes*.dex' -File | Sort-Object Name)
+if (@($runtimeMetadata.dexFiles).Count -ne $actualDexFiles.Count) {
+    throw 'Runtime DEX file count does not match metadata'
+}
+foreach ($dex in $actualDexFiles) {
+    $declared = @($runtimeMetadata.dexFiles | Where-Object name -eq $dex.Name)
+    if ($declared.Count -ne 1 -or [long]$declared[0].size -ne $dex.Length -or
+        [string]$declared[0].sha256 -ne (Get-FileHash -LiteralPath $dex.FullName -Algorithm SHA256).Hash.ToLowerInvariant()) {
+        throw "Runtime DEX integrity check failed: $($dex.Name)"
+    }
+}
+
 $replaceExisting = Test-Path -LiteralPath $destinationPath
 if ($replaceExisting -and -not $Force) {
     throw "Destination already exists; use -Force to replace it: $destinationPath"
@@ -64,6 +81,7 @@ try {
         buildToolsVersion = [string]$lock.buildToolsVersion
         javaRuntimeVersion = [string]$lock.javaRuntimeVersion
         runtimeVersion = [string]$lock.runtimeVersion
+        runtimeConfigSchemaVersion = [int]$runtimeMetadata.configSchemaVersion
         assembledAtUtc = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
         distribution = 'private-local-use'
     }

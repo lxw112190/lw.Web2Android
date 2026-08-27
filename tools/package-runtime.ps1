@@ -128,6 +128,7 @@ foreach ($requiredLoggingMarker in @(
 $metadata = [ordered]@{
     schemaVersion = 1
     runtimeVersion = [string]$lock.runtimeVersion
+    configSchemaVersion = [int]$lock.runtimeConfigSchemaVersion
     namespace = 'com.lw.web2android.runtime'
     mainActivity = 'com.lw.web2android.runtime.MainActivity'
     minSdk = 23

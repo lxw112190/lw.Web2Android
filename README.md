@@ -23,6 +23,7 @@
 - 每个 Package Name 独立且可复用的 RSA 3072 签名身份；
 - Windows DPAPI 加密私钥，以及密码保护的 PFX/P12 备份；
 - APK、证书和工具链版本的机器可读发行元数据；
+- Runtime 配置 Schema、DEX 大小和 SHA-256 一致性校验，旧版或混合 Runtime 会在打包前被拒绝；
 - Packer 与 Android Runtime 轮转日志；
 - 标准 `<input type="file">` 系统文件选择器和 Android `DownloadManager`；
 - HTML5 视频全屏播放，支持返回键退出与横竖屏切换；
@@ -32,7 +33,7 @@
 - 本地 Web 应用可接收其他 App 分享的文本，并可注册为 Android 文本、配置文件及代码文件的“打开方式”；
 - GitHub Actions 自动构建 Runtime、Packer、GUI 和真实 React/Vite Demo。
 
-当前版本：`v0.2.10`<br>
+当前版本：`v0.2.11`<br>
 Android：`minSdk 23`，`targetSdk 35`
 
 ## 下载与首次使用
@@ -46,7 +47,7 @@ bin/lw.Web2Android.GUI.exe
 公开发行包包含：
 
 ```text
-lw-Web2Android-v0.2.10-windows-x64/
+lw-Web2Android-v0.2.11-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
@@ -161,7 +162,7 @@ npm run build -- --base=./
 
 ### 使用前准备
 
-1. 使用 `v0.2.8` 的程序和 Runtime。旧版完整工具链可继续复用 Android Build Tools，但必须用 `v0.2.8` 发行包中的 `toolchain/runtime/` 和 `runtime-v6.zip` 替换旧 Runtime；最简单的方式是直接使用完整解压的 `v0.2.8` 发行包。
+1. 使用当前发行版的程序和 Runtime。旧版完整工具链可继续复用 Android Build Tools，但必须保留当前发行包中的 `toolchain/runtime/` 和 `runtime-v6.zip`；不要用旧工具链覆盖这两个位置。最简单的方式是完整解压当前发行包后重新初始化工具链。
 2. 该能力只支持“本地静态目录”，不支持“在线网址”。Vue、React 或其他前端项目应先构建为包含 `index.html` 的目录，例如 Vite 的 `dist`。
 3. 本地资源必须使用相对路径；Vite 项目请设置 `base: "./"`。
 4. Web 应用必须接入下方的队列和事件代码，把接收到的 `payload.text` 交给编辑器。未接入时，APK 会收到文件，但页面不会自动显示内容。
@@ -346,8 +347,8 @@ Runtime 还会记录最终生效的 WebView 视口策略、屏幕像素/密度�
 推送 `v*` 标签时，完整 CI 成功后会自动创建 GitHub Release：
 
 ```bash
-git tag -a v0.2.10 -m "lw.Web2Android v0.2.10"
-git push origin v0.2.10
+git tag -a v0.2.11 -m "lw.Web2Android v0.2.11"
+git push origin v0.2.11
 ```
 
 ## 架构

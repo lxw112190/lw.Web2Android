@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 env:
-  PRODUCT_VERSION: '0.2.10'
-  PACKAGE_NAME: lw-Web2Android-v0.2.10-windows-x64
+  PRODUCT_VERSION: '0.2.11'
+  PACKAGE_NAME: lw-Web2Android-v0.2.11-windows-x64
   WECHAT_DEMO_REPOSITORY: lxw112190/wechat-article-formatter
   WECHAT_DEMO_REF: ad1afc5a2c31d7cb7dc458a69944d6cb7ee0cd88
 
@@ -174,6 +174,21 @@ jobs:
             }
           }
           $runtimeMetadata = Get-Content -Raw build/ci-minimal-toolchain/runtime/metadata.json | ConvertFrom-Json
+          $lock = Get-Content -Raw toolchain.lock.json | ConvertFrom-Json
+          if ($runtimeMetadata.configSchemaVersion -ne $lock.runtimeConfigSchemaVersion) {
+            throw 'Runtime config schema compatibility metadata is missing or invalid'
+          }
+          if (@($runtimeMetadata.dexFiles).Count -eq 0) {
+            throw 'Runtime DEX integrity metadata is missing'
+          }
+          foreach ($dex in $runtimeMetadata.dexFiles) {
+            $dexPath = Join-Path build/ci-minimal-toolchain/runtime $dex.name
+            if (-not (Test-Path -LiteralPath $dexPath -PathType Leaf) -or
+                (Get-Item -LiteralPath $dexPath).Length -ne $dex.size -or
+                (Get-FileHash -LiteralPath $dexPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $dex.sha256) {
+              throw "Runtime DEX integrity metadata does not match $($dex.name)"
+            }
+          }
           if ($runtimeMetadata.logging.maxFileSizeBytes -ne 2097152 -or
               $runtimeMetadata.logging.maxArchives -ne 5 -or
               $runtimeMetadata.logging.relativeExternalPath -ne 'logs/runtime.log' -or

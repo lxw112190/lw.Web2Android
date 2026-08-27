@@ -312,6 +312,22 @@ JsonObject JsonObject::RequiredObject(const std::string& key) const {
     return JsonObject(value.objectValue);
 }
 
+std::vector<JsonObject> JsonObject::RequiredObjectArray(const std::string& key) const {
+    const auto& value = RequireValue(values_, key);
+    if (value.type != JsonValue::Type::Array) {
+        throw std::runtime_error("JSON property must be an array: " + key);
+    }
+    std::vector<JsonObject> result;
+    result.reserve(value.arrayValue.size());
+    for (const auto& item : value.arrayValue) {
+        if (item.type != JsonValue::Type::Object) {
+            throw std::runtime_error("JSON array items must be objects: " + key);
+        }
+        result.push_back(JsonObject(item.objectValue));
+    }
+    return result;
+}
+
 std::vector<std::string> JsonObject::OptionalStringArray(
     const std::string& key, const std::vector<std::string>& fallback) const {
     if (!Contains(key)) return fallback;

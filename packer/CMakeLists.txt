@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(lw_Web2Android VERSION 0.2.10 LANGUAGES CXX)
+project(lw_Web2Android VERSION 0.2.11 LANGUAGES CXX)
 
 if(WIN32)
     set(LW_APP_ICON_RESOURCE
@@ -56,6 +56,7 @@ add_library(lw_packer_core
     core/ProjectConfig.cpp
     core/ProjectValidator.cpp
     core/ReleaseMetadata.cpp
+    core/RuntimeBundle.cpp
     core/SigningKeyManager.cpp
     core/Toolchain.cpp
 )

@@ -1,6 +1,7 @@
 #include "core/Toolchain.h"
 
 #include "core/Json.h"
+#include "core/RuntimeBundle.h"
 
 #include <cstdlib>
 #include <fstream>
@@ -65,12 +66,23 @@ bool IsMinimalToolchainDirectory(const std::filesystem::path& directory) {
 #else
     const auto executableSuffix = "";
 #endif
-    return std::filesystem::is_regular_file(directory / std::filesystem::u8path(std::string("aapt2") + executableSuffix)) &&
-           std::filesystem::is_regular_file(directory / std::filesystem::u8path(std::string("zipalign") + executableSuffix)) &&
-           std::filesystem::is_regular_file(directory / "android.jar") &&
-           std::filesystem::is_regular_file(directory / "apksigner" / "apksigner.jar") &&
-           std::filesystem::is_regular_file(directory / "jre" / "bin" /
-                                             std::filesystem::u8path(std::string("java") + executableSuffix));
+    const bool filesExist =
+        std::filesystem::is_regular_file(directory / std::filesystem::u8path(std::string("aapt2") + executableSuffix)) &&
+        std::filesystem::is_regular_file(directory / std::filesystem::u8path(std::string("zipalign") + executableSuffix)) &&
+        std::filesystem::is_regular_file(directory / "android.jar") &&
+        std::filesystem::is_regular_file(directory / "apksigner" / "apksigner.jar") &&
+        std::filesystem::is_regular_file(directory / "jre" / "bin" /
+                                         std::filesystem::u8path(std::string("java") + executableSuffix)) &&
+        std::filesystem::is_regular_file(directory / "metadata.json");
+    if (!filesExist) return false;
+    try {
+        const auto toolchainMetadata = JsonObject::Parse(ReadText(directory / "metadata.json"));
+        const auto runtimeVersion = toolchainMetadata.RequiredString("runtimeVersion");
+        ValidateRuntimeBundle(directory / "runtime", runtimeVersion);
+        return true;
+    } catch (...) {
+        return false;
+    }
 }
 
 ToolchainLock ToolchainLock::Load(const std::filesystem::path& file) {
@@ -81,8 +93,10 @@ ToolchainLock ToolchainLock::Load(const std::filesystem::path& file) {
     lock.platformApi = static_cast<int>(json.RequiredInteger("platformApi"));
     lock.buildToolsVersion = json.RequiredString("buildToolsVersion");
     lock.runtimeVersion = json.RequiredString("runtimeVersion");
+    lock.runtimeConfigSchemaVersion = static_cast<int>(json.RequiredInteger("runtimeConfigSchemaVersion"));
     if (lock.schemaVersion != 1 || lock.platformApi < 23 || lock.buildToolsVersion.empty() ||
-        lock.runtimeVersion.empty() || lock.toolchainVersion.empty()) {
+        lock.runtimeVersion.empty() || lock.toolchainVersion.empty() ||
+        lock.runtimeConfigSchemaVersion != kRuntimeConfigSchemaVersion) {
         throw std::runtime_error("toolchain.lock.json contains unsupported or incomplete values");
     }
     return lock;

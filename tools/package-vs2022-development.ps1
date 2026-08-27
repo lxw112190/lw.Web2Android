@@ -7,9 +7,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$version = '0.2.10'
+$version = '0.2.11'
 $packageName = "lw-Web2Android-v$version-vs2022-complete-private"
 $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+$lock = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'toolchain.lock.json') | ConvertFrom-Json
 
 function Resolve-RepositoryPath([string]$Path) {
     if ([System.IO.Path]::IsPathRooted($Path)) { return (Resolve-Path -LiteralPath $Path).Path }
@@ -44,6 +45,17 @@ foreach ($relative in $requiredToolchainFiles) {
 $runtimeMetadata = Get-Content -Raw -LiteralPath (Join-Path $toolchain 'runtime/metadata.json') | ConvertFrom-Json
 if ([string]$runtimeMetadata.runtimeVersion -ne '6') {
     throw "The development package requires Runtime v6; found $($runtimeMetadata.runtimeVersion)"
+}
+if ([int]$runtimeMetadata.configSchemaVersion -ne [int]$lock.runtimeConfigSchemaVersion) {
+    throw "The development package requires Runtime config schema $($lock.runtimeConfigSchemaVersion); found $($runtimeMetadata.configSchemaVersion)"
+}
+foreach ($dex in $runtimeMetadata.dexFiles) {
+    $dexPath = Join-Path $toolchain "runtime/$($dex.name)"
+    if (-not (Test-Path -LiteralPath $dexPath -PathType Leaf) -or
+        (Get-Item -LiteralPath $dexPath).Length -ne $dex.size -or
+        (Get-FileHash -LiteralPath $dexPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $dex.sha256) {
+        throw "Runtime DEX integrity validation failed: $($dex.name)"
+    }
 }
 if (-not (Test-Path -LiteralPath (Join-Path $repoRoot '.deps/spdlog.tar.gz') -PathType Leaf)) {
     throw 'Offline dependency archive was not found: .deps/spdlog.tar.gz'

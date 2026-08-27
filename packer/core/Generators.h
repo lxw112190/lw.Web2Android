@@ -5,6 +5,8 @@
 #include <filesystem>
 #include <string>
 
+#include "core/RuntimeBundle.h"
+
 namespace lw::web2android {
 
 class ManifestGenerator {

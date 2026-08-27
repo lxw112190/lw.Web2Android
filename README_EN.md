@@ -23,6 +23,7 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 - independent, reusable RSA-3072 signing identity per package name;
 - DPAPI-encrypted private keys and password-protected PFX/P12 backups;
 - machine-readable APK, certificate, Runtime, and toolchain metadata;
+- Runtime config-schema, DEX-size, and SHA-256 consistency validation, rejecting stale or mixed Runtime files before APK assembly;
 - rotating logs for both the Windows Packer and Android Runtime;
 - standard `<input type="file">` system picker and Android `DownloadManager` support;
 - HTML5 video fullscreen with Back-button exit and orientation changes;
@@ -32,7 +33,7 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 - local Web apps can receive text shared by other apps and register as an Android handler for text, configuration, and source-code files;
 - GitHub Actions builds the Runtime, Packer, GUI, and a real React/Vite demo.
 
-Current version: `v0.2.10`<br>
+Current version: `v0.2.11`<br>
 Android: `minSdk 23`, `targetSdk 35`
 
 ## Download and first run
@@ -46,7 +47,7 @@ bin/lw.Web2Android.GUI.exe
 The public distribution contains:
 
 ```text
-lw-Web2Android-v0.2.10-windows-x64/
+lw-Web2Android-v0.2.11-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
@@ -161,7 +162,7 @@ See [packer/README.md](packer/README.md) for all CLI options.
 
 ### Preparation
 
-1. Use the `v0.2.8` application and Runtime. Android Build Tools from an older complete toolchain can be reused, but `toolchain/runtime/` and `runtime-v6.zip` must be replaced with the copies from the `v0.2.8` distribution. Using a fully extracted `v0.2.8` package is the simplest option.
+1. Use the application and Runtime from the current release. Android Build Tools from an older complete toolchain can be reused, but keep `toolchain/runtime/` and `runtime-v6.zip` from the current package; never overwrite them with an older toolchain. Fully extracting the current package and initializing it again is the simplest option.
 2. This feature is available only in **Local website** mode. Build the Vue, React, or other frontend project into a directory that contains `index.html`, such as Vite's `dist`.
 3. Local assets must use relative paths. Set `base: "./"` in a Vite project.
 4. Integrate the queue and event code below, and pass `payload.text` to the editor. Without this code, Android can deliver the file to the APK but the page will not display it automatically.
@@ -346,8 +347,8 @@ The demo APK has passed validation on a physical Android device. The pinned sour
 Pushing a `v*` tag creates a GitHub Release only after the full workflow passes:
 
 ```bash
-git tag -a v0.2.10 -m "lw.Web2Android v0.2.10"
-git push origin v0.2.10
+git tag -a v0.2.11 -m "lw.Web2Android v0.2.11"
+git push origin v0.2.11
 ```
 
 ## Architecture

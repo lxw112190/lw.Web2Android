@@ -119,7 +119,7 @@ std::string RuntimeConfigGenerator::Generate(const ProjectConfig& config, const 
     const auto runtimeEntry = config.mode == "local" ? "www/" + config.entry : config.entry;
     const auto resolved = ResolveExternalContentConfig(config.externalContent);
     return "{\n"
-           "  \"schemaVersion\": 2,\n"
+           "  \"schemaVersion\": " + std::to_string(kRuntimeConfigSchemaVersion) + ",\n"
            "  \"runtimeVersion\": \"" + EscapeJson(runtimeVersion) + "\",\n"
            "  \"mode\": \"" + EscapeJson(config.mode) + "\",\n"
            "  \"entry\": \"" + EscapeJson(runtimeEntry) + "\",\n"
