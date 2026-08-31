@@ -39,16 +39,32 @@ try {
         throw 'Runtime APK contains no DEX files.'
     }
 
+    # Optimized resource shrinking may rename lw_camera_file_paths.xml to an
+    # opaque entry such as res/7F.xml. Do not couple Runtime extraction to that
+    # unstable filename. The build-only APK must contain exactly one compiled
+    # XML template; the Packer regenerates its equivalent in every final APK.
     $materialResourceEntries = @($archive.Entries |
         Where-Object {
             $normalizedName = $_.FullName.Replace('\', '/')
-            $normalizedName -like 'res/*' -and
-                -not $normalizedName.EndsWith('/') -and
-                $normalizedName -ne 'res/xml/lw_camera_file_paths.xml'
+            $normalizedName -like 'res/*' -and -not $normalizedName.EndsWith('/')
         })
-    if ($materialResourceEntries.Count -gt 0) {
+    $resourceLayoutValid = $materialResourceEntries.Count -eq 1 -and
+        $materialResourceEntries[0].FullName.Replace('\', '/') -match '^res/(?:[^/]+/)?[^/]+[.]xml$'
+    if (-not $resourceLayoutValid) {
         $resourcePreview = (($materialResourceEntries.FullName | Select-Object -First 20) -join ', ')
-        throw "Runtime currently requires APK resources, but runtime-res packaging is not implemented: $resourcePreview"
+        throw "Runtime APK must contain only the generated camera-path XML template; found: $resourcePreview"
+    }
+    $resourceStream = $materialResourceEntries[0].Open()
+    try {
+        $header = [byte[]]::new(4)
+        $headerLength = $resourceStream.Read($header, 0, $header.Length)
+    }
+    finally {
+        $resourceStream.Dispose()
+    }
+    if ($headerLength -ne 4 -or $header[0] -ne 0x03 -or $header[1] -ne 0x00 -or
+        $header[2] -ne 0x08 -or $header[3] -ne 0x00) {
+        throw "Runtime camera-path resource is not compiled Android binary XML: $($materialResourceEntries[0].FullName)"
     }
 
     foreach ($entry in $dexEntries) {
