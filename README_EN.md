@@ -33,7 +33,7 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 - local Web apps can receive text shared by other apps and register as an Android handler for text, configuration, and source-code files;
 - GitHub Actions builds the Runtime, Packer, GUI, and a real React/Vite demo.
 
-Current version: `v0.2.11`<br>
+Current version: `v0.2.12`<br>
 Android: `minSdk 23`, `targetSdk 35`
 
 ## Download and first run
@@ -47,7 +47,7 @@ bin/lw.Web2Android.GUI.exe
 The public distribution contains:
 
 ```text
-lw-Web2Android-v0.2.11-windows-x64/
+lw-Web2Android-v0.2.12-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
@@ -352,8 +352,8 @@ The demo APK has passed validation on a physical Android device. The pinned sour
 Pushing a `v*` tag creates a GitHub Release only after the full workflow passes:
 
 ```bash
-git tag -a v0.2.11 -m "lw.Web2Android v0.2.11"
-git push origin v0.2.11
+git tag -a v0.2.12 -m "lw.Web2Android v0.2.12"
+git push origin v0.2.12
 ```
 
 ## Architecture

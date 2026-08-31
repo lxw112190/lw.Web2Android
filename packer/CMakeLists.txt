@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(lw_Web2Android VERSION 0.2.11 LANGUAGES CXX)
+project(lw_Web2Android VERSION 0.2.12 LANGUAGES CXX)
 
 if(WIN32)
     set(LW_APP_ICON_RESOURCE

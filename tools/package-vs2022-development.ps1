@@ -7,7 +7,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$version = '0.2.11'
+$version = '0.2.12'
 $packageName = "lw-Web2Android-v$version-vs2022-complete-private"
 $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 $lock = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'toolchain.lock.json') | ConvertFrom-Json
