@@ -1,11 +1,13 @@
 package com.lw.web2android.runtime;
 
 import android.app.Activity;
+import android.content.ClipData;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.net.Uri;
+import android.provider.MediaStore;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.ValueCallback;
@@ -14,15 +16,22 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.widget.Toast;
 
+import androidx.core.content.FileProvider;
+
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 final class RuntimeWebChromeClient extends WebChromeClient {
     private static final int FILE_CHOOSER_REQUEST_CODE = 0x4c57;
     private static final int MAX_SELECTED_FILES = 20;
+    private static final long STALE_CAPTURE_AGE_MILLIS = 24L * 60L * 60L * 1000L;
 
     private final MainActivity activity;
     private ValueCallback<Uri[]> pendingFileCallback;
+    private Uri pendingCameraUri;
+    private File pendingCameraFile;
     private View customView;
     private CustomViewCallback customViewCallback;
     private int originalOrientation;
@@ -30,6 +39,7 @@ final class RuntimeWebChromeClient extends WebChromeClient {
 
     RuntimeWebChromeClient(MainActivity activity) {
         this.activity = activity;
+        cleanStaleCameraCaptures();
     }
 
     @Override
@@ -172,11 +182,16 @@ final class RuntimeWebChromeClient extends WebChromeClient {
         cancelPendingFileChooser();
         pendingFileCallback = filePathCallback;
         try {
-            Intent intent = fileChooserParams.createIntent();
-            activity.startActivityForResult(intent, FILE_CHOOSER_REQUEST_CODE);
-            RuntimeLog.info("File chooser opened; mode=" + fileChooserParams.getMode()
-                    + ", multiple="
-                    + (fileChooserParams.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE));
+            boolean multiple = fileChooserParams.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE;
+            boolean capture = fileChooserParams.isCaptureEnabled();
+            String[] acceptTypes = fileChooserParams.getAcceptTypes();
+            RuntimeLog.info("File chooser requested; accept=" + describeAcceptTypes(acceptTypes)
+                    + ", capture=" + capture + ", multiple=" + multiple);
+            if (FileChooserPolicy.shouldCaptureImage(capture, multiple, acceptTypes)
+                    && openCameraCapture()) {
+                return true;
+            }
+            openSystemFileChooser(fileChooserParams, multiple);
         } catch (ActivityNotFoundException | SecurityException error) {
             RuntimeLog.warn("Unable to open the Android file chooser; exception="
                     + error.getClass().getSimpleName());
@@ -190,11 +205,75 @@ final class RuntimeWebChromeClient extends WebChromeClient {
         return true;
     }
 
+    private void openSystemFileChooser(FileChooserParams params, boolean multiple) {
+        Intent intent = params.createIntent();
+        activity.startActivityForResult(intent, FILE_CHOOSER_REQUEST_CODE);
+        RuntimeLog.info("File chooser opened; mode=" + params.getMode()
+                + ", multiple=" + multiple);
+    }
+
+    private boolean openCameraCapture() {
+        File captureDirectory = new File(activity.getCacheDir(), "camera-captures");
+        try {
+            if (!captureDirectory.isDirectory() && !captureDirectory.mkdirs()) {
+                throw new IOException("capture directory was not created");
+            }
+            File output = File.createTempFile("capture-", ".jpg", captureDirectory);
+            Uri outputUri = FileProvider.getUriForFile(
+                    activity, activity.getPackageName() + ".fileprovider", output);
+            Intent camera = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+            camera.putExtra(MediaStore.EXTRA_OUTPUT, outputUri);
+            camera.setClipData(ClipData.newRawUri("camera-output", outputUri));
+            camera.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            pendingCameraFile = output;
+            pendingCameraUri = outputUri;
+            activity.startActivityForResult(camera, FILE_CHOOSER_REQUEST_CODE);
+            RuntimeLog.info("Camera capture launched; output=private-cache-content-uri");
+            return true;
+        } catch (ActivityNotFoundException | SecurityException | IllegalArgumentException | IOException error) {
+            RuntimeLog.warn("Camera capture unavailable; falling back to file chooser; exception="
+                    + error.getClass().getSimpleName());
+            deletePendingCameraFile();
+            return false;
+        }
+    }
+
     boolean handleActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode != FILE_CHOOSER_REQUEST_CODE) return false;
         ValueCallback<Uri[]> callback = pendingFileCallback;
         pendingFileCallback = null;
-        if (callback == null) return true;
+        Uri cameraUri = pendingCameraUri;
+        File cameraFile = pendingCameraFile;
+        pendingCameraUri = null;
+        pendingCameraFile = null;
+        revokeCameraUriPermission(cameraUri);
+        if (callback == null) {
+            deleteFile(cameraFile);
+            return true;
+        }
+        if (cameraUri != null) {
+            if (resultCode == Activity.RESULT_OK && cameraFile != null
+                    && cameraFile.isFile() && cameraFile.length() > 0L) {
+                callback.onReceiveValue(new Uri[] {cameraUri});
+                RuntimeLog.info("Camera capture completed; mime=image/jpeg, bytes="
+                        + cameraFile.length());
+                return true;
+            }
+            Uri[] fallback = resultCode == Activity.RESULT_OK
+                    ? acceptContentUris(contentUrisFromIntent(data)) : new Uri[0];
+            if (fallback.length > 0) {
+                deleteFile(cameraFile);
+                callback.onReceiveValue(fallback);
+                RuntimeLog.info("Camera capture completed with returned content URI");
+                return true;
+            }
+            deleteFile(cameraFile);
+            callback.onReceiveValue(null);
+            RuntimeLog.info(resultCode == Activity.RESULT_CANCELED
+                    ? "Camera capture canceled" : "Camera capture returned no image");
+            return true;
+        }
 
         Uri[] accepted;
         try {
@@ -217,7 +296,72 @@ final class RuntimeWebChromeClient extends WebChromeClient {
     void cancelPendingFileChooser() {
         ValueCallback<Uri[]> callback = pendingFileCallback;
         pendingFileCallback = null;
+        deletePendingCameraFile();
         if (callback != null) callback.onReceiveValue(null);
+    }
+
+    private void deletePendingCameraFile() {
+        File file = pendingCameraFile;
+        Uri uri = pendingCameraUri;
+        pendingCameraFile = null;
+        pendingCameraUri = null;
+        revokeCameraUriPermission(uri);
+        deleteFile(file);
+    }
+
+    private void revokeCameraUriPermission(Uri uri) {
+        if (uri == null) return;
+        try {
+            activity.revokeUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        } catch (RuntimeException error) {
+            RuntimeLog.debug("Unable to revoke camera URI permission; exception="
+                    + error.getClass().getSimpleName());
+        }
+    }
+
+    private static void deleteFile(File file) {
+        if (file != null && file.isFile() && !file.delete()) {
+            RuntimeLog.debug("Unable to remove private camera capture file");
+        }
+    }
+
+    private void cleanStaleCameraCaptures() {
+        File directory = new File(activity.getCacheDir(), "camera-captures");
+        File[] files = directory.listFiles();
+        if (files == null) return;
+        long cutoff = System.currentTimeMillis() - STALE_CAPTURE_AGE_MILLIS;
+        int removed = 0;
+        for (File file : files) {
+            if (file.isFile() && file.lastModified() < cutoff && file.delete()) removed++;
+        }
+        if (removed > 0) RuntimeLog.debug("Removed stale camera captures; count=" + removed);
+    }
+
+    private static Uri[] contentUrisFromIntent(Intent data) {
+        if (data == null) return new Uri[0];
+        List<Uri> values = new ArrayList<>();
+        if (data.getData() != null) values.add(data.getData());
+        ClipData clipData = data.getClipData();
+        if (clipData != null) {
+            for (int index = 0; index < clipData.getItemCount(); index++) {
+                Uri uri = clipData.getItemAt(index).getUri();
+                if (uri != null) values.add(uri);
+            }
+        }
+        return values.toArray(new Uri[0]);
+    }
+
+    private static String describeAcceptTypes(String[] acceptTypes) {
+        if (acceptTypes == null || acceptTypes.length == 0) return "unspecified";
+        StringBuilder result = new StringBuilder();
+        for (String type : acceptTypes) {
+            if (type == null || type.trim().isEmpty()) continue;
+            if (result.length() > 0) result.append(',');
+            result.append(type.trim().replace('\r', ' ').replace('\n', ' ').replace('\t', ' '));
+            if (result.length() >= 160) return result.substring(0, 160) + "...";
+        }
+        return result.length() == 0 ? "unspecified" : result.toString();
     }
 
     private static Uri[] acceptContentUris(Uri[] candidates) {

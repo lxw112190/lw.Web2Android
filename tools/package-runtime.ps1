@@ -42,7 +42,9 @@ try {
     $materialResourceEntries = @($archive.Entries |
         Where-Object {
             $normalizedName = $_.FullName.Replace('\', '/')
-            $normalizedName -like 'res/*' -and -not $normalizedName.EndsWith('/')
+            $normalizedName -like 'res/*' -and
+                -not $normalizedName.EndsWith('/') -and
+                $normalizedName -ne 'res/xml/lw_camera_file_paths.xml'
         })
     if ($materialResourceEntries.Count -gt 0) {
         $resourcePreview = (($materialResourceEntries.FullName | Select-Object -First 20) -join ', ')
@@ -104,7 +106,12 @@ foreach ($requiredLoggingMarker in @(
     '<redacted>',
     'External navigation requested',
     'No installed application can handle external scheme',
+    'File chooser requested; accept=',
     'File chooser opened',
+    'Camera capture launched',
+    'Camera capture completed',
+    'Camera capture canceled',
+    'RuntimeFileProvider',
     'Download queued',
     'HTML5 fullscreen entered',
     'HTML5 fullscreen exited',
@@ -133,10 +140,17 @@ $metadata = [ordered]@{
     mainActivity = 'com.lw.web2android.runtime.MainActivity'
     minSdk = 23
     targetSdk = [int]$lock.platformApi
+    androidXCoreVersion = [string]$lock.androidXCoreVersion
     androidXWebKitVersion = [string]$lock.androidXWebKitVersion
     capabilities = [ordered]@{
         externalNavigationFailureIsNonFatal = $true
-        fileChooser = 'system-content-uri-only'
+        fileChooser = 'system-content-uri-and-image-capture'
+        imageCapture = [ordered]@{
+            htmlCaptureAttribute = $true
+            fullResolutionPrivateCache = $true
+            cameraPermissionDeclared = $false
+            staleCacheCleanupHours = 24
+        }
         downloadManager = 'http-https-app-external-files'
         html5VideoFullscreen = $true
         legacyFixedWidthFitToWidth = $true

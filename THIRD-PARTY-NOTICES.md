@@ -19,9 +19,9 @@ https://developer.android.com/studio/terms
 
 Any Android SDK files in a locally generated `*-complete-private.zip` remain subject to that license and are not covered by this project's MIT License.
 
-## AndroidX WebKit
+## AndroidX Core and WebKit
 
-The precompiled Android Runtime uses AndroidX WebKit, distributed under the Apache License 2.0:
+The precompiled Android Runtime uses AndroidX Core and AndroidX WebKit, distributed under the Apache License 2.0:
 
 https://github.com/androidx/androidx/blob/androidx-main/LICENSE.txt
 

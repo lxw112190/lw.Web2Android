@@ -14,5 +14,6 @@
   "javaRuntimeSha256": "7fe2324cc5901a89aaa0e8dc232075c59f2aca5270c533bdb1b861a5274af834",
   "gradleVersion": "8.9",
   "androidGradlePluginVersion": "8.7.3",
+  "androidXCoreVersion": "1.15.0",
   "androidXWebKitVersion": "1.15.0"
 }

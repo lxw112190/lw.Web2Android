@@ -112,6 +112,11 @@ void TestProjectAndGenerators(const std::filesystem::path& root) {
     Require(manifest.find("configChanges=\"keyboardHidden|orientation|screenSize\"") !=
                     std::string::npos,
             "manifest must keep the WebView alive across fullscreen video rotation");
+    Require(manifest.find("com.lw.web2android.runtime.RuntimeFileProvider") != std::string::npos &&
+                manifest.find("com.example.demo.fileprovider") != std::string::npos &&
+                manifest.find("android:exported=\"false\"") != std::string::npos &&
+                manifest.find("@xml/lw_camera_file_paths") != std::string::npos,
+            "manifest must expose only a private FileProvider for camera capture");
     Require(manifest.find("android.intent.action.VIEW") == std::string::npos &&
                 manifest.find("android:launchMode=\"singleTop\"") == std::string::npos,
             "default manifest must not register external content integration");
@@ -134,6 +139,12 @@ void TestProjectAndGenerators(const std::filesystem::path& root) {
             "manifest must use mipmap launcher icon");
     Require(std::filesystem::is_regular_file(resources / "mipmap-anydpi" / "ic_launcher.xml"),
             "generated default icon");
+    const auto cameraPaths = ReadBinary(resources / "xml" / "lw_camera_file_paths.xml");
+    const std::string cameraPathsText(cameraPaths.begin(), cameraPaths.end());
+    Require(cameraPathsText.find("<cache-path") != std::string::npos &&
+                cameraPathsText.find("camera-captures/") != std::string::npos &&
+                cameraPathsText.find("external-path") == std::string::npos,
+            "camera FileProvider must be limited to the private cache directory");
     const auto defaultIcon = std::filesystem::current_path() / "assets" / "default-app-icon.png";
     if (std::filesystem::is_regular_file(defaultIcon)) {
         const auto iconInfo = lw::web2android::IconGenerator::Inspect(defaultIcon);

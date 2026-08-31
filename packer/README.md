@@ -21,6 +21,8 @@ GUI 参考 `lw.Web2App` 的设计语言，支持 Per-Monitor V2 高 DPI、后台
 
 GUI 提供“允许 HTTP（仅建议可信内网）”。输入 `http://` 远程地址时会自动勾选；本地 Vue/React 访问 HTTP API 时可手动勾选。Packer 会同时生成 `INTERNET` 权限、Network Security Config 和 Runtime mixed-content 配置。
 
+Runtime 支持标准文件选择与 HTML `capture`：普通 `accept="image/*"` 使用系统相册/文件选择器；图片单选带 `capture` 时，通过不可导出的 `RuntimeFileProvider` 和应用私有缓存直接调用系统相机并返回全尺寸照片。最终 APK 不声明 `CAMERA` 权限。
+
 首次使用可在 GUI 点击“初始化工具链”。公开包已包含 Temurin 17 JRE 与 Runtime；用户确认 Android SDK License 后，初始化器从官方源下载并校验锁定的 Android 组件，安装到当前应用目录的 `toolchain/`。下载临时文件会自动清理，后续构建直接复用，无需系统 Android SDK 或 JAVA_HOME。
 
 ## 使用

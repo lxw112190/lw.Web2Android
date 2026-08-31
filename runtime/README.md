@@ -2,7 +2,7 @@
 
 本目录是 `lw.Web2Android` 的固定 Java Runtime。它由 CI 编译、R8 精简并提取为可重复注入最终 APK 的 `classes.dex`。
 
-Release 构建同时启用 R8 代码收缩与优化资源收缩。仅固定动态清单引用的 `MainActivity` 入口，其他 Runtime 实现由代码可达性保留，自动生成的 `R`/`BuildConfig` 类则由 R8 移除。AndroidX Core 携带但 Runtime 未使用的通知资源会在生成 Bundle 前移除；打包脚本仍会拒绝任何剩余的真实 `res/` 文件，并拒绝 DEX 中残留的应用 `R`/`BuildConfig` 描述符，确保当前 Runtime 不暗中依赖动态 APK 的资源表。
+Release 构建同时启用 R8 代码收缩与优化资源收缩。固定动态清单引用的 `MainActivity` 和 `RuntimeFileProvider` 入口，其他 Runtime 实现由代码可达性保留，自动生成的 `R`/`BuildConfig` 类则由 R8 移除。AndroidX Core 携带但 Runtime 未使用的通知资源会在生成 Bundle 前移除；打包脚本只允许由 Packer 同步生成的相机路径 XML 模板，拒绝其他真实 `res/` 文件，并拒绝 DEX 中残留的应用 `R`/`BuildConfig` 描述符，确保 Runtime 不暗中依赖某个固定 APK 的资源表。
 
 ## 当前能力
 
@@ -18,7 +18,7 @@ Release 构建同时启用 R8 代码收缩与优化资源收缩。仅固定动�
 - 2 MiB × 5 的 Runtime 与设备信息独立轮转日志，并同步输出 Logcat；
 - 页面加载、HTTP/SSL、WebView renderer、JS Console 与未捕获异常诊断。
 - 每次启动记录应用、设备、WebView、网络传输类型和 Runtime 配置摘要。
-- 标准 `<input type="file">` 调用 Android 系统文件选择器，仅接受 `content://` 结果；
+- 标准 `<input type="file">` 调用 Android 系统文件选择器，仅接受 `content://` 结果；图片单选同时支持 `capture`，通过私有缓存和 FileProvider 直接调起系统相机并返回全尺寸照片；
 - HTTP/HTTPS 下载交给 Android `DownloadManager`，保存在应用专属 `files/Download`；
 - HTML5 视频通过 `WebChromeClient` 进入全屏，支持返回键退出和方向恢复；
 - 对没有移动端 viewport 的固定宽度网页启用 Wide Viewport 与 Overview Mode，按设备宽度整体缩放而不重新排版；
@@ -52,7 +52,7 @@ adb logcat -s lw.Web2Android
 
 ## 构建
 
-CI 使用 JDK 17、Gradle 8.9、AGP 8.7.3、API 35 和 AndroidX WebKit 1.15.0。选择 WebKit 1.15.0 是为了继续支持项目当前的 minSdk 23；WebKit 1.16 及以上已经将 minSdk 提升到 24。
+CI 使用 JDK 17、Gradle 8.9、AGP 8.7.3、API 35、AndroidX Core 1.15.0 和 AndroidX WebKit 1.15.0。选择 WebKit 1.15.0 是为了继续支持项目当前的 minSdk 23；WebKit 1.16 及以上已经将 minSdk 提升到 24。
 
 ```text
 gradle -p runtime :app:lintRelease :app:assembleRelease

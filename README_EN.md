@@ -25,7 +25,7 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 - machine-readable APK, certificate, Runtime, and toolchain metadata;
 - Runtime config-schema, DEX-size, and SHA-256 consistency validation, rejecting stale or mixed Runtime files before APK assembly;
 - rotating logs for both the Windows Packer and Android Runtime;
-- standard `<input type="file">` system picker and Android `DownloadManager` support;
+- standard `<input type="file">` system picker, full-resolution `capture`, and Android `DownloadManager` support;
 - HTML5 video fullscreen with Back-button exit and orientation changes;
 - legacy fixed-width pages without a mobile viewport use Wide Viewport and Overview Mode for fit-to-width scaling, without layout reflow;
 - CLI/project.json supports square PNG app icons and converts them to five Android Launcher mipmap densities; the bundled default icon is used when the GUI does not specify one;
@@ -314,7 +314,12 @@ Android Runtime log:
 /sdcard/Android/data/<Package Name>/files/logs/device-info.log
 ```
 
-For a standard `<input type="file">`, the Runtime opens the Android system picker and returns only user-selected `content://` URIs to WebView without enabling filesystem access. HTTP/HTTPS downloads run through the system `DownloadManager` and are stored under:
+For a standard `<input type="file">`, the Runtime opens the Android system picker and returns only user-selected `content://` URIs to WebView without enabling filesystem access. A single image input with `capture` launches the system camera and returns a full-resolution `content://` URI through a restricted private-cache `FileProvider`; ordinary `accept="image/*"` inputs still use the gallery/file picker. The Runtime does not declare the `CAMERA` permission and safely falls back to the picker when no camera handler is available. HTTP/HTTPS downloads run through the system `DownloadManager` and are stored under:
+
+```html
+<input type="file" accept="image/*">                       <!-- gallery/file picker -->
+<input type="file" accept="image/*" capture="environment"> <!-- camera -->
+```
 
 ```text
 /sdcard/Android/data/<Package Name>/files/Download/

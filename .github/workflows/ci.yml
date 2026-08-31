@@ -41,6 +41,15 @@ jobs:
               throw "$cmakeFile version $($match.Groups[1].Value) does not match PRODUCT_VERSION $env:PRODUCT_VERSION"
             }
           }
+          $lock = Get-Content -Raw toolchain.lock.json | ConvertFrom-Json
+          $runtimeGradle = Get-Content -Raw runtime/app/build.gradle
+          foreach ($dependency in @(
+              "androidx.core:core:$($lock.androidXCoreVersion)",
+              "androidx.webkit:webkit:$($lock.androidXWebKitVersion)")) {
+            if (-not $runtimeGradle.Contains($dependency)) {
+              throw "Runtime dependency does not match toolchain.lock.json: $dependency"
+            }
+          }
 
       - name: Checkout real Web demo
         uses: actions/checkout@v6
@@ -178,6 +187,10 @@ jobs:
           if ($runtimeMetadata.configSchemaVersion -ne $lock.runtimeConfigSchemaVersion) {
             throw 'Runtime config schema compatibility metadata is missing or invalid'
           }
+          if ($runtimeMetadata.androidXCoreVersion -ne $lock.androidXCoreVersion -or
+              $runtimeMetadata.androidXWebKitVersion -ne $lock.androidXWebKitVersion) {
+            throw 'Runtime AndroidX dependency metadata is missing or invalid'
+          }
           if (@($runtimeMetadata.dexFiles).Count -eq 0) {
             throw 'Runtime DEX integrity metadata is missing'
           }
@@ -198,7 +211,11 @@ jobs:
             throw 'Runtime rotating-log metadata is missing or invalid'
           }
           if (-not $runtimeMetadata.capabilities.externalNavigationFailureIsNonFatal -or
-              $runtimeMetadata.capabilities.fileChooser -ne 'system-content-uri-only' -or
+              $runtimeMetadata.capabilities.fileChooser -ne 'system-content-uri-and-image-capture' -or
+              -not $runtimeMetadata.capabilities.imageCapture.htmlCaptureAttribute -or
+              -not $runtimeMetadata.capabilities.imageCapture.fullResolutionPrivateCache -or
+              $runtimeMetadata.capabilities.imageCapture.cameraPermissionDeclared -or
+              $runtimeMetadata.capabilities.imageCapture.staleCacheCleanupHours -ne 24 -or
               $runtimeMetadata.capabilities.downloadManager -ne 'http-https-app-external-files' -or
               -not $runtimeMetadata.capabilities.html5VideoFullscreen -or
               -not $runtimeMetadata.capabilities.legacyFixedWidthFitToWidth -or
@@ -431,9 +448,24 @@ jobs:
             & java -jar $apksigner verify --verbose --print-certs $apk
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+            $manifestTree = (& $aapt2 dump xmltree --file AndroidManifest.xml $apk) -join "`n"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            foreach ($marker in @('com.lw.web2android.runtime.RuntimeFileProvider',
+                                  'android.support.FILE_PROVIDER_PATHS')) {
+              if (-not $manifestTree.Contains($marker)) {
+                throw "$apk Manifest is missing camera capture marker: $marker"
+              }
+            }
+            if ($manifestTree.Contains('android.permission.CAMERA')) {
+              throw "$apk must not declare CAMERA permission for external camera capture"
+            }
+
             $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $apk))
             try {
               $names = @($zip.Entries.FullName)
+              if ('res/xml/lw_camera_file_paths.xml' -notin $names) {
+                throw "$apk is missing the private camera FileProvider paths resource"
+              }
               foreach ($required in $expectation.required) {
                 if ($required -notin $names) { throw "$apk is missing $required" }
               }
@@ -481,8 +513,6 @@ jobs:
                     'application/yaml' -notin $runtimeConfig.externalContent.mimeTypes) {
                   throw "$apk external-content Runtime config is incomplete"
                 }
-                $manifestTree = (& $aapt2 dump xmltree --file AndroidManifest.xml $apk) -join "`n"
-                if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
                 foreach ($marker in @('android.intent.action.VIEW', 'android.intent.action.SEND',
                                       'android.intent.category.DEFAULT', 'text/*', 'application/json',
                                       'application/yaml', 'application/toml')) {

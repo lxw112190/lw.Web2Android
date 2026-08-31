@@ -108,6 +108,15 @@ std::string ManifestGenerator::Generate(const ProjectConfig& config) {
            "            </intent-filter>\n"
            + externalIntentFilters +
            "        </activity>\n"
+           "        <provider\n"
+           "            android:name=\"com.lw.web2android.runtime.RuntimeFileProvider\"\n"
+           "            android:authorities=\"" + EscapeXml(config.packageName) + ".fileprovider\"\n"
+           "            android:exported=\"false\"\n"
+           "            android:grantUriPermissions=\"true\">\n"
+           "            <meta-data\n"
+           "                android:name=\"android.support.FILE_PROVIDER_PATHS\"\n"
+           "                android:resource=\"@xml/lw_camera_file_paths\"/>\n"
+           "        </provider>\n"
            "    </application>\n"
            "</manifest>\n";
 }
@@ -172,6 +181,11 @@ void ResourceGenerator::Generate(const ProjectConfig& config,
                       "    <base-config cleartextTrafficPermitted=\"true\"/>\n"
                       "</network-security-config>\n");
     }
+    WriteTextFile(resourceDirectory / "xml" / "lw_camera_file_paths.xml",
+                  "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                  "<paths xmlns:android=\"http://schemas.android.com/apk/res/android\">\n"
+                  "    <cache-path name=\"camera_captures\" path=\"camera-captures/\"/>\n"
+                  "</paths>\n");
 }
 
 void WebAssetManager::Prepare(const ProjectConfig& config,

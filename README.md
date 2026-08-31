@@ -25,7 +25,7 @@
 - APK、证书和工具链版本的机器可读发行元数据；
 - Runtime 配置 Schema、DEX 大小和 SHA-256 一致性校验，旧版或混合 Runtime 会在打包前被拒绝；
 - Packer 与 Android Runtime 轮转日志；
-- 标准 `<input type="file">` 系统文件选择器和 Android `DownloadManager`；
+- 标准 `<input type="file">` 系统文件选择器、`capture` 全尺寸拍照和 Android `DownloadManager`；
 - HTML5 视频全屏播放，支持返回键退出与横竖屏切换；
 - 对没有移动端 viewport 的固定宽度老式网页启用 Wide Viewport 与 Overview Mode，采用 fit-to-width 整体缩放，不重新排版；
 - CLI/project.json 支持正方形 PNG 应用图标，自动生成五档 Android Launcher mipmap 资源；GUI 未指定时使用内置默认图标；
@@ -314,7 +314,12 @@ Android Runtime 日志：
 /sdcard/Android/data/<Package Name>/files/logs/device-info.log
 ```
 
-网页通过标准 `<input type="file">` 选择文件时，Runtime 会调用 Android 系统文件选择器，只把用户明确选择的 `content://` URI 返回给 WebView，不开启文件系统访问。HTTP/HTTPS 下载由系统 `DownloadManager` 在后台执行，保存到：
+网页通过标准 `<input type="file">` 选择文件时，Runtime 会调用 Android 系统文件选择器，只把用户明确选择的 `content://` URI 返回给 WebView，不开启文件系统访问。图片单选输入带有 `capture` 时会直接调用系统相机，照片通过受限的应用私有缓存与 `FileProvider` 以全尺寸 `content://` URI 返回；普通 `accept="image/*"` 仍进入相册/文件选择器。Runtime 不声明 `CAMERA` 权限，相机不可用时会安全回退到文件选择器。HTTP/HTTPS 下载由系统 `DownloadManager` 在后台执行，保存到：
+
+```html
+<input type="file" accept="image/*">                       <!-- 相册/文件选择器 -->
+<input type="file" accept="image/*" capture="environment"> <!-- 拍照 -->
+```
 
 ```text
 /sdcard/Android/data/<Package Name>/files/Download/
