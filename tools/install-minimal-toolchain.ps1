@@ -46,7 +46,7 @@ function Expand-ZipArchiveLongPath(
     $destinationPrefix = $destinationRoot.TrimEnd('\') + '\'
     New-LongPathDirectory $destinationRoot
 
-    $archive = [System.IO.Compression.ZipFile]::OpenRead([System.IO.Path]::GetFullPath($ArchivePath))
+    $archive = [System.IO.Compression.ZipFile]::OpenRead((Convert-ToLongPath $ArchivePath))
     try {
         foreach ($entry in $archive.Entries) {
             if ([string]::IsNullOrEmpty($entry.FullName)) { continue }
