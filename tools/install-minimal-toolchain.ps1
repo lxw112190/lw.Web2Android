@@ -37,7 +37,11 @@ function Remove-LongPathDirectory([string]$Path) {
     }
 }
 
-function Expand-ZipArchiveLongPath([string]$ArchivePath, [string]$DestinationPath) {
+function Expand-ZipArchiveLongPath(
+    [string]$ArchivePath,
+    [string]$DestinationPath,
+    [string]$TrimLeadingPath = ''
+) {
     $destinationRoot = [System.IO.Path]::GetFullPath($DestinationPath)
     $destinationPrefix = $destinationRoot.TrimEnd('\') + '\'
     New-LongPathDirectory $destinationRoot
@@ -48,6 +52,18 @@ function Expand-ZipArchiveLongPath([string]$ArchivePath, [string]$DestinationPat
             if ([string]::IsNullOrEmpty($entry.FullName)) { continue }
 
             $relativePath = $entry.FullName.Replace('/', '\')
+            if (-not [string]::IsNullOrEmpty($TrimLeadingPath)) {
+                $trimmedPrefix = $TrimLeadingPath.Trim('\')
+                if ($relativePath -eq $trimmedPrefix) {
+                    continue
+                }
+                $prefixWithSeparator = $trimmedPrefix + '\'
+                if (-not $relativePath.StartsWith($prefixWithSeparator, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    throw "Archive entry does not match expected layout: $($entry.FullName)"
+                }
+                $relativePath = $relativePath.Substring($prefixWithSeparator.Length)
+                if ([string]::IsNullOrEmpty($relativePath)) { continue }
+            }
             $targetPath = [System.IO.Path]::GetFullPath(
                 [System.IO.Path]::Combine($destinationRoot, $relativePath))
             if ($targetPath -ne $destinationRoot -and
@@ -280,11 +296,14 @@ try {
     }
     Write-ToolchainLog 'INFO' "Java runtime ready: $jreExtract"
 
-    $commandLineHome = Join-Path $working 'clt'
+    $commandLineHome = Join-Path $sdk "cmdline-tools/$($lock.commandLineToolsVersion)"
     Write-ToolchainLog 'INFO' "Extracting Android command-line tools: $commandLineArchive"
-    Expand-ZipArchiveLongPath -ArchivePath $commandLineArchive -DestinationPath $commandLineHome
+    Expand-ZipArchiveLongPath `
+        -ArchivePath $commandLineArchive `
+        -DestinationPath $commandLineHome `
+        -TrimLeadingPath 'cmdline-tools'
 
-    $sdkManager = Join-Path $commandLineHome 'cmdline-tools/bin/sdkmanager.bat'
+    $sdkManager = Join-Path $commandLineHome 'bin/sdkmanager.bat'
     if (-not (Test-Path -LiteralPath $sdkManager -PathType Leaf)) {
         throw 'Android command-line tools archive has an unexpected layout: sdkmanager.bat was not found'
     }
