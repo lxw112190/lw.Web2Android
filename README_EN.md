@@ -85,6 +85,8 @@ PowerShell can initialize it as well:
 
 Downloads are checked with SHA-256 and temporary files are removed. Once initialized, the application does not depend on system `ANDROID_SDK_ROOT` or `JAVA_HOME` settings.
 
+The initializer now uses a shorter temporary workspace and .NET ZIP extraction to reduce the chance of hitting legacy Windows PowerShell `MAX_PATH` limits; if you unpack the distribution into an unusually deep directory, keeping the path shorter is still recommended.
+
 On some corporate networks, proxies, or Windows systems that temporarily cannot reach the certificate revocation service, Schannel may return `CRYPT_E_REVOCATION_OFFLINE`. Starting with `v0.2.10`, only this explicit failure triggers an automatic retry with `curl --ssl-no-revoke`. TLS certificate-chain and hostname validation remain enabled, and the archive must still match the SHA-256 pinned in `toolchain.lock.json`; otherwise initialization fails immediately. Other TLS errors do not use this fallback.
 
 ## Build an APK with the GUI

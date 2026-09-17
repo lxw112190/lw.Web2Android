@@ -13,6 +13,79 @@ $logMaxArchives = 5
 $logEncoding = [System.Text.UTF8Encoding]::new($false)
 $working = $null
 
+try {
+    Add-Type -AssemblyName 'System.IO.Compression.FileSystem' -ErrorAction Stop
+} catch {
+    [System.Diagnostics.Debug]::WriteLine("System.IO.Compression.FileSystem is already available: $($_.Exception.Message)")
+}
+
+function Convert-ToLongPath([string]$Path) {
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
+    if ($fullPath.StartsWith('\\?\')) { return $fullPath }
+    if ($fullPath.StartsWith('\\')) { return '\\?\UNC\' + $fullPath.TrimStart('\') }
+    return '\\?\' + $fullPath
+}
+
+function New-LongPathDirectory([string]$Path) {
+    [System.IO.Directory]::CreateDirectory((Convert-ToLongPath $Path)) | Out-Null
+}
+
+function Remove-LongPathDirectory([string]$Path) {
+    $longPath = Convert-ToLongPath $Path
+    if ([System.IO.Directory]::Exists($longPath)) {
+        [System.IO.Directory]::Delete($longPath, $true)
+    }
+}
+
+function Expand-ZipArchiveLongPath([string]$ArchivePath, [string]$DestinationPath) {
+    $destinationRoot = [System.IO.Path]::GetFullPath($DestinationPath)
+    $destinationPrefix = $destinationRoot.TrimEnd('\') + '\'
+    New-LongPathDirectory $destinationRoot
+
+    $archive = [System.IO.Compression.ZipFile]::OpenRead([System.IO.Path]::GetFullPath($ArchivePath))
+    try {
+        foreach ($entry in $archive.Entries) {
+            if ([string]::IsNullOrEmpty($entry.FullName)) { continue }
+
+            $relativePath = $entry.FullName.Replace('/', '\')
+            $targetPath = [System.IO.Path]::GetFullPath(
+                [System.IO.Path]::Combine($destinationRoot, $relativePath))
+            if ($targetPath -ne $destinationRoot -and
+                -not $targetPath.StartsWith($destinationPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+                throw "Archive entry escapes destination: $($entry.FullName)"
+            }
+
+            if ($entry.FullName.EndsWith('/')) {
+                New-LongPathDirectory $targetPath
+                continue
+            }
+
+            $parent = [System.IO.Path]::GetDirectoryName($targetPath)
+            if (-not [string]::IsNullOrEmpty($parent)) {
+                New-LongPathDirectory $parent
+            }
+
+            $input = $entry.Open()
+            try {
+                $output = [System.IO.File]::Open(
+                    (Convert-ToLongPath $targetPath),
+                    [System.IO.FileMode]::Create,
+                    [System.IO.FileAccess]::Write,
+                    [System.IO.FileShare]::None)
+                try {
+                    $input.CopyTo($output)
+                } finally {
+                    $output.Dispose()
+                }
+            } finally {
+                $input.Dispose()
+            }
+        }
+    } finally {
+        $archive.Dispose()
+    }
+}
+
 function Get-ToolchainLogArchive([int]$Index) {
     $directory = [System.IO.Path]::GetDirectoryName($logFile)
     $baseName = [System.IO.Path]::GetFileNameWithoutExtension($logFile)
@@ -175,11 +248,12 @@ try {
     $lock = Get-Content -Raw -LiteralPath $lockFile | ConvertFrom-Json
     Write-ToolchainLog 'INFO' "Toolchain lock loaded; version=$($lock.toolchainVersion); platformApi=$($lock.platformApi); buildTools=$($lock.buildToolsVersion); commandLineTools=$($lock.commandLineToolsVersion)"
 
-    $working = Join-Path ([System.IO.Path]::GetTempPath()) ('lw-web2android-toolchain-' + [guid]::NewGuid().ToString('N'))
-    $downloads = Join-Path $working 'downloads'
-    $sdk = Join-Path $working 'android-sdk'
-    $jreExtract = Join-Path $working 'jre'
-    New-Item -ItemType Directory -Force -Path $downloads,$sdk | Out-Null
+    $workingRoot = Join-Path ([System.IO.Path]::GetTempPath()) 'lw2a'
+    $working = Join-Path $workingRoot ([guid]::NewGuid().ToString('N').Substring(0, 12))
+    $downloads = Join-Path $working 'dl'
+    $sdk = Join-Path $working 'sdk'
+    New-LongPathDirectory $downloads
+    New-LongPathDirectory $sdk
     Write-ToolchainLog 'INFO' "Temporary workspace created: $working"
 
     $commandLineArchive = Get-VerifiedArchive `
@@ -190,30 +264,30 @@ try {
     $bundledJre = Join-Path $repoRoot 'toolchain/jre'
     if (Test-Path -LiteralPath (Join-Path $bundledJre 'bin/java.exe')) {
         Write-LoggedHost 'INFO' 'Using the Temurin JRE included in the application directory.'
-        Copy-Item -LiteralPath $bundledJre -Destination $jreExtract -Recurse
+        $jreExtract = $bundledJre
     } else {
         Write-ToolchainLog 'INFO' 'Bundled JRE was not found; downloading the locked Temurin JRE.'
         $javaArchive = Get-VerifiedArchive `
             $lock.javaRuntimeUrl `
             $lock.javaRuntimeSha256 `
             "temurin-jre-$($lock.javaRuntimeVersion)-windows-x64.zip"
-        $extract = Join-Path $working 'jre-extract'
+        $extract = Join-Path $working 'jrx'
         Write-ToolchainLog 'INFO' "Extracting Temurin JRE: $javaArchive"
-        Expand-Archive -LiteralPath $javaArchive -DestinationPath $extract
-        $javaHome = Get-ChildItem -LiteralPath $extract -Directory | Select-Object -First 1
+        Expand-ZipArchiveLongPath -ArchivePath $javaArchive -DestinationPath $extract
+        $javaHome = [System.IO.Directory]::GetDirectories([System.IO.Path]::GetFullPath($extract)) | Select-Object -First 1
         if (-not $javaHome) { throw 'Temurin JRE archive has an unexpected layout' }
-        Move-Item -LiteralPath $javaHome.FullName -Destination $jreExtract
+        $jreExtract = $javaHome
     }
     Write-ToolchainLog 'INFO' "Java runtime ready: $jreExtract"
 
-    $commandLineExtract = Join-Path $working 'cmdline-tools-extract'
+    $commandLineHome = Join-Path $working 'clt'
     Write-ToolchainLog 'INFO' "Extracting Android command-line tools: $commandLineArchive"
-    Expand-Archive -LiteralPath $commandLineArchive -DestinationPath $commandLineExtract
-    $commandLineHome = Join-Path $sdk "cmdline-tools/$($lock.commandLineToolsVersion)"
-    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $commandLineHome) | Out-Null
-    Copy-Item -LiteralPath (Join-Path $commandLineExtract 'cmdline-tools') -Destination $commandLineHome -Recurse
+    Expand-ZipArchiveLongPath -ArchivePath $commandLineArchive -DestinationPath $commandLineHome
 
-    $sdkManager = Join-Path $commandLineHome 'bin/sdkmanager.bat'
+    $sdkManager = Join-Path $commandLineHome 'cmdline-tools/bin/sdkmanager.bat'
+    if (-not (Test-Path -LiteralPath $sdkManager -PathType Leaf)) {
+        throw 'Android command-line tools archive has an unexpected layout: sdkmanager.bat was not found'
+    }
     $previousJavaHome = $env:JAVA_HOME
     $env:JAVA_HOME = $jreExtract
     try {
@@ -235,8 +309,7 @@ try {
     $packagedRuntime = Join-Path $repoRoot 'toolchain/runtime'
     $developmentRuntime = Join-Path $repoRoot 'build/runtime-dist/runtime-v6'
     if (Test-Path -LiteralPath (Join-Path $packagedRuntime 'classes.dex')) {
-        $runtimeDirectory = Join-Path $working 'runtime'
-        Copy-Item -LiteralPath $packagedRuntime -Destination $runtimeDirectory -Recurse
+        $runtimeDirectory = $packagedRuntime
         Write-ToolchainLog 'INFO' "Using Runtime Bundle from the application directory: $packagedRuntime"
     } elseif (Test-Path -LiteralPath (Join-Path $developmentRuntime 'classes.dex')) {
         $runtimeDirectory = $developmentRuntime
@@ -268,7 +341,7 @@ try {
 } finally {
     if ($working -and (Test-Path -LiteralPath $working)) {
         try {
-            Remove-Item -LiteralPath $working -Recurse -Force
+            Remove-LongPathDirectory $working
             Write-ToolchainLog 'INFO' "Temporary workspace removed: $working"
         } catch {
             Write-ToolchainLog 'WARN' "Unable to remove temporary workspace $working`: $($_.Exception.Message)"

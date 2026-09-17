@@ -25,6 +25,8 @@ Runtime 支持标准文件选择与 HTML `capture`：普通 `accept="image/*"` �
 
 首次使用可在 GUI 点击“初始化工具链”。公开包已包含 Temurin 17 JRE 与 Runtime；用户确认 Android SDK License 后，初始化器从官方源下载并校验锁定的 Android 组件，安装到当前应用目录的 `toolchain/`。下载临时文件会自动清理，后续构建直接复用，无需系统 Android SDK 或 JAVA_HOME。
 
+初始化器会使用更短的临时工作目录，并通过 .NET ZIP 解压降低旧版 Windows PowerShell 命中 `MAX_PATH` 限制的概率；如果把发行包解压到了特别深的目录，仍建议尽量缩短路径。
+
 ## 使用
 
 ```powershell

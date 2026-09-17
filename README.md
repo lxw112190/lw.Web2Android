@@ -85,6 +85,8 @@ toolchain/
 
 下载文件会进行 SHA-256 校验，临时文件会自动清理。初始化完成后不依赖系统的 `ANDROID_SDK_ROOT` 或 `JAVA_HOME`。
 
+初始化器会使用更短的临时工作目录，并通过 .NET ZIP 解压降低旧版 Windows PowerShell 命中 `MAX_PATH` 限制的概率；如果你把发行包放在特别深的目录里，仍建议尽量缩短路径。
+
 在部分企业网络、代理或暂时无法访问证书吊销服务器的 Windows 环境中，Schannel 可能返回 `CRYPT_E_REVOCATION_OFFLINE`。`v0.2.10` 会仅针对这个明确错误自动使用 `curl --ssl-no-revoke` 重试；TLS 证书链与主机名校验仍保持启用，下载文件也仍必须通过 `toolchain.lock.json` 中锁定的 SHA-256，否则初始化立即失败。其他 TLS 错误不会触发该回退。
 
 ## 使用 GUI 生成 APK
