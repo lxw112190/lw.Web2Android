@@ -51,6 +51,22 @@ jobs:
             }
           }
 
+      - name: Validate PowerShell tool scripts
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem tools -Filter '*.ps1' -File | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $_.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+            foreach ($parseError in $errors) {
+              Write-Error "$($_.Name):$($parseError.Extent.StartLineNumber): $($parseError.Message)"
+              $failed = $true
+            }
+          }
+          if ($failed) { throw 'One or more PowerShell tool scripts contain syntax errors.' }
+
       - name: Checkout real Web demo
         uses: actions/checkout@v6
         with:

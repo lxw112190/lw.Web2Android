@@ -64,7 +64,7 @@ CLI 与 GUI 使用 spdlog 的同步 rotating sink 记录 15 个构建阶段、AA
 
 Packer 会在发布包当前目录自动创建 `logs` 文件夹；如果单独复制并运行 EXE，则在 EXE 所在目录创建。单文件最大 2 MiB，保留当前文件和 5 个轮转文件。当前文件与每个新轮转文件都带 UTF-8 BOM，中文 GUI 输入不会经过 ANSI code page。日志初始化或写入失败不会阻断 APK 构建。GUI 构建失败时会在错误弹窗中显示日志路径；签名私钥与 PKCS#12 备份密码不会写入日志。
 
-工具链初始化过程单独记录到 `<发布包目录>\logs\toolchain-init.log`，同样采用 2 MiB、5 个归档的轮转策略。GUI 初始化失败时会直接显示该日志路径。
+工具链初始化过程单独记录到 `<发布包目录>\logs\toolchain-init.log`，同样采用 2 MiB、5 个归档的轮转策略。日志包含当前阶段、路径长度、短路径映射、关键文件验证及清理结果；GUI 初始化失败时会直接显示该日志路径。命令行排查可增加 `-KeepWorkDirectoryOnFailure` 保留失败现场，GUI 默认仍自动清理。
 
 生成的 APK 在应用专属目录分别记录 `logs/runtime.log` 和 `logs/device-info.log`，两者均按 2 MiB、5 个归档轮转。设备日志只包含非敏感的应用、设备、WebView、网络传输类型和 Runtime 配置摘要。
 

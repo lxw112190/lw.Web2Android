@@ -83,7 +83,17 @@ toolchain/
 ./tools/install-minimal-toolchain.ps1 -AcceptAndroidSdkLicense
 ```
 
-下载文件会进行 SHA-256 校验，临时文件会自动清理。初始化完成后不依赖系统的 `ANDROID_SDK_ROOT` 或 `JAVA_HOME`。
+下载文件会进行 SHA-256 校验，临时文件会自动清理。初始化器使用 `%TEMP%\lw.Web2Android\toolchain-xxxxxxxx` 作为可读的临时工作目录；当路径偏长时，会自动尝试使用临时盘符缩短深层解压路径，完成后立即解除映射。临时盘符不可用时只记录警告并继续使用原路径。初始化完成后不依赖系统的 `ANDROID_SDK_ROOT` 或 `JAVA_HOME`。
+
+如果初始化失败且需要保留下载、解压现场用于排查，可在 PowerShell 中运行：
+
+```powershell
+./tools/install-minimal-toolchain.ps1 `
+    -AcceptAndroidSdkLicense `
+    -KeepWorkDirectoryOnFailure
+```
+
+该选项仅建议用于故障诊断，失败现场可能占用较多磁盘空间。日志会给出失败阶段、物理工作目录、实际 I/O 路径、临时盘符及路径长度。GUI 初始化仍默认自动清理临时文件。
 
 在部分企业网络、代理或暂时无法访问证书吊销服务器的 Windows 环境中，Schannel 可能返回 `CRYPT_E_REVOCATION_OFFLINE`。`v0.2.10` 会仅针对这个明确错误自动使用 `curl --ssl-no-revoke` 重试；TLS 证书链与主机名校验仍保持启用，下载文件也仍必须通过 `toolchain.lock.json` 中锁定的 SHA-256，否则初始化立即失败。其他 TLS 错误不会触发该回退。
 
@@ -327,7 +337,7 @@ Android Runtime 日志：
 
 下载会沿用当前 WebView 会话所需的 Cookie 和 User-Agent，但这些内容不会写入日志。`blob:`、`data:` 和 `file:` 下载不通过 Native Bridge 或 JavaScript 注入实现，Runtime 会记录 WARN 并显示轻量提示。
 
-Packer 和工具链初始化器会在发布包当前目录自动创建 `logs` 文件夹。初始化日志记录下载地址、SHA-256 校验、JRE 选择、`sdkmanager` 输出、工具链组装、临时目录清理和完整失败原因。所有日志文件均按单文件 2 MiB 轮转，最多保留 5 个归档。Packer 日志使用带 BOM 的 UTF-8，确保中文应用名可由 Windows 日志查看器正确识别。
+Packer 和工具链初始化器会在发布包当前目录自动创建 `logs` 文件夹。初始化日志记录 PowerShell/Windows 环境、工作目录和目标目录长度、当前初始化阶段、下载地址、SHA-256 校验、JRE 选择、`sdkmanager` 输出、短路径映射、工具链组装、临时目录清理和完整失败原因。所有日志文件均按单文件 2 MiB 轮转，最多保留 5 个归档。Packer 日志使用带 BOM 的 UTF-8，确保中文应用名可由 Windows 日志查看器正确识别。
 
 `runtime.log` 使用手机本地时间并带 UTC 偏移，例如 `2026-08-18 17:16:49.955 +08:00`，记录 Activity 生命周期、页面加载、HTTP/SSL、WebView renderer、WebResourceError、JavaScript Console 和未捕获异常。`device-info.log` 每次启动同时记录本地时间、UTC、时区，以及应用、设备、WebView Provider、网络传输类型、Allow HTTP、Mixed Content 模式和 Runtime 配置摘要。日志会对常见 Password、Token、Authorization、Cookie 内容脱敏，也不采集 IMEI、Android ID、MAC、SSID或手机本机 IP；启动 URL 会移除 query 和 fragment。发行元数据中的构建时间继续使用 UTC。
 

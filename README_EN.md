@@ -83,7 +83,17 @@ PowerShell can initialize it as well:
 ./tools/install-minimal-toolchain.ps1 -AcceptAndroidSdkLicense
 ```
 
-Downloads are checked with SHA-256 and temporary files are removed. Once initialized, the application does not depend on system `ANDROID_SDK_ROOT` or `JAVA_HOME` settings.
+Downloads are checked with SHA-256 and temporary files are removed. The initializer uses `%TEMP%\lw.Web2Android\toolchain-xxxxxxxx` as a readable workspace. When that path is relatively long, it automatically attempts a temporary drive mapping for deep archive extraction and removes the mapping afterward. An unavailable mapping is only a warning; initialization continues with the original path. Once initialized, the application does not depend on system `ANDROID_SDK_ROOT` or `JAVA_HOME` settings.
+
+To preserve downloads and extracted files after a failure for troubleshooting, run:
+
+```powershell
+./tools/install-minimal-toolchain.ps1 `
+    -AcceptAndroidSdkLicense `
+    -KeepWorkDirectoryOnFailure
+```
+
+Use this option only for diagnostics because the preserved workspace can consume significant disk space. The log records the failing stage, physical workspace, effective I/O path, temporary drive mapping, and path lengths. GUI initialization continues to clean temporary files by default.
 
 On some corporate networks, proxies, or Windows systems that temporarily cannot reach the certificate revocation service, Schannel may return `CRYPT_E_REVOCATION_OFFLINE`. Starting with `v0.2.10`, only this explicit failure triggers an automatic retry with `curl --ssl-no-revoke`. TLS certificate-chain and hostname validation remain enabled, and the archive must still match the SHA-256 pinned in `toolchain.lock.json`; otherwise initialization fails immediately. Other TLS errors do not use this fallback.
 
@@ -327,7 +337,7 @@ For a standard `<input type="file">`, the Runtime opens the Android system picke
 
 Downloads may reuse the current WebView session Cookie and User-Agent, but those values are never logged. `blob:`, `data:`, and `file:` downloads are not implemented through a Native Bridge or JavaScript injection; the Runtime logs a warning and displays a lightweight message instead.
 
-The Packer and toolchain initializer create `logs` under the current distribution directory. Initialization logging includes download URLs, SHA-256 verification, JRE selection, `sdkmanager` output, toolchain assembly, temporary-directory cleanup, and complete failure details. Every log file rotates at 2 MiB and retains up to five archives. Packer logs are UTF-8 with a BOM so Windows log viewers recognize Chinese application names correctly.
+The Packer and toolchain initializer create `logs` under the current distribution directory. Initialization logging includes the PowerShell/Windows environment, workspace and destination path lengths, the active initialization stage, download URLs, SHA-256 verification, JRE selection, `sdkmanager` output, short-path mapping, toolchain assembly, temporary-directory cleanup, and complete failure details. Every log file rotates at 2 MiB and retains up to five archives. Packer logs are UTF-8 with a BOM so Windows log viewers recognize Chinese application names correctly.
 
 `runtime.log` uses device-local time with a UTC offset, such as `2026-08-18 17:16:49.955 +08:00`, and records Activity lifecycle, navigation, HTTP/SSL failures, WebView renderer exits, WebResourceError, JavaScript Console output, and uncaught exceptions. At each start, `device-info.log` records local time, UTC, time zone, app, device, WebView provider, network transport, Allow HTTP, Mixed Content mode, and Runtime configuration. Common password, token, Authorization, and Cookie values are redacted. The logs do not collect IMEI, Android ID, MAC address, SSID, or the phone's own IP address; start URLs are recorded without query strings or fragments. Release build timestamps remain UTC.
 
