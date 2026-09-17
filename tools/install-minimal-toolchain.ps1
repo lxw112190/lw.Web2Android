@@ -274,9 +274,9 @@ try {
         $extract = Join-Path $working 'jrx'
         Write-ToolchainLog 'INFO' "Extracting Temurin JRE: $javaArchive"
         Expand-ZipArchiveLongPath -ArchivePath $javaArchive -DestinationPath $extract
-        $javaHome = [System.IO.Directory]::GetDirectories([System.IO.Path]::GetFullPath($extract)) | Select-Object -First 1
+        $javaHome = Get-ChildItem -LiteralPath $extract -Directory | Select-Object -First 1
         if (-not $javaHome) { throw 'Temurin JRE archive has an unexpected layout' }
-        $jreExtract = $javaHome
+        $jreExtract = $javaHome.FullName
     }
     Write-ToolchainLog 'INFO' "Java runtime ready: $jreExtract"
 
