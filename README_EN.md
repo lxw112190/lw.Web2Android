@@ -24,6 +24,7 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 - DPAPI-encrypted private keys and password-protected PFX/P12 backups;
 - machine-readable APK, certificate, Runtime, and toolchain metadata;
 - Runtime config-schema, DEX-size, and SHA-256 consistency validation, rejecting stale or mixed Runtime files before APK assembly;
+- readable toolchain-initialization workspaces, automatic short-drive fallback for long paths, and stage-aware diagnostics;
 - rotating logs for both the Windows Packer and Android Runtime;
 - standard `<input type="file">` system picker, full-resolution `capture`, and Android `DownloadManager` support;
 - HTML5 video fullscreen with Back-button exit and orientation changes;
@@ -33,8 +34,17 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 - local Web apps can receive text shared by other apps and register as an Android handler for text, configuration, and source-code files;
 - GitHub Actions builds the Runtime, Packer, GUI, and a real React/Vite demo.
 
-Current version: `v0.2.12`<br>
+Current version: `v0.2.13`<br>
 Android: `minSdk 23`, `targetSdk 35`
+
+## What's new in v0.2.13
+
+- Initialization workspaces now use `%TEMP%\lw.Web2Android\toolchain-xxxxxxxx` instead of long full-GUID directory names;
+- relatively long temporary paths automatically try a short `subst` drive and remove it afterward, while restricted enterprise environments safely fall back to the original path;
+- extracted JRE and Android Command Line Tools are immediately checked for `java.exe` and `sdkmanager.bat`, producing earlier and clearer failures;
+- logs now include the initialization stage, Windows/PowerShell environment, physical path, effective I/O path, and path lengths;
+- the CLI adds `-KeepWorkDirectoryOnFailure` for preserving downloads and extracted files during diagnostics, while the GUI still cleans up by default;
+- CI now parses every PowerShell tool script for syntax errors.
 
 ## Download and first run
 
@@ -47,7 +57,7 @@ bin/lw.Web2Android.GUI.exe
 The public distribution contains:
 
 ```text
-lw-Web2Android-v0.2.12-windows-x64/
+lw-Web2Android-v0.2.13-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
@@ -362,8 +372,8 @@ The demo APK has passed validation on a physical Android device. The pinned sour
 Pushing a `v*` tag creates a GitHub Release only after the full workflow passes:
 
 ```bash
-git tag -a v0.2.12 -m "lw.Web2Android v0.2.12"
-git push origin v0.2.12
+git tag -a v0.2.13 -m "lw.Web2Android v0.2.13"
+git push origin v0.2.13
 ```
 
 ## Architecture

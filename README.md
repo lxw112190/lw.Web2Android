@@ -24,6 +24,7 @@
 - Windows DPAPI 加密私钥，以及密码保护的 PFX/P12 备份；
 - APK、证书和工具链版本的机器可读发行元数据；
 - Runtime 配置 Schema、DEX 大小和 SHA-256 一致性校验，旧版或混合 Runtime 会在打包前被拒绝；
+- 工具链初始化采用可读临时工作目录，长路径时自动使用临时短盘符，并记录分阶段诊断信息；
 - Packer 与 Android Runtime 轮转日志；
 - 标准 `<input type="file">` 系统文件选择器、`capture` 全尺寸拍照和 Android `DownloadManager`；
 - HTML5 视频全屏播放，支持返回键退出与横竖屏切换；
@@ -33,8 +34,17 @@
 - 本地 Web 应用可接收其他 App 分享的文本，并可注册为 Android 文本、配置文件及代码文件的“打开方式”；
 - GitHub Actions 自动构建 Runtime、Packer、GUI 和真实 React/Vite Demo。
 
-当前版本：`v0.2.12`<br>
+当前版本：`v0.2.13`<br>
 Android：`minSdk 23`，`targetSdk 35`
+
+## v0.2.13 更新
+
+- 初始化工作目录改为 `%TEMP%\lw.Web2Android\toolchain-xxxxxxxx`，不再使用冗长的完整 GUID 目录名；
+- 临时路径偏长时自动尝试 `subst` 短盘符，初始化结束后解除映射；企业环境禁用映射时会安全回退到原路径；
+- JRE 和 Android Command Line Tools 解压后立即校验 `java.exe` 与 `sdkmanager.bat`，错误更早、更明确；
+- 日志新增初始化阶段、Windows/PowerShell 环境、物理路径、实际 I/O 路径和路径长度；
+- 命令行新增 `-KeepWorkDirectoryOnFailure`，可在排障时保留下载和解压现场；GUI 默认仍自动清理；
+- CI 新增全部 PowerShell 工具脚本的语法检查。
 
 ## 下载与首次使用
 
@@ -47,7 +57,7 @@ bin/lw.Web2Android.GUI.exe
 公开发行包包含：
 
 ```text
-lw-Web2Android-v0.2.12-windows-x64/
+lw-Web2Android-v0.2.13-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
@@ -362,8 +372,8 @@ Runtime 还会记录最终生效的 WebView 视口策略、屏幕像素/密度�
 推送 `v*` 标签时，完整 CI 成功后会自动创建 GitHub Release：
 
 ```bash
-git tag -a v0.2.12 -m "lw.Web2Android v0.2.12"
-git push origin v0.2.12
+git tag -a v0.2.13 -m "lw.Web2Android v0.2.13"
+git push origin v0.2.13
 ```
 
 ## 架构

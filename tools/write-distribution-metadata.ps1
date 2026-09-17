@@ -45,6 +45,14 @@ $markdown = @"
 
 This is the Windows x64 distribution of lw.Web2Android.
 
+## Highlights
+
+- Uses readable temporary workspaces and automatically attempts a short temporary drive when Windows paths become risky.
+- Reports the exact initialization stage, environment, physical workspace, effective I/O root, and path lengths in the rotating log.
+- Validates the extracted Java runtime and Android ``sdkmanager`` before continuing.
+- Adds ``-KeepWorkDirectoryOnFailure`` for preserving downloads and extracted files during command-line troubleshooting.
+- Keeps GUI cleanup automatic and treats unavailable short-drive mapping as a non-fatal warning.
+
 ## Release identity
 
 | Field | Value |
