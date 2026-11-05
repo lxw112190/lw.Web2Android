@@ -47,6 +47,10 @@ This is the Windows x64 distribution of lw.Web2Android.
 
 ## Highlights
 
+- Fixes Android file-picker results returned through ClipData, including one image selected in multiple mode.
+- Reads and deduplicates Intent.data and ClipData while keeping the 20-file, content-URI-only safety policy.
+- Adds privacy-preserving result diagnostics and nine picker-result regression tests.
+- Existing HTML can keep its multiple attribute; the fix passed an OPPO Android 16 device test.
 - Uses readable temporary workspaces and automatically attempts a short temporary drive when Windows paths become risky.
 - Reports the exact initialization stage, environment, physical workspace, effective I/O root, and path lengths in the rotating log.
 - Validates the extracted Java runtime and Android ``sdkmanager`` before continuing.

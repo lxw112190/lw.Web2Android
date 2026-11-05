@@ -34,8 +34,16 @@
 - 本地 Web 应用可接收其他 App 分享的文本，并可注册为 Android 文本、配置文件及代码文件的“打开方式”；
 - GitHub Actions 自动构建 Runtime、Packer、GUI 和真实 React/Vite Demo。
 
-当前版本：`v0.2.13`<br>
+当前版本：`v0.2.14`<br>
 Android：`minSdk 23`，`targetSdk 35`
+
+## v0.2.14 更新
+
+- 修复部分 Android 系统选择手机图片后网页无反应的问题：Runtime 同时读取 `Intent.data` 和 `ClipData`，兼容多选模式下只选择一张图片；
+- 两个结果通道合并去重，保留最多 20 个 `content://` 文件的安全限制，无需客户修改 HTML 或移除 `multiple`；
+- 选图日志区分成功、取消、非成功返回、空结果和 URI 被过滤，不记录完整文件路径或图片内容；
+- 新增 9 项选图结果回归测试；修复已通过 CI 和 OPPO Android 16 真机多图选择验证；
+- 升级时请同步替换 `toolchain/runtime/` 和 `toolchain/runtime-v6.zip`。Runtime Version 仍为 6，不能仅按版本号判断 DEX 是否更新；其余未变更的锁定工具链组件可直接复用，无需重新下载。
 
 ## v0.2.13 更新
 
@@ -57,7 +65,7 @@ bin/lw.Web2Android.GUI.exe
 公开发行包包含：
 
 ```text
-lw-Web2Android-v0.2.13-windows-x64/
+lw-Web2Android-v0.2.14-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
@@ -372,8 +380,8 @@ Runtime 还会记录最终生效的 WebView 视口策略、屏幕像素/密度�
 推送 `v*` 标签时，完整 CI 成功后会自动创建 GitHub Release：
 
 ```bash
-git tag -a v0.2.13 -m "lw.Web2Android v0.2.13"
-git push origin v0.2.13
+git tag -a v0.2.14 -m "lw.Web2Android v0.2.14"
+git push origin v0.2.14
 ```
 
 ## 架构

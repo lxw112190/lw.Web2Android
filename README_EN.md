@@ -34,8 +34,16 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 - local Web apps can receive text shared by other apps and register as an Android handler for text, configuration, and source-code files;
 - GitHub Actions builds the Runtime, Packer, GUI, and a real React/Vite demo.
 
-Current version: `v0.2.13`<br>
+Current version: `v0.2.14`<br>
 Android: `minSdk 23`, `targetSdk 35`
+
+## What's new in v0.2.14
+
+- Fixes image selections not reaching the page by reading both `Intent.data` and `ClipData`, including one image selected in multiple mode;
+- merges and deduplicates both channels while retaining the 20-file limit and content-URI-only policy; HTML can keep `multiple`;
+- distinguishes accepted, canceled, non-success, empty and filtered results without logging full file paths or image contents;
+- adds nine picker-result regression tests; the fix passed CI and a multiple-image selection test on a physical OPPO Android 16 device;
+- replace both `toolchain/runtime/` and `toolchain/runtime-v6.zip` when upgrading. Runtime Version remains 6, so the number alone cannot identify the new DEX. Other unchanged locked toolchain components can be reused without downloading again.
 
 ## What's new in v0.2.13
 
@@ -57,7 +65,7 @@ bin/lw.Web2Android.GUI.exe
 The public distribution contains:
 
 ```text
-lw-Web2Android-v0.2.13-windows-x64/
+lw-Web2Android-v0.2.14-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
@@ -372,8 +380,8 @@ The demo APK has passed validation on a physical Android device. The pinned sour
 Pushing a `v*` tag creates a GitHub Release only after the full workflow passes:
 
 ```bash
-git tag -a v0.2.13 -m "lw.Web2Android v0.2.13"
-git push origin v0.2.13
+git tag -a v0.2.14 -m "lw.Web2Android v0.2.14"
+git push origin v0.2.14
 ```
 
 ## Architecture

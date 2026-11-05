@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [string]$BuildDirectory = 'build/packer/Release',
-    [string]$ToolchainDirectory
+    [string]$ToolchainDirectory,
+    [string]$Commit = 'local',
+    [string]$CiPackageDirectory
 )
 
 $ErrorActionPreference = 'Stop'
@@ -9,7 +11,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $build = (Resolve-Path -LiteralPath (Join-Path $repoRoot $BuildDirectory)).Path
 if ([string]::IsNullOrWhiteSpace($ToolchainDirectory)) { $ToolchainDirectory = Join-Path $repoRoot 'toolchain' }
 $toolchain = (Resolve-Path -LiteralPath $ToolchainDirectory).Path
-$version = '0.2.13'
+$version = '0.2.14'
 $packageName = "lw-Web2Android-v$version-windows-x64-complete-private"
 $releaseRoot = Join-Path $repoRoot 'build/releases'
 $package = Join-Path $releaseRoot $packageName
@@ -24,8 +26,9 @@ foreach ($binary in @('lw.Web2Android.exe','lw.Web2Android.GUI.exe')) {
 }
 
 New-Item -ItemType Directory -Force -Path $releaseRoot | Out-Null
-if (Test-Path -LiteralPath $package) { Remove-Item -LiteralPath $package -Recurse -Force }
-if (Test-Path -LiteralPath $archive) { Remove-Item -LiteralPath $archive -Force }
+if ((Test-Path -LiteralPath $package) -or (Test-Path -LiteralPath $archive)) {
+    throw "Release output already exists; preserve it or choose a new version: $package"
+}
 New-Item -ItemType Directory -Force -Path "$package/bin","$package/tools","$package/docs/assets","$package/third_party/licenses" | Out-Null
 
 Copy-Item -LiteralPath (Join-Path $build 'lw.Web2Android.exe'),(Join-Path $build 'lw.Web2Android.GUI.exe') -Destination "$package/bin"
@@ -35,6 +38,11 @@ Copy-Item -LiteralPath (Join-Path $repoRoot 'README.md') -Destination "$package/
 Copy-Item -LiteralPath (Join-Path $repoRoot 'README_EN.md') -Destination "$package/docs/README_EN.md"
 Copy-Item -LiteralPath (Join-Path $repoRoot 'packer/README.md') -Destination "$package/docs/PACKER.md"
 Copy-Item -LiteralPath (Join-Path $repoRoot 'assets/sponsor.jpg') -Destination "$package/docs/assets"
+Copy-Item -LiteralPath (Join-Path $repoRoot 'assets/lw-Web2Android-GUI.jpg') -Destination "$package/docs/assets"
+if ($CiPackageDirectory) {
+    $ciPackage = (Resolve-Path -LiteralPath $CiPackageDirectory).Path
+    Copy-Item -LiteralPath (Join-Path $ciPackage 'samples') -Destination "$package/samples" -Recurse
+}
 New-Item -ItemType Directory -Force -Path "$package/assets" | Out-Null
 Copy-Item -LiteralPath (Join-Path $repoRoot 'assets/default-app-icon.png') -Destination "$package/assets"
 Copy-Item -LiteralPath (Join-Path $repoRoot 'LICENSE'),(Join-Path $repoRoot 'THIRD-PARTY-NOTICES.md'),(Join-Path $repoRoot 'toolchain.lock.json') -Destination $package
@@ -52,7 +60,7 @@ Eclipse Temurin notices and licenses are preserved inside toolchain/jre/.
 '@
 [System.IO.File]::WriteAllText("$package/PRIVATE-TOOLCHAIN-NOTICE.md", $notice + [Environment]::NewLine, $utf8NoBom)
 
-& (Join-Path $repoRoot 'tools/write-distribution-metadata.ps1') -PackageDirectory $package -Version $version -Commit 'local' -IncludesPrivateToolchain
+& (Join-Path $repoRoot 'tools/write-distribution-metadata.ps1') -PackageDirectory $package -Version $version -Commit $Commit -IncludesPrivateToolchain
 $root = (Resolve-Path $package).Path
 $checksums = Get-ChildItem -LiteralPath $root -Recurse -File | Sort-Object FullName | ForEach-Object {
     $relative = [System.IO.Path]::GetRelativePath($root, $_.FullName).Replace('\', '/')
