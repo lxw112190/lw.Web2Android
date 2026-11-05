@@ -228,6 +228,11 @@ jobs:
           }
           if (-not $runtimeMetadata.capabilities.externalNavigationFailureIsNonFatal -or
               $runtimeMetadata.capabilities.fileChooser -ne 'system-content-uri-and-image-capture' -or
+              -not $runtimeMetadata.capabilities.fileChooserResults.intentData -or
+              -not $runtimeMetadata.capabilities.fileChooserResults.clipData -or
+              -not $runtimeMetadata.capabilities.fileChooserResults.deduplicate -or
+              -not $runtimeMetadata.capabilities.fileChooserResults.contentUrisOnly -or
+              $runtimeMetadata.capabilities.fileChooserResults.maxSelectedFiles -ne 20 -or
               -not $runtimeMetadata.capabilities.imageCapture.htmlCaptureAttribute -or
               -not $runtimeMetadata.capabilities.imageCapture.fullResolutionPrivateCache -or
               $runtimeMetadata.capabilities.imageCapture.cameraPermissionDeclared -or

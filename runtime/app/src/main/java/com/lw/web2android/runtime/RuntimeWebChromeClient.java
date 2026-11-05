@@ -20,12 +20,9 @@ import androidx.core.content.FileProvider;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 final class RuntimeWebChromeClient extends WebChromeClient {
     private static final int FILE_CHOOSER_REQUEST_CODE = 0x4c57;
-    private static final int MAX_SELECTED_FILES = 20;
     private static final long STALE_CAPTURE_AGE_MILLIS = 24L * 60L * 60L * 1000L;
 
     private final MainActivity activity;
@@ -207,6 +204,7 @@ final class RuntimeWebChromeClient extends WebChromeClient {
 
     private void openSystemFileChooser(FileChooserParams params, boolean multiple) {
         Intent intent = params.createIntent();
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, multiple);
         activity.startActivityForResult(intent, FILE_CHOOSER_REQUEST_CODE);
         RuntimeLog.info("File chooser opened; mode=" + params.getMode()
                 + ", multiple=" + multiple);
@@ -249,6 +247,7 @@ final class RuntimeWebChromeClient extends WebChromeClient {
         pendingCameraFile = null;
         revokeCameraUriPermission(cameraUri);
         if (callback == null) {
+            RuntimeLog.warn("File chooser result ignored; no pending callback; resultCode=" + resultCode);
             deleteFile(cameraFile);
             return true;
         }
@@ -260,8 +259,16 @@ final class RuntimeWebChromeClient extends WebChromeClient {
                         + cameraFile.length());
                 return true;
             }
-            Uri[] fallback = resultCode == Activity.RESULT_OK
-                    ? acceptContentUris(contentUrisFromIntent(data)) : new Uri[0];
+            Uri[] fallback;
+            try {
+                FileChooserResult parsed = FileChooserResult.parse(resultCode, data);
+                RuntimeLog.info(parsed.logSummary());
+                fallback = parsed.uris();
+            } catch (RuntimeException error) {
+                RuntimeLog.warn("Unable to parse camera fallback result; exception="
+                        + error.getClass().getSimpleName());
+                fallback = new Uri[0];
+            }
             if (fallback.length > 0) {
                 deleteFile(cameraFile);
                 callback.onReceiveValue(fallback);
@@ -277,18 +284,25 @@ final class RuntimeWebChromeClient extends WebChromeClient {
 
         Uri[] accepted;
         try {
-            accepted = acceptContentUris(FileChooserParams.parseResult(resultCode, data));
-            callback.onReceiveValue(accepted.length == 0 ? null : accepted);
+            // Framework parseResult may ignore ClipData, even for one image in multiple mode.
+            FileChooserResult parsed = FileChooserResult.parse(resultCode, data);
+            RuntimeLog.info(parsed.logSummary());
+            accepted = parsed.uris();
         } catch (RuntimeException error) {
             RuntimeLog.warn("Unable to parse file chooser result; exception="
                     + error.getClass().getSimpleName());
             callback.onReceiveValue(null);
             return true;
         }
-        if (resultCode == Activity.RESULT_CANCELED || accepted.length == 0) {
-            RuntimeLog.info("File chooser canceled or returned no safe content URI");
-        } else {
-            RuntimeLog.info("File chooser completed; selectedFiles=" + accepted.length);
+        // Do not retry a callback that throws: a WebView result callback is single-use.
+        try {
+            callback.onReceiveValue(accepted.length == 0 ? null : accepted);
+            if (accepted.length > 0) {
+                RuntimeLog.info("File chooser completed; selectedFiles=" + accepted.length);
+            }
+        } catch (RuntimeException error) {
+            RuntimeLog.warn("File chooser callback delivery failed; exception="
+                    + error.getClass().getSimpleName());
         }
         return true;
     }
@@ -338,20 +352,6 @@ final class RuntimeWebChromeClient extends WebChromeClient {
         if (removed > 0) RuntimeLog.debug("Removed stale camera captures; count=" + removed);
     }
 
-    private static Uri[] contentUrisFromIntent(Intent data) {
-        if (data == null) return new Uri[0];
-        List<Uri> values = new ArrayList<>();
-        if (data.getData() != null) values.add(data.getData());
-        ClipData clipData = data.getClipData();
-        if (clipData != null) {
-            for (int index = 0; index < clipData.getItemCount(); index++) {
-                Uri uri = clipData.getItemAt(index).getUri();
-                if (uri != null) values.add(uri);
-            }
-        }
-        return values.toArray(new Uri[0]);
-    }
-
     private static String describeAcceptTypes(String[] acceptTypes) {
         if (acceptTypes == null || acceptTypes.length == 0) return "unspecified";
         StringBuilder result = new StringBuilder();
@@ -362,17 +362,6 @@ final class RuntimeWebChromeClient extends WebChromeClient {
             if (result.length() >= 160) return result.substring(0, 160) + "...";
         }
         return result.length() == 0 ? "unspecified" : result.toString();
-    }
-
-    private static Uri[] acceptContentUris(Uri[] candidates) {
-        if (candidates == null || candidates.length == 0) return new Uri[0];
-        List<Uri> accepted = new ArrayList<>();
-        for (Uri candidate : candidates) {
-            if (candidate == null || !"content".equalsIgnoreCase(candidate.getScheme())) continue;
-            accepted.add(candidate);
-            if (accepted.size() == MAX_SELECTED_FILES) break;
-        }
-        return accepted.toArray(new Uri[0]);
     }
 
     @Override

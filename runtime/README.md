@@ -19,6 +19,7 @@ Release 构建同时启用 R8 代码收缩与优化资源收缩。固定动态�
 - 页面加载、HTTP/SSL、WebView renderer、JS Console 与未捕获异常诊断。
 - 每次启动记录应用、设备、WebView、网络传输类型和 Runtime 配置摘要。
 - 标准 `<input type="file">` 调用 Android 系统文件选择器，仅接受 `content://` 结果；图片单选同时支持 `capture`，通过私有缓存和 FileProvider 直接调起系统相机并返回全尺寸照片；
+- 普通选图与相机返回 URI 的回退分支同时读取 `Intent.data` 和 `ClipData`，支持多选模式下仅选择一张图片；按首次出现顺序去重，最多交付 20 个 `content://` URI，不扩大文件访问权限；
 - HTTP/HTTPS 下载交给 Android `DownloadManager`，保存在应用专属 `files/Download`；
 - HTML5 视频通过 `WebChromeClient` 进入全屏，支持返回键退出和方向恢复；
 - 对没有移动端 viewport 的固定宽度网页启用 Wide Viewport 与 Overview Mode，按设备宽度整体缩放而不重新排版；
@@ -27,6 +28,8 @@ Release 构建同时启用 R8 代码收缩与优化资源收缩。固定动态�
 - 外部内容严格执行类型、8 MiB 默认上限、二进制与 UTF-8/UTF-16 BOM 编码检查；不支持多文件或写回原 URI。
 
 Runtime 启动日志会记录最终生效的 `WebView viewport: wide=true, overview=true`、屏幕像素/密度和 WebView Provider；每次页面完成后以 DEBUG 记录 `innerWidth`、`innerHeight`、`scrollWidth`、`scrollHeight`、`screenWidth`、`screenHeight` 与 `devicePixelRatio`，用于区分 fit-to-width 缩放和真正的响应式重排。
+
+选图结果记录 `File chooser result; status=...`，区分 `accepted`、`canceled`、`non-success`、`empty` 和 `filtered`；仅记录 resultCode、data URI 是否存在、ClipData 数量、接受/过滤/去重数量和是否达到上限，不记录完整 URI、文件名、路径或图片内容。解析异常、回调缺失和交付失败单独记录。取消与非成功结果不交付文件；不再依赖可能忽略 ClipData 的框架 `FileChooserParams.parseResult()`。
 
 HTML5 全屏方向策略为：Landscape 应用使用 `sensorLandscape`，Portrait/Auto 应用使用 `sensor`，退出全屏后恢复进入前的 requested orientation；方向变化会写入 DEBUG 日志。
 
@@ -55,7 +58,7 @@ adb logcat -s lw.Web2Android
 CI 使用 JDK 17、Gradle 8.9、AGP 8.7.3、API 35、AndroidX Core 1.15.0 和 AndroidX WebKit 1.15.0。选择 WebKit 1.15.0 是为了继续支持项目当前的 minSdk 23；WebKit 1.16 及以上已经将 minSdk 提升到 24。
 
 ```text
-gradle -p runtime :app:lintRelease :app:assembleRelease
+gradle -p runtime :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease
 pwsh ./tools/package-runtime.ps1
 ```
 
@@ -64,3 +67,5 @@ pwsh ./tools/package-runtime.ps1
 ```text
 build/runtime-dist/runtime-v6.zip
 ```
+
+`FileChooserResultTest` 使用仅测试依赖 Robolectric 4.16.1（API 28 沙箱）验证真实 Intent/ClipData 对象的单选、多选、双通道去重、取消、空返回、不安全 URI、数量上限及日志隐私。Robolectric 不进入 APK；完整 R8/资源检查和 Runtime Bundle 生成仍在 CI 执行。

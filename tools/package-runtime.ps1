@@ -124,6 +124,8 @@ foreach ($requiredLoggingMarker in @(
     'No installed application can handle external scheme',
     'File chooser requested; accept=',
     'File chooser opened',
+    'File chooser result; status=',
+    'File chooser callback delivery failed',
     'Camera capture launched',
     'Camera capture completed',
     'Camera capture canceled',
@@ -161,6 +163,13 @@ $metadata = [ordered]@{
     capabilities = [ordered]@{
         externalNavigationFailureIsNonFatal = $true
         fileChooser = 'system-content-uri-and-image-capture'
+        fileChooserResults = [ordered]@{
+            intentData = $true
+            clipData = $true
+            deduplicate = $true
+            contentUrisOnly = $true
+            maxSelectedFiles = 20
+        }
         imageCapture = [ordered]@{
             htmlCaptureAttribute = $true
             fullResolutionPrivateCache = $true
