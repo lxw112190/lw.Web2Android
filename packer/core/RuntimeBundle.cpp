@@ -153,6 +153,25 @@ std::vector<std::filesystem::path> ValidateRuntimeBundle(
             throw std::runtime_error("Runtime DEX SHA-256 mismatch; the Runtime Bundle may be mixed or damaged: " + name);
         }
     }
+    // Generated manifests now opt into platform back callbacks. Old DEX bundles only
+    // implement onBackPressed and must not be silently paired with the new manifest.
+    bool modernBack = false;
+    if (metadata.Contains("capabilities")) {
+        const auto capabilities = metadata.RequiredObject("capabilities");
+        if (capabilities.Contains("backNavigation")) {
+            const auto back = capabilities.RequiredObject("backNavigation");
+            modernBack = back.OptionalInteger("platformCallbackMinApi", 0) == 33 &&
+                         back.OptionalBoolean("legacyCallback", false) &&
+                         back.OptionalBoolean("webHistory", false) &&
+                         back.OptionalBoolean("fullscreenFirst", false) &&
+                         back.OptionalBoolean("rootDelegatesToSystem", false);
+        }
+    }
+    if (!modernBack) {
+        throw std::runtime_error(
+            "Runtime does not support modern back navigation; replace toolchain/runtime "
+            "and runtime-v6.zip with the matching new release, not the old toolchain copy");
+    }
     return dexFiles;
 }
 

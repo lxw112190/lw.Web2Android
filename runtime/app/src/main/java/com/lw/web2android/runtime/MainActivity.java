@@ -10,11 +10,11 @@ import android.os.Build;
 import android.os.Bundle;
 import android.util.DisplayMetrics;
 import android.view.Gravity;
-import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.webkit.WebSettings;
+import android.webkit.WebBackForwardList;
 import android.webkit.WebView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -32,6 +32,7 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
     private ExternalContentReceiver externalContentReceiver;
     private final ArrayDeque<ExternalContentPayload> pendingExternalContent = new ArrayDeque<>();
     private boolean webPageReady;
+    private BackNavigationController backNavigation;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -39,6 +40,7 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
 
         RuntimeLog.initialize(this);
         RuntimeLog.installCrashHandler();
+        initializeBackNavigation();
         RuntimeLog.info("MainActivity.onCreate; Android API " + Build.VERSION.SDK_INT
                 + ", package " + getPackageName());
 
@@ -71,6 +73,7 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
             } else {
                 RuntimeLog.info("WebView state restored");
             }
+            refreshBackNavigation();
         } catch (RuntimeException error) {
             RuntimeLog.error("Unable to initialize Android WebView", error);
             showRuntimeError("Unable to initialize Android WebView: " + error.getMessage());
@@ -107,6 +110,7 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
     }
 
     void onWebPageFinished(String url) {
+        refreshBackNavigation();
         webPageReady = isTrustedLocalPage(url);
         if (webPageReady) {
             RuntimeLog.debug("Trusted local Web page ready for external content");
@@ -327,30 +331,45 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
         if (webView != null) {
             webView.onResume();
         }
-    }
-
-    @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK && handleBackNavigation()) return true;
-        return super.onKeyDown(keyCode, event);
+        refreshBackNavigation();
     }
 
     @Override
     @SuppressWarnings("deprecation")
     public void onBackPressed() {
-        if (!handleBackNavigation()) super.onBackPressed();
+        if (backNavigation == null || !backNavigation.handleBack("legacy")) super.onBackPressed();
     }
 
-    private boolean handleBackNavigation() {
-        if (webChromeClient != null && webChromeClient.isCustomViewShowing()) {
-            webChromeClient.hideCustomView();
-            return true;
-        }
-        if (webView != null && webView.canGoBack()) {
-            webView.goBack();
-            return true;
-        }
-        return false;
+    private void initializeBackNavigation() {
+        backNavigation = new BackNavigationController(new BackNavigationController.Host() {
+            @Override public boolean fullscreen() {
+                return webChromeClient != null && webChromeClient.isCustomViewShowing();
+            }
+            @Override public boolean canGoBack() { return webView != null && webView.canGoBack(); }
+            @Override public void exitFullscreen() { webChromeClient.hideCustomView(); }
+            @Override public void goBack() { webView.goBack(); }
+            @Override public void logAction(String source, String action) {
+                WebBackForwardList history = webView == null ? null : webView.copyBackForwardList();
+                RuntimeLog.info("Back navigation; source=" + source + ", action=" + action
+                        + ", fullscreen=" + fullscreen() + ", canGoBack=" + canGoBack()
+                        + ", historyIndex=" + (history == null ? -1 : history.getCurrentIndex())
+                        + ", historySize=" + (history == null ? 0 : history.getSize()));
+            }
+        }, SystemBackRegistration.create(this, this::onSystemBackInvoked));
+        RuntimeLog.info("Back navigation API: " + (Build.VERSION.SDK_INT >= 33
+                ? "platform-invoked" : "legacy-pressed"));
+    }
+
+    void refreshBackNavigation() {
+        if (backNavigation != null) backNavigation.refresh();
+    }
+
+    private void onSystemBackInvoked() {
+        if (backNavigation != null && backNavigation.handleBack("platform-invoked")) return;
+        // Normally no callback is registered at the root. Recheck for a stale in-flight event.
+        // Do not call deprecated onBackPressed on the modern path or recursively redispatch.
+        if (isTaskRoot()) moveTaskToBack(true);
+        else finishAfterTransition();
     }
 
     @Override
@@ -390,11 +409,13 @@ public final class MainActivity extends Activity implements RuntimeWebViewClient
             webChromeClient = null;
             webPageReady = false;
         }
+        refreshBackNavigation();
     }
 
     @Override
     protected void onDestroy() {
         RuntimeLog.info("MainActivity.onDestroy");
+        if (backNavigation != null) backNavigation.destroy();
         destroyWebView();
         RuntimeLog.flush();
         super.onDestroy();

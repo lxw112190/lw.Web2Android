@@ -138,6 +138,8 @@ foreach ($requiredLoggingMarker in @(
     ', overview=',
     'Display metrics:',
     'Web viewport:',
+    'Back navigation; source=',
+    'Back navigation API: ',
     'External intent received; action=',
     'External content accepted; kind=',
     'External content delivered to WebView; kind=',
@@ -163,6 +165,13 @@ $metadata = [ordered]@{
     capabilities = [ordered]@{
         externalNavigationFailureIsNonFatal = $true
         fileChooser = 'system-content-uri-and-image-capture'
+        backNavigation = [ordered]@{
+            platformCallbackMinApi = 33
+            legacyCallback = $true
+            webHistory = $true
+            fullscreenFirst = $true
+            rootDelegatesToSystem = $true
+        }
         fileChooserResults = [ordered]@{
             intentData = $true
             clipData = $true

@@ -233,6 +233,11 @@ jobs:
               -not $runtimeMetadata.capabilities.fileChooserResults.deduplicate -or
               -not $runtimeMetadata.capabilities.fileChooserResults.contentUrisOnly -or
               $runtimeMetadata.capabilities.fileChooserResults.maxSelectedFiles -ne 20 -or
+              $runtimeMetadata.capabilities.backNavigation.platformCallbackMinApi -ne 33 -or
+              -not $runtimeMetadata.capabilities.backNavigation.legacyCallback -or
+              -not $runtimeMetadata.capabilities.backNavigation.webHistory -or
+              -not $runtimeMetadata.capabilities.backNavigation.fullscreenFirst -or
+              -not $runtimeMetadata.capabilities.backNavigation.rootDelegatesToSystem -or
               -not $runtimeMetadata.capabilities.imageCapture.htmlCaptureAttribute -or
               -not $runtimeMetadata.capabilities.imageCapture.fullResolutionPrivateCache -or
               $runtimeMetadata.capabilities.imageCapture.cameraPermissionDeclared -or
@@ -370,6 +375,9 @@ jobs:
           & $packer build samples/legacy-fixed-width/project.json @common
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+          & $packer build samples/back-navigation/project.json @common
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
           & $packer build samples/custom-icon/project.json @common
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -447,6 +455,13 @@ jobs:
               expectHttp = $false
             },
             [pscustomobject]@{
+              apk = 'build/samples/back-navigation/back-navigation-1.0.0-android.apk'
+              required = @('classes.dex', 'assets/lw-config.json', 'assets/www/index.html',
+                'assets/www/second.html', 'assets/www/third.html', 'assets/www/spa.html')
+              forbidden = @('assets/www/project.json')
+              expectHttp = $false
+            },
+            [pscustomobject]@{
               apk = 'build/samples/custom-icon/custom-icon-1.0.0-android.apk'
               required = @('classes.dex', 'assets/lw-config.json', 'assets/www/index.html')
               iconDensities = @('mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi')
@@ -479,6 +494,9 @@ jobs:
             }
             if ($manifestTree.Contains('android.permission.CAMERA')) {
               throw "$apk must not declare CAMERA permission for external camera capture"
+            }
+            if (-not $manifestTree.Contains('android:enableOnBackInvokedCallback')) {
+              throw "$apk must opt into modern system back callbacks"
             }
 
             $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $apk))
@@ -606,6 +624,7 @@ jobs:
             "$package/assets",
             "$package/tools",
             "$package/samples/wechat-article-formatter",
+            "$package/samples/back-navigation",
             "$package/docs/assets",
             "$package/third_party/licenses"
           )
@@ -618,6 +637,7 @@ jobs:
           Copy-Item build/ci-jre/* "$package/toolchain/jre/" -Recurse
           Copy-Item toolchain.lock.json "$package/"
           Copy-Item build/samples/wechat-article-formatter/* "$package/samples/wechat-article-formatter/"
+          Copy-Item build/samples/back-navigation/* "$package/samples/back-navigation/"
           Copy-Item tools/install-minimal-toolchain.ps1,tools/assemble-minimal-toolchain.ps1 "$package/tools/"
           Copy-Item README.md "$package/docs/README.md"
           Copy-Item README_EN.md "$package/docs/README_EN.md"

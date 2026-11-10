@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "mode": "local",
+  "name": "Back Navigation Test",
+  "packageName": "com.lw.samples.backnavigation",
+  "versionName": "1.0.0",
+  "versionCode": 1,
+  "source": "web",
+  "entry": "index.html",
+  "fullscreen": false,
+  "orientation": "auto",
+  "allowHttp": false,
+  "output": "../../build/samples/back-navigation",
+  "outputFile": "back-navigation-1.0.0-android.apk",
+  "runtime": "../../build/runtime-dist/runtime-v6",
+  "toolchainLock": "../../toolchain.lock.json"
+}

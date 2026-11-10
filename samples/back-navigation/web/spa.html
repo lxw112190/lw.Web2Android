@@ -1,0 +1,20 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>返回导航：SPA</title><body style="font:18px/1.8 sans-serif;padding:20px">
+<h1>SPA History / Hash</h1><p id="state"></p>
+<button id="push">pushState 新增一级</button> <button id="hash">Hash 新增一级</button>
+<p>每按一次新增按钮，再按系统返回，应逐级恢复 URL/状态。路由未入栈时不会凭空产生历史。</p>
+<script>
+let sequence = 0;
+function render() {
+  document.getElementById('state').textContent = location.search + location.hash + ' | state=' + JSON.stringify(history.state);
+}
+document.getElementById('push').onclick = () => {
+  const step = ++sequence;
+  history.pushState({step}, '', '?step=' + step);
+  render();
+};
+document.getElementById('hash').onclick = () => { location.hash = 'step-' + (++sequence); };
+addEventListener('popstate', render);
+addEventListener('hashchange', render);
+render();
+</script></body></html>

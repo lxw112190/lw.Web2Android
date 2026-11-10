@@ -7,6 +7,7 @@
 
     <application
         android:allowBackup="false"
+        android:enableOnBackInvokedCallback="true"
         android:label="lw.Web2Android Runtime"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"

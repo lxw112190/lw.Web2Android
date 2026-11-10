@@ -11,6 +11,7 @@ Release 构建同时启用 R8 代码收缩与优化资源收缩。固定动态�
 - local 与 remote 两种模式；
 - JavaScript、DOM Storage、localStorage 与 IndexedDB；
 - WebView 历史返回；
+- Android 13+ 使用系统 `OnBackInvokedCallback`，API 23–32 保留 `onBackPressed()`；全屏/历史状态变化时动态注册回调，首页交给系统默认返回行为，不强制双击退出；
 - fullscreen 与 auto/portrait/landscape；
 - HTTP 默认阻止，只有 `allowHttp=true` 才允许；
 - 非 HTTP(S) URL 交给系统应用处理；
@@ -36,6 +37,14 @@ HTML5 全屏方向策略为：Landscape 应用使用 `sensorLandscape`，Portrai
 Runtime 不调用 `addJavascriptInterface`，不提供 Native Bridge，也不引用应用动态生成的 `R` 类。外部内容只会投递到 `https://appassets.androidplatform.net/assets/` 可信本地页面，remote 模式完全禁用。
 
 ## 真机日志
+
+返回处理统一为“退出 HTML5 全屏 → WebView 历史返回 → 系统默认行为”，不再通过 `onKeyDown(KEYCODE_BACK)` 重复拦截。生成的 Manifest 与 Runtime 构建 Manifest 均启用 `enableOnBackInvokedCallback`。历史更新（包括 History API/Hash 路由）、页面完成、状态恢复及视频全屏切换时同步回调状态；销毁时注销。
+
+Packer 现在要求 Runtime metadata 声明新的 `capabilities.backNavigation` 能力，防止新 Manifest 与仅支持旧返回回调的 DEX 混用。升级必须使用本次 CI 新生成的 `toolchain/runtime/` 和 `runtime-v6.zip`；复制旧工具链时只能复用其他锁定组件。旧 Bundle 会在打包前被明确拒绝，而不是生成可能直接退出的 APK。
+
+进入 Runtime 的返回事件记录 `Back navigation; source=legacy/platform-invoked, action=EXIT_FULLSCREEN/WEB_HISTORY/SYSTEM`，以及 fullscreen、canGoBack、historyIndex、historySize，不记录路由参数或页面内容。现代系统在首页未注册应用回调，由系统直接处理，不保证每次系统返回都有应用日志。
+
+`samples/back-navigation` 提供 A→B→C 和 SPA pushState/Hash 测试。CI 验证样例 APK 结构，主机测试验证返回策略；系统手势、三键返回、键盘收起及全屏退出仍需 Android 12/13+ 真机验收。仅切换组件、不入栈或使用 replace 的网页不会自动产生上一页；不注入 Native Bridge 或伪造前端路由历史。
 
 Runtime 优先写入无需额外存储权限的应用专属外部目录：
 

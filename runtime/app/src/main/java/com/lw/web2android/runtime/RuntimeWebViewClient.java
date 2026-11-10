@@ -73,6 +73,13 @@ final class RuntimeWebViewClient extends WebViewClientCompat {
     }
 
     @Override
+    public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
+        super.doUpdateVisitedHistory(view, url, isReload);
+        // Includes History API/hash navigation: onPageFinished alone is not enough for SPAs.
+        activity.refreshBackNavigation();
+    }
+
+    @Override
     public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
         RuntimeLog.info("Page started: " + RuntimeLog.safeUrl(url));
         activity.onWebPageStarted(url);

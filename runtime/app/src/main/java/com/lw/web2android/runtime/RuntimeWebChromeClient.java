@@ -104,6 +104,8 @@ final class RuntimeWebChromeClient extends WebChromeClient {
             removeCustomViewFromParent();
             restoreCustomViewState();
             notifyCustomViewHidden();
+        } finally {
+            activity.refreshBackNavigation();
         }
     }
 
@@ -123,6 +125,7 @@ final class RuntimeWebChromeClient extends WebChromeClient {
         notifyCustomViewHidden();
         RuntimeLog.info("HTML5 fullscreen exited; restoredOrientation="
                 + FullscreenOrientationPolicy.requestedOrientationName(originalOrientation));
+        activity.refreshBackNavigation();
     }
 
     void onWindowFocusChanged(boolean hasFocus) {

@@ -101,6 +101,8 @@ void TestProjectAndGenerators(const std::filesystem::path& root) {
     lw::web2android::ProjectValidator::Validate(config);
     Require(config.name.find("中文") != std::string::npos, "unicode escapes must decode as UTF-8");
     const auto manifest = lw::web2android::ManifestGenerator::Generate(config);
+    Require(manifest.find("enableOnBackInvokedCallback=\"true\"") != std::string::npos,
+            "manifest enables modern system back callbacks");
     Require(manifest.find("com.example.demo") != std::string::npos, "manifest package");
     Require(manifest.find("screenOrientation=\"portrait\"") != std::string::npos, "manifest orientation");
     Require(manifest.find("INTERNET") != std::string::npos,
@@ -538,6 +540,8 @@ void TestMinimalToolchainResolution(const std::filesystem::path& root) {
         toolchain / "runtime" / "metadata.json",
         "{\"schemaVersion\":1,\"runtimeVersion\":\"1\","
         "\"configSchemaVersion\":2,\"namespace\":\"com.lw.web2android.runtime\","
+        "\"capabilities\":{\"backNavigation\":{\"platformCallbackMinApi\":33,\"legacyCallback\":true,"
+        "\"webHistory\":true,\"fullscreenFirst\":true,\"rootDelegatesToSystem\":true}},"
         "\"dexFiles\":[{\"name\":\"classes.dex\",\"size\":8,\"sha256\":\"" +
             dexHash + "\"}]}");
     lw::web2android::WriteTextFile(
@@ -547,6 +551,18 @@ void TestMinimalToolchainResolution(const std::filesystem::path& root) {
 
     const auto validDex = lw::web2android::ValidateRuntimeBundle(toolchain / "runtime", "1");
     Require(validDex.size() == 1U, "compatible Runtime Bundle validation");
+    lw::web2android::WriteTextFile(
+        toolchain / "runtime" / "metadata.json",
+        "{\"schemaVersion\":1,\"runtimeVersion\":\"1\",\"configSchemaVersion\":2,"
+        "\"namespace\":\"com.lw.web2android.runtime\","
+        "\"dexFiles\":[{\"name\":\"classes.dex\",\"size\":8,\"sha256\":\"" + dexHash + "\"}]}");
+    bool rejectedOldBackApi = false;
+    try {
+        (void)lw::web2android::ValidateRuntimeBundle(toolchain / "runtime", "1");
+    } catch (const std::exception& error) {
+        rejectedOldBackApi = std::string(error.what()).find("modern back navigation") != std::string::npos;
+    }
+    Require(rejectedOldBackApi, "old DEX must not be paired with a modern-back manifest");
     lw::web2android::WriteTextFile(
         toolchain / "runtime" / "metadata.json",
         "{\"schemaVersion\":1,\"runtimeVersion\":\"1\","
@@ -567,6 +583,8 @@ void TestMinimalToolchainResolution(const std::filesystem::path& root) {
         toolchain / "runtime" / "metadata.json",
         "{\"schemaVersion\":1,\"runtimeVersion\":\"1\","
         "\"configSchemaVersion\":2,\"namespace\":\"com.lw.web2android.runtime\","
+        "\"capabilities\":{\"backNavigation\":{\"platformCallbackMinApi\":33,\"legacyCallback\":true,"
+        "\"webHistory\":true,\"fullscreenFirst\":true,\"rootDelegatesToSystem\":true}},"
         "\"dexFiles\":[{\"name\":\"classes.dex\",\"size\":8,\"sha256\":\"" +
             std::string(64, '0') + "\"}]}");
     bool rejectedHash = false;
@@ -581,6 +599,8 @@ void TestMinimalToolchainResolution(const std::filesystem::path& root) {
         toolchain / "runtime" / "metadata.json",
         "{\"schemaVersion\":1,\"runtimeVersion\":\"1\","
         "\"configSchemaVersion\":2,\"namespace\":\"com.lw.web2android.runtime\","
+        "\"capabilities\":{\"backNavigation\":{\"platformCallbackMinApi\":33,\"legacyCallback\":true,"
+        "\"webHistory\":true,\"fullscreenFirst\":true,\"rootDelegatesToSystem\":true}},"
         "\"dexFiles\":[{\"name\":\"classes.dex\",\"size\":8,\"sha256\":\"" +
             dexHash + "\"}]}");
 

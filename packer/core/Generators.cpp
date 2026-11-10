@@ -91,6 +91,7 @@ std::string ManifestGenerator::Generate(const ProjectConfig& config) {
            permissions +
            "    <application\n"
            "        android:allowBackup=\"false\"\n"
+           "        android:enableOnBackInvokedCallback=\"true\"\n"
            "        android:hardwareAccelerated=\"true\"\n"
            "        android:icon=\"@mipmap/ic_launcher\"\n"
            "        android:label=\"@string/app_name\"\n"
