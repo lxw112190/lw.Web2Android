@@ -34,8 +34,16 @@
 - 本地 Web 应用可接收其他 App 分享的文本，并可注册为 Android 文本、配置文件及代码文件的“打开方式”；
 - GitHub Actions 自动构建 Runtime、Packer、GUI 和真实 React/Vite Demo。
 
-当前版本：`v0.2.14`<br>
+当前版本：`v0.2.15`<br>
 Android：`minSdk 23`，`targetSdk 35`
+
+## v0.2.15 更新
+
+- 针对 [Issue #3](https://github.com/lxw112190/lw.Web2Android/issues/3) 的返回键反馈，Android 13+ 接入系统返回回调，旧系统保留兼容处理；
+- 统一为“退出视频全屏 → 返回 WebView 历史 → 首页交给系统”，移除重复的按键拦截；
+- 随页面历史、SPA History/Hash 路由和全屏状态变化动态更新回调，并记录返回来源、处理分支与历史索引；不注入或伪造前端历史；
+- 防止新 Manifest 与旧 DEX 混用，升级必须同步替换本次发行的 `toolchain/runtime/` 和 `runtime-v6.zip`，其他未变更工具链组件可复用；
+- 新增 8 项返回策略测试、Manifest/Runtime 兼容性回归，以及 `samples/back-navigation/` 测试 APK；CI 已通过，Issue 原场景仍请反馈者复测。
 
 ## v0.2.14 更新
 
@@ -65,7 +73,7 @@ bin/lw.Web2Android.GUI.exe
 公开发行包包含：
 
 ```text
-lw-Web2Android-v0.2.14-windows-x64/
+lw-Web2Android-v0.2.15-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
@@ -380,8 +388,8 @@ Runtime 还会记录最终生效的 WebView 视口策略、屏幕像素/密度�
 推送 `v*` 标签时，完整 CI 成功后会自动创建 GitHub Release：
 
 ```bash
-git tag -a v0.2.14 -m "lw.Web2Android v0.2.14"
-git push origin v0.2.14
+git tag -a v0.2.15 -m "lw.Web2Android v0.2.15"
+git push origin v0.2.15
 ```
 
 ## 架构

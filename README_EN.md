@@ -34,8 +34,16 @@ Package a local static Web project—HTML, Vue, React, Vite, and similar—or a 
 - local Web apps can receive text shared by other apps and register as an Android handler for text, configuration, and source-code files;
 - GitHub Actions builds the Runtime, Packer, GUI, and a real React/Vite demo.
 
-Current version: `v0.2.14`<br>
+Current version: `v0.2.15`<br>
 Android: `minSdk 23`, `targetSdk 35`
+
+## What's new in v0.2.15
+
+- Addresses the system Back compatibility reported in [Issue #3](https://github.com/lxw112190/lw.Web2Android/issues/3): uses platform callbacks on Android 13+ and retains legacy support;
+- prioritizes exiting video fullscreen, then WebView history, then default system behavior at the root; removes duplicate key interception;
+- updates callbacks as page history, SPA History/Hash routes and fullscreen state change; logs decisions and history indices without inventing frontend history;
+- rejects pairing the new Manifest with an old DEX. Replace both `toolchain/runtime/` and `runtime-v6.zip` from this release; other unchanged toolchain components can be reused;
+- adds eight navigation-policy tests, Manifest/Runtime compatibility regression coverage, and a `samples/back-navigation/` test APK. CI passed; reporter confirmation of the original scenario is still needed.
 
 ## What's new in v0.2.14
 
@@ -65,7 +73,7 @@ bin/lw.Web2Android.GUI.exe
 The public distribution contains:
 
 ```text
-lw-Web2Android-v0.2.14-windows-x64/
+lw-Web2Android-v0.2.15-windows-x64/
 ├── bin/
 │   ├── lw.Web2Android.GUI.exe
 │   └── lw.Web2Android.exe
@@ -380,8 +388,8 @@ The demo APK has passed validation on a physical Android device. The pinned sour
 Pushing a `v*` tag creates a GitHub Release only after the full workflow passes:
 
 ```bash
-git tag -a v0.2.14 -m "lw.Web2Android v0.2.14"
-git push origin v0.2.14
+git tag -a v0.2.15 -m "lw.Web2Android v0.2.15"
+git push origin v0.2.15
 ```
 
 ## Architecture

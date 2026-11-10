@@ -47,15 +47,13 @@ This is the Windows x64 distribution of lw.Web2Android.
 
 ## Highlights
 
-- Fixes Android file-picker results returned through ClipData, including one image selected in multiple mode.
-- Reads and deduplicates Intent.data and ClipData while keeping the 20-file, content-URI-only safety policy.
-- Adds privacy-preserving result diagnostics and nine picker-result regression tests.
-- Existing HTML can keep its multiple attribute; the fix passed an OPPO Android 16 device test.
-- Uses readable temporary workspaces and automatically attempts a short temporary drive when Windows paths become risky.
-- Reports the exact initialization stage, environment, physical workspace, effective I/O root, and path lengths in the rotating log.
-- Validates the extracted Java runtime and Android ``sdkmanager`` before continuing.
-- Adds ``-KeepWorkDirectoryOnFailure`` for preserving downloads and extracted files during command-line troubleshooting.
-- Keeps GUI cleanup automatic and treats unavailable short-drive mapping as a non-fatal warning.
+- Addresses Issue #3 with Android 13+ system Back callbacks and legacy Android support.
+- Uses fullscreen exit, WebView history and default system behavior in that order; removes duplicate key interception.
+- Adds Back decision diagnostics, eight policy regression tests and a back-navigation sample APK.
+- Requires the matching new Runtime DEX and metadata. Replace toolchain/runtime and runtime-v6.zip together when upgrading.
+- CI validation passed; the original reporter's device scenario still needs confirmation.
+- SPA navigation must create browser history entries; component-only changes and replace operations do not create a previous page automatically.
+- Retains the existing image-picker, camera capture, download, rotating-log and toolchain-initialization improvements.
 
 ## Release identity
 

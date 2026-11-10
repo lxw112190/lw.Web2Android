@@ -1,4 +1,4 @@
-# Packer CLI 与 GUI（v0.2.14）
+# Packer CLI 与 GUI（v0.2.15）
 
 Packer 是 Windows C++17 程序。它读取 `project.json`，动态生成 Manifest、资源和 Runtime 配置，通过锁定版本的 AAPT2 生成不含 Web Assets 的资源 APK，再由 ApkAssembler 以 UTF-8 规范 ZIP Entry 一次性注入 Web Assets 与预编译 Runtime DEX，执行 `zipalign` 后使用 Package 独立身份签名并验证 APK。
 
@@ -26,6 +26,8 @@ Runtime 支持标准文件选择与 HTML `capture`：普通 `accept="image/*"` �
 首次使用可在 GUI 点击“初始化工具链”。公开包已包含 Temurin 17 JRE 与 Runtime；用户确认 Android SDK License 后，初始化器从官方源下载并校验锁定的 Android 组件，安装到当前应用目录的 `toolchain/`。下载临时文件会自动清理，后续构建直接复用，无需系统 Android SDK 或 JAVA_HOME。
 
 ## 使用
+
+v0.2.15 接入 Android 13+ 系统返回回调，并要求匹配的新 Runtime 能力元数据。升级时必须替换本次 CI 的 Runtime，不能把新 Packer 与旧 DEX 混用。发行包的 `samples/back-navigation/` 包含多页面及 SPA 返回测试 APK。
 
 v0.2.14 修复系统选择器仅通过 ClipData 返回文件时网页收不到选图结果的问题，支持双通道合并去重、最多 20 个 content URI、分类日志及回归测试，客户网页无需移除 `multiple`。
 
@@ -74,7 +76,7 @@ Packer 会在发布包当前目录自动创建 `logs` 文件夹；如果单独�
 
 `signing info` 只读取已有身份，不会自动创建新密钥。`signing export` 会在控制台关闭回显后要求输入并确认至少 8 个字符的密码，生成包含证书和私钥的标准 PKCS#12 备份；密码不会进入命令行或日志。目标文件已存在时命令会拒绝覆盖。请把备份和密码分开保管，丢失签名身份后将无法发布可覆盖安装的更新。
 
-GitHub Actions 使用统一的 `lw.Web2Android CI` workflow。CI 会从已安装 SDK 组装扁平最小工具链，检出固定版本的 `wechat-article-formatter`，构建真实 React/Vite `dist` 并生成 Demo APK；Remote、Unicode Assets、固定宽度网页、自定义图标与外部文本系统集成作为独立集成测试。CI 会拒绝反斜杠、重复条目、意外打入的 `project.json`、缺失的中文文件，以及 Runtime Schema、DEX 大小或 SHA-256 不一致，并验证相机 FileProvider 资源与无 `CAMERA` 权限策略。CLI、GUI、Runtime、初始化脚本、MIT License、Demo APK、发行元数据和总校验文件会合并到单个 `lw-Web2Android-v0.2.14-windows-x64` Artifact。公开发行包不重新分发 Android SDK。
+GitHub Actions 使用统一的 `lw.Web2Android CI` workflow。CI 会从已安装 SDK 组装扁平最小工具链，检出固定版本的 `wechat-article-formatter`，构建真实 React/Vite `dist` 并生成 Demo APK；Remote、Unicode Assets、固定宽度网页、自定义图标与外部文本系统集成作为独立集成测试。CI 会拒绝反斜杠、重复条目、意外打入的 `project.json`、缺失的中文文件，以及 Runtime Schema、DEX 大小或 SHA-256 不一致，并验证相机 FileProvider 资源与无 `CAMERA` 权限策略。CLI、GUI、Runtime、初始化脚本、MIT License、Demo APK、发行元数据和总校验文件会合并到单个 `lw-Web2Android-v0.2.15-windows-x64` Artifact。公开发行包不重新分发 Android SDK。
 
 ## project.json
 
